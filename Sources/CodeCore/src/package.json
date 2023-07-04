@@ -1,0 +1,20 @@
+{
+  "name": "codecore",
+  "version": "1.0.0",
+  "description": "",
+  "main": "codecore.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@livecodes/app": "github:lake-of-fire/livecodes"
+  },
+  "devDependencies": {
+    "@wwa/rollup-plugin-terser": "^1.0.1",
+    "@rollup/plugin-node-resolve": "^15.1.0",
+    "rollup": "^3.26.0"
+  }
+}

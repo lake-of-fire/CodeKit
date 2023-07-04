@@ -8,10 +8,9 @@ public class CodeMirrorViewModel: ObservableObject {
 
     internal var executeJS: ((JavascriptFunction, JavascriptCallback?) -> Void)!
 
-    @Published public var darkMode = false
-    @Published public var lineWrapping = false
-    @Published public var readOnly = false
-    @Published public var language: Language = .json
+    @Published public var  = false
+//    @Published public var darkMode = false
+//    @Published public var lineWrapping = false
 
     private func executeJSAsync<T>(f: JavascriptFunction) async throws -> T? {
         return try await withCheckedThrowingContinuation { continuation in

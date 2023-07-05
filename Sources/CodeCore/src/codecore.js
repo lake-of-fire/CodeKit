@@ -3,7 +3,6 @@ import { createPlayground } from 'livecodes';
 window.playground = null;
 
 createPlayground('#container', {
-//    template: 'react'
     lite: true,
     eager: true,
     params: {
@@ -14,4 +13,14 @@ createPlayground('#container', {
     exports.playground = window.playground;
 });
 
+let buildCode = () => {
+    
+}
+
+let runTests = () => {
+    
+}
+
 export let playground = window.playground;
+export let getCode = getCode
+export let runTests = runTests

@@ -24,13 +24,13 @@ let package = Package(
             ],
             exclude: [
                 "src/node_modules",
-                "src/editor.js",
-                "src/rollup.config.js",
+                "src/codecore.js",
+                "src/rollup.config.mjs",
                 "src/package.json",
                 "src/package-lock.json",
             ],
             resources: [
-                .copy("src/build")
+                .copy("src"),
             ]),
         .target(
             name: "CodeEditor",

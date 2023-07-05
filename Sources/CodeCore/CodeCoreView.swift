@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import UniformTypeIdentifiers
 
 #if canImport(AppKit)
     public typealias NativeView = NSViewRepresentable
@@ -8,10 +9,10 @@ import WebKit
 #endif
 
 @MainActor
-public struct CodeMirrorView: NativeView {
-    @ObservedObject public var viewModel: CodeMirrorViewModel
+public struct CodeCoreView: NativeView {
+    @ObservedObject public var viewModel: CodeCoreViewModel
 
-    public init(_ viewModel: CodeMirrorViewModel) {
+    public init(_ viewModel: CodeCoreViewModel) {
         self.viewModel = viewModel
     }
 
@@ -36,12 +37,12 @@ public struct CodeMirrorView: NativeView {
     private func createWebView(context: Context) -> WKWebView {
         let preferences = WKPreferences()
         let userController = WKUserContentController()
-        userController.add(context.coordinator, name: ScriptMessageName.codeMirrorDidReady)
-        userController.add(context.coordinator, name: ScriptMessageName.codeMirrorContentDidChange)
+        userController.add(context.coordinator, name: ScriptMessageName.codeCoreIsReady)
 
         let configuration = WKWebViewConfiguration()
         configuration.preferences = preferences
         configuration.userContentController = userController
+        configuration.setURLSchemeHandler(GenericFileURLSchemeHandler(), forURLScheme: "codekit")
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -51,52 +52,34 @@ public struct CodeMirrorView: NativeView {
         #elseif os(iOS)
             webView.isOpaque = false
         #endif
-
-        let indexURL = Bundle.module.url(
-            forResource: "index",
-            withExtension: "html",
-            subdirectory: "build"
-        )
-
-        let baseURL = Bundle.module.url(forResource: "build", withExtension: nil)
-        let data = try! Data.init(contentsOf: indexURL!)
-        webView.load(data, mimeType: "text/html", characterEncodingName: "utf-8", baseURL: baseURL!)
+        
+        if let baseURL = Bundle.module.url(forResource: "src", withExtension: nil), let indexURL = Bundle.module.url( forResource: "index", withExtension: "html", subdirectory: "src") {
+            let data = try! Data.init(contentsOf: indexURL)
+            webView.load(data, mimeType: "text/html", characterEncodingName: "utf-8", baseURL: baseURL)
+        }
         context.coordinator.webView = webView
         return webView
     }
 
     private func updateWebView(context: Context) {
-        context.coordinator.queueJavascriptFunction(
-            JavascriptFunction(
-                functionString: "CodeMirror.setDarkMode(value)",
-                args: ["value": viewModel.darkMode]
-            )
-        )
-        context.coordinator.queueJavascriptFunction(
-            JavascriptFunction(
-                functionString: "CodeMirror.setLineWrapping(value)",
-                args: ["value": viewModel.lineWrapping]
-            )
-        )
-        context.coordinator.queueJavascriptFunction(
-            JavascriptFunction(
-                functionString: "CodeMirror.setReadOnly(value)",
-                args: ["value": viewModel.readOnly]
-            )
-        )
-        context.coordinator.queueJavascriptFunction(
-            JavascriptFunction(
-                functionString: "CodeMirror.setLanguage(value)",
-                args: ["value": viewModel.language.rawValue]
-            )
-        )
+//        context.coordinator.enqueueJavascript(
     }
 
     public func makeCoordinator() -> Coordinator {
         let coordinator = Coordinator(parent: self, viewModel: viewModel)
-
-        viewModel.executeJS = { fn, cb in
-            coordinator.queueJavascriptFunction(fn, callback: cb)
+        
+        viewModel.asyncJavaScriptCaller = { (js, arguments, frame, world) -> Any? in
+            try await withCheckedThrowingContinuation { continuation in
+                let cb = { (result: Result<Any?, Error>) in
+                    switch result {
+                    case .success(let value):
+                        continuation.resume(returning: value)
+                    case .failure(let error):
+                        continuation.resume(throwing: error)
+                    }
+                }
+                coordinator.enqueueJavascript(JavascriptFunction(functionString: js, args: arguments ?? [:]), callback: cb)
+            }
         }
         return coordinator
     }
@@ -104,19 +87,19 @@ public struct CodeMirrorView: NativeView {
 
 @MainActor
 public class Coordinator: NSObject {
-    var parent: CodeMirrorView
-    var viewModel: CodeMirrorViewModel
+    var parent: CodeCoreView
+    var viewModel: CodeCoreViewModel
     var webView: WKWebView!
 
     private var pageLoaded = false
     private var pendingFunctions = [(JavascriptFunction, JavascriptCallback?)]()
 
-    init(parent: CodeMirrorView, viewModel: CodeMirrorViewModel) {
+    init(parent: CodeCoreView, viewModel: CodeCoreViewModel) {
         self.parent = parent
         self.viewModel = viewModel
     }
 
-    internal func queueJavascriptFunction(
+    internal func enqueueJavascript(
         _ function: JavascriptFunction,
         callback: JavascriptCallback? = nil
     ) {
@@ -174,13 +157,11 @@ extension Coordinator: WKScriptMessageHandler {
         didReceive message: WKScriptMessage
     ) {
         switch message.name {
-        case ScriptMessageName.codeMirrorDidReady:
+        case ScriptMessageName.codeCoreIsReady:
             pageLoaded = true
             callPendingFunctions()
-        case ScriptMessageName.codeMirrorContentDidChange:
-            parent.viewModel.onContentChange?()
         default:
-            print("CodeMirrorWebView receive \(message.name) \(message.body)")
+            print("receive \(message.name) \(message.body)")
         }
     }
 }
@@ -204,5 +185,33 @@ extension Coordinator: WKNavigationDelegate {
         withError error: Error
     ) {
         parent.viewModel.onLoadFailed?(error)
+    }
+}
+
+final class GenericFileURLSchemeHandler: NSObject, WKURLSchemeHandler {
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
+    
+    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+        guard let url = urlSchemeTask.request.url else { return }
+        let scheme = "codekit"
+        if url.absoluteString.hasPrefix("\(scheme)://"),
+           let path = url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+           let baseURL = Bundle.module.url(forResource: "src", withExtension: nil) {
+            let fileUrl = baseURL.appending(path: path)
+            let mimeType = mimeType(ofFileAtUrl: fileUrl)
+            if let data = try? Data(contentsOf: fileUrl) {
+                let response = HTTPURLResponse(
+                    url: url,
+                    mimeType: mimeType,
+                    expectedContentLength: data.count, textEncodingName: nil)
+                urlSchemeTask.didReceive(response)
+                urlSchemeTask.didReceive(data)
+                urlSchemeTask.didFinish()
+            }
+        }
+    }
+    
+    private func mimeType(ofFileAtUrl url: URL) -> String {
+        return UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
     }
 }

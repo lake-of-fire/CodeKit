@@ -3,9 +3,7 @@ import WebKit
 
 @MainActor
 public class CodeCIViewModel: ObservableObject {
-    public 
 
-    public init(
-    ) {
+    public init() {
     }
 }

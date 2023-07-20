@@ -2,12 +2,10 @@ import Foundation
 import SwiftUI
 import FilesProvider
 
-class WorkSpaceStorage: ObservableObject {
-    @Published var currentDirectory: FileItemRepresentable
-    @Published var expansionStates: [AnyHashable: Bool] = [:]
-    @Published var explorerIsBusy = false
-    @Published var editorIsBusy = false
-    @Published var remoteFingerprint: String? = nil
+public class WorkSpaceStorage: ObservableObject {
+    @Published public var currentDirectory: FileItemRepresentable
+    @Published public var explorerIsBusy = false
+    @Published public var editorIsBusy = false
 
     private var directoryMonitor = DirectoryMonitor()
     private var onDirectoryChangeAction: ((String) -> Void)? = nil
@@ -37,9 +35,6 @@ class WorkSpaceStorage: ObservableObject {
 
     var remoteConnected: Bool {
         !currentDirectory.url.starts(with: "file")
-    }
-    var remoteHost: String? {
-        URL(string: currentDirectory.url)?.host
     }
     var currentScheme: String? {
         URL(string: currentDirectory.url)?.scheme
@@ -79,122 +74,12 @@ class WorkSpaceStorage: ObservableObject {
         return fileURLWithSuffix(url: url, suffix: String(num))
     }
 
-    func connectToServer(
-        host: URL, authenticationMode: RemoteAuthenticationMode,
-        completionHandler: @escaping (Error?) -> Void
-    ) {
-        if isConnecting {
-            completionHandler(FSError.AlreadyConnectingToAHost)
-            return
-        }
-        isConnecting = true
-        _connectToServer(
-            host: host, authenticationMode: authenticationMode,
-            completionHandler: { error in
-                completionHandler(error)
-                self.isConnecting = false
-            })
-    }
-
-    private func _connectToServer(
-        host: URL, authenticationMode: RemoteAuthenticationMode,
-        completionHandler: @escaping (Error?) -> Void
-    ) {
-        switch host.scheme {
-        case "ftp", "ftps":
-            guard case .plainUsernamePassword(value: let credentials) = authenticationMode else {
-                completionHandler(FSError.UnsupportedAuthenticationMethod)
-                return
-            }
-            guard let fs = FTPFileSystemProvider(baseURL: host, cred: credentials) else {
-                completionHandler(FSError.InvalidHost)
-                return
-            }
-            fs.contentsOfDirectory(at: host) { urls, error in
-                if error != nil {
-                    completionHandler(error)
-                    return
-                }
-                self.fss[host.scheme!] = fs
-                self.updateDirectory(name: "FTP", url: host.absoluteString)
-                completionHandler(nil)
-            }
-        case "sftp":
-            guard
-                let credentials: URLCredential = {
-                    switch authenticationMode {
-                    case .inFileSSHKey(let credentials, _), .inMemorySSHKey(let credentials, _),
-                        .plainUsernamePassword(let credentials):
-                        return credentials
-                    }
-                }()
-            else {
-                completionHandler(FSError.UnsupportedAuthenticationMethod)
-                return
-            }
-
-            fs.connect(authentication: authenticationMode) { error in
-                if let error = error {
-                    completionHandler(error)
-                    return
-                }
-                guard let homePath = fs.homePath,
-                    let hostName = host.host,
-                    let baseURL = URL(string: "sftp://\(hostName)/\(homePath)")
-                else {
-                    completionHandler(FSError.Unknown)
-                    return
-                }
-                fs.contentsOfDirectory(at: baseURL) { urls, error in
-                    if error != nil {
-                        completionHandler(error)
-                        return
-                    }
-                    self.fss[host.scheme!] = fs
-                    self.updateDirectory(name: "SFTP", url: baseURL.absoluteString)
-
-                    if let fingerPrint = fs.fingerPrint {
-                        DispatchQueue.main.async {
-                            self.remoteFingerprint = fingerPrint
-                        }
-                    }
-                    completionHandler(nil)
-                }
-            }
-
-        default:
-            completionHandler(FSError.SchemeNotRegistered)
-            return
-        }
-    }
-
-    func disconnect() {
-        expansionStates.removeAll()
-        directoryStorage.removeAll()
-
-        fss[currentScheme!] = nil
-
-        let documentDir = getRootDirectory()
-        self.currentDirectory = FileItemRepresentable(
-            name: documentDir.lastPathComponent, url: documentDir.absoluteString, isDirectory: true)
-        self.requestDirectoryUpdateAt(id: documentDir.absoluteString)
-    }
-
-    func onTerminalData(_ action: @escaping (Data) -> Void) {
-        onTerminalDataAction = action
-    }
-
-    func onDirectoryChange(_ action: @escaping ((String) -> Void)) {
-        onDirectoryChangeAction = action
-    }
-
     /// Reload the whole directory and invalidate all existing cache
     func updateDirectory(name: String, url: String) {
         if url != currentDirectory.url {
             // Directory is updated
             directoryMonitor.removeAll()
             directoryStorage.removeAll()
-            expansionStates.removeAll()
             currentDirectory = FileItemRepresentable(name: name, url: url, isDirectory: true)
             requestDirectoryUpdateAt(id: url)
         } else {
@@ -335,13 +220,12 @@ class WorkSpaceStorage: ObservableObject {
 
             completionHandler(folders + files, nil)
         }
-
     }
 }
 
-extension WorkSpaceStorage {
+public extension WorkSpaceStorage {
     struct FileItemRepresentable: Identifiable {
-        var id: String {
+        public var id: String {
             self.url
         }
         var name: String
@@ -379,17 +263,12 @@ extension WorkSpaceStorage {
 }
 
 extension WorkSpaceStorage: FileSystemProvider {
-
     static var registeredScheme: String {
         "nil"
     }
 
     var gitServiceProvider: GitServiceProvider? {
         fs?.gitServiceProvider
-    }
-
-    var searchServiceProvider: SearchServiceProvider? {
-        fs?.searchServiceProvider
     }
 
     func write(

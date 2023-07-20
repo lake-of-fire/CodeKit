@@ -8,7 +8,9 @@ import OPML
 public actor CodeActor: ObservableObject {
     var configuration: Realm.Configuration
     
-    var realm: Realm {
+//    @MainActor @Published public var reposToBuild:
+    
+    private var realm: Realm {
         get async throws {
             try await Realm(configuration: configuration, actor: self)
         }
@@ -16,40 +18,7 @@ public actor CodeActor: ObservableObject {
     
     public init(realmConfiguration: Realm.Configuration) {
         configuration = realmConfiguration
-    }
-//    var count: Int {
-//        realm.objects(Todo.self).count
-//    }
-    
-//    func createTodo(name: String, owner: String, status: String) async throws {
-//        try await realm.asyncWrite {
-//            realm.create(Todo.self, value: [
-//                "_id": ObjectId.generate(),
-//                "name": name,
-//                "owner": owner,
-//                "status": status
-//            ])
-//        }
-//    }
-    
-//    func updateTodo(_id: ObjectId, name: String, owner: String, status: String) async throws {
-//        try await realm.asyncWrite {
-//            realm.create(Todo.self, value: [
-//                "_id": _id,
-//                "name": name,
-//                "owner": owner,
-//                "status": status
-//            ], update: .modified)
-//        }
-//    }
-//
-//    func deleteTodo(todo: Todo) async throws {
-//        try await realm.asyncWrite {
-//            realm.delete(todo)
-//        }
-//    }
-    
-    func close() {
+
     }
     
     public func generateRepositoryCollectionOPMLs() async throws -> [(String, URL)] {
@@ -90,51 +59,12 @@ public actor CodeActor: ObservableObject {
     }
 }
 
-public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
-    @Persisted(primaryKey: true) public var id = UUID()
-    @Persisted public var repositoryURL: String? = nil
-//    @Persisted public var name = ""
-//    @Persisted public var version = ""
-//    @Persisted public var packageDescription = ""
-//    @Persisted public var repositoryType: String? = nil
-//    @Persisted var repositoryDirectory: String? = nil
-    
-//    @Persisted var packageJSONDirectory: String? = nil
-    @Persisted public var isEnabled = true
-    
-    @Persisted(originProperty: "repositories") public var repositoryCollection: LinkingObjects<RepositoryCollection>
-    
-    @Persisted public var modifiedAt = Date()
-    @Persisted public var isDeleted = false
-    
-    public var needsSyncToServer: Bool { false }
-    
-    public override init() {
-        super.init()
-    }
-    
-    public var url: URL? {
-        guard let repositoryURL = repositoryURL, let url = URL(string: repositoryURL) else { return nil }
-        return url
-    }
-        
-    public var name: String {
-        return url?.deletingPathExtension().lastPathComponent ?? ""
-    }
-    
-    enum CodingKeys: CodingKey {
-        case id
-        case repositoryURL
-        case isEnabled
-        case modifiedAt
-        case isDeleted
-    }
-}
-
 public class RepositoryCollection: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
     @Persisted(primaryKey: true) public var id = UUID()
     @Persisted public var name = ""
     @Persisted public var repositories = RealmSwift.MutableSet<PackageRepository>()
+    
+    @Persisted public var last = Date()
     
     @Persisted public var modifiedAt = Date()
     @Persisted public var isDeleted = false

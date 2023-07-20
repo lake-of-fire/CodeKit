@@ -3,10 +3,10 @@ import CodeCore
 import RealmSwift
 
 public struct CodeCI: View {
-    @ObservedObject public var controller: CodeCIController
+    @ObservedObject public var ciActor: CodeCIActor
     
     @StateObject private var codeCoreViewModel = CodeCoreViewModel()
-    @ObservedResults(PackageRepository.self) private var packageRepos
+//    @ObservedResults(PackageRepository.self, where: { !$0.isDeleted && $0.isEnabled }) private var packageRepos
     
     public var body: some View {
         CodeCoreView(codeCoreViewModel)
@@ -15,7 +15,7 @@ public struct CodeCI: View {
             .allowsHitTesting(false)
     }
     
-    public init(controller: CodeCIController) {
-        self.controller = controller
+    public init(ciActor: CodeCIActor) {
+        self.ciActor = ciActor
     }
 }

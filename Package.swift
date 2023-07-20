@@ -24,14 +24,14 @@ let package = Package(
         .package(url: "https://github.com/lake-of-fire/opml", branch: "master"),
         .package(url: "https://github.com/lake-of-fire/FilePicker.git", branch: "main"),
         .package(url: "https://github.com/lake-of-fire/BigSyncKit.git", branch: "main"),
-        .package(url: "https://github.com/lake-of-fire/swiftui-webview.git", branch: "master"),
+        .package(url: "https://github.com/lake-of-fire/swiftui-webview.git", branch: "main"),
         .package(url: "https://github.com/satoshi-takano/OpenGraph.git", branch: "main"),
         .package(url: "https://github.com/lake-of-fire/RealmSwiftGaps.git", branch: "main"),
 //        .package(url: "https://github.com/Tunous/DebouncedOnChange.git", branch: "main"),
         .package(url: "https://github.com/lake-of-fire/SwiftUtilities.git", branch: "main"),
         .package(url: "https://github.com/lake-of-fire/SwiftUIDownloads.git", branch: "main"),
         .package(url: "https://github.com/amosavian/FileProvider.git", branch: "master"),
-        .package(url: "https://github.com/lake-of-fire/SwiftGit2.git", branch: "main"),
+        .package(url: "https://github.com/lake-of-fire/SwiftGit2.git", branch: "main"), // MBoxSpace/SwiftGit2 also interesting
     ],
     targets: [
         .target(
@@ -41,7 +41,7 @@ let package = Package(
                 .product(name: "RealmSwift", package: "realm-swift"),
                 .product(name: "BigSyncKit", package: "BigSyncKit"),
                 .product(name: "FilesProvider", package: "FileProvider"),
-//                .product(name: "SwiftGit2", package: "SwiftGit2"),
+                .product(name: "SwiftGit2", package: "SwiftGit2"),
             ],
             exclude: [
                 "src/node_modules",
@@ -62,6 +62,7 @@ let package = Package(
                 .product(name: "Realm", package: "realm-swift"),
                 .product(name: "RealmSwift", package: "realm-swift"),
                 .product(name: "RealmSwiftGaps", package: "RealmSwiftGaps"),
+                .product(name: "SwiftUIWebView", package: "swiftui-webview"),
                 .product(name: "SwiftUtilities", package: "SwiftUtilities"),
                 .product(name: "SwiftUIDownloads", package: "SwiftUIDownloads"),
 //                .product(name: "DebouncedOnChange", package: "DebouncedOnChange"),

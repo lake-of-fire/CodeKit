@@ -10,11 +10,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@livecodes/app": "github:lake-of-fire/livecodes"
+    "@livecodes/app": "github:lake-of-fire/livecodes",
+    "@rollup/plugin-typescript": "^11.1.2",
+    "typescript": "^5.1.6"
   },
   "devDependencies": {
-    "@wwa/rollup-plugin-terser": "^1.0.1",
     "@rollup/plugin-node-resolve": "^15.1.0",
+    "@wwa/rollup-plugin-terser": "^1.0.1",
     "rollup": "^3.26.0"
   }
 }

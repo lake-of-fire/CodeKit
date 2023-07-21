@@ -22,5 +22,5 @@ let runTests = () => {
 }
 
 export let playground = window.playground;
-export let getCode = getCode
-export let runTests = runTests
+//export let getCode = getCode
+//export let runTests = runTests

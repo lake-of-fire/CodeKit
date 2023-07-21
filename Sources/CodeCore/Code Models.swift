@@ -4,12 +4,12 @@ import RealmSwift
 import BigSyncKit
 import RealmSwiftGaps
 import OPML
+import Clibgit2
 
 public actor CodeActor: ObservableObject {
-    var configuration: Realm.Configuration
-    
 //    @MainActor @Published public var reposToBuild:
     
+    private var configuration: Realm.Configuration
     private var realm: Realm {
         get async throws {
             try await Realm(configuration: configuration, actor: self)
@@ -18,7 +18,11 @@ public actor CodeActor: ObservableObject {
     
     public init(realmConfiguration: Realm.Configuration) {
         configuration = realmConfiguration
-
+        git_libgit2_init()
+    }
+    
+    deinit {
+        git_libgit2_shutdown()
     }
     
     public func generateRepositoryCollectionOPMLs() async throws -> [(String, URL)] {

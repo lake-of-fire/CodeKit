@@ -2,13 +2,13 @@ import Foundation
 import SwiftUI
 import FilesProvider
 
-public class WorkSpaceStorage: ObservableObject {
+public class WorkspaceStorage: ObservableObject {
     @Published public var currentDirectory: FileItemRepresentable
     @Published public var explorerIsBusy = false
     @Published public var editorIsBusy = false
 
     private var directoryMonitor = DirectoryMonitor()
-    private var onDirectoryChangeAction: ((String) -> Void)? = nil
+    var onDirectoryChangeAction: ((String) -> Void)? = nil
     private var directoryStorage: [String: [(FileItemRepresentable)]] = [:]
     private var fss: [String: FileSystemProvider] = [:]
     private var isConnecting = false
@@ -32,10 +32,7 @@ public class WorkSpaceStorage: ObservableObject {
             NSLocalizedString(self.rawValue, comment: "")
         }
     }
-
-    var remoteConnected: Bool {
-        !currentDirectory.url.starts(with: "file")
-    }
+    
     var currentScheme: String? {
         URL(string: currentDirectory.url)?.scheme
     }
@@ -75,13 +72,14 @@ public class WorkSpaceStorage: ObservableObject {
     }
 
     /// Reload the whole directory and invalidate all existing cache
-    func updateDirectory(name: String, url: String) {
-        if url != currentDirectory.url {
+    func updateDirectory(url: URL) {
+        let urlStr = url.absoluteString
+        if urlStr != currentDirectory.url {
             // Directory is updated
             directoryMonitor.removeAll()
             directoryStorage.removeAll()
-            currentDirectory = FileItemRepresentable(name: name, url: url, isDirectory: true)
-            requestDirectoryUpdateAt(id: url)
+            currentDirectory = FileItemRepresentable(name: url.lastPathComponent, url: urlStr, isDirectory: true)
+            requestDirectoryUpdateAt(id: urlStr)
         } else {
             // Directory is not updated
             for key in directoryStorage.keys {
@@ -94,10 +92,14 @@ public class WorkSpaceStorage: ObservableObject {
 
             DispatchQueue.main.async {
                 withAnimation(.easeInOut) {
-                    self.currentDirectory = self.buildTree(at: url)
+                    self.currentDirectory = self.buildTree(at: urlStr)
                 }
             }
         }
+    }
+
+    func onDirectoryChange(_ action: @escaping ((String) -> Void)) {
+        onDirectoryChangeAction = action
     }
 
     /// Reload a specific subdirectory
@@ -223,7 +225,7 @@ public class WorkSpaceStorage: ObservableObject {
     }
 }
 
-public extension WorkSpaceStorage {
+public extension WorkspaceStorage {
     struct FileItemRepresentable: Identifiable {
         public var id: String {
             self.url
@@ -262,7 +264,7 @@ public extension WorkSpaceStorage {
     }
 }
 
-extension WorkSpaceStorage: FileSystemProvider {
+extension WorkspaceStorage: FileSystemProvider {
     static var registeredScheme: String {
         "nil"
     }
@@ -446,7 +448,7 @@ extension WorkSpaceStorage: FileSystemProvider {
     }
 }
 
-extension WorkSpaceStorage {
+extension WorkspaceStorage {
     func write(at: URL, content: Data, atomically: Bool, overwrite: Bool) async throws {
         return try await withCheckedThrowingContinuation { continuation in
             write(

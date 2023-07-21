@@ -1,4 +1,5 @@
 import { nodeResolve } from "@rollup/plugin-node-resolve";
+import { typescript } from "@rollup/plugin-typescript";
 import { terser } from "@wwa/rollup-plugin-terser";
 
 export default {
@@ -12,10 +13,14 @@ export default {
         globals: {
             livecodes: 'livecodes',
         },
-        plugins: [terser()],
+        plugins: [
+            terser(),
+            typescript(),
+            nodeResolve(),
+        ],
     },
     external: [
-        'livecodes',
+        //'livecodes',
     ],
     plugins: [nodeResolve()],
 };

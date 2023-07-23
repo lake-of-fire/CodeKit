@@ -12,6 +12,30 @@ import SwiftUtilities
 import CodeCore
 
 struct PackageRepositoryView: View {
+    @ObservedRealmObject var repo: PackageRepository
+    
+    var body: some View {
+        Form {
+            LabeledContent("Name", value: repo.name)
+            RealmTextField("Repository URL", object: repo, objectValue: $repo.repositoryURL)
+            Toggle("Extensions Enabled", isOn: $repo.isEnabled)
+            
+            Section("Extensions") {
+                ForEach(repo.codeExtensions) { ext in
+                    LabeledContent("Name", value: ext.name)
+                }
+            }
+        }
+        .onChange(of: repo.repositoryURL) { newURL in
+            if URL(string: newURL) == nil {
+                $repo.isEnabled.wrappedValue = false
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+struct MaybePackageRepositoryView: View {
     var repo: PackageRepository?
 
     var body: some View {
@@ -21,13 +45,10 @@ struct PackageRepositoryView: View {
         // macOS 13 Release Notes. (91311311)"
         ZStack {
             if let repo = repo {
-                ScrollView {
-                    Text(repo.name)
-                        .padding()
-                }
-                .navigationTitle(repo.name)
+                PackageRepositoryView(repo: repo)
+                    .navigationTitle(repo.name)
             } else {
-                Text("Choose a repository")
+                Text("Choose or add a repository")
                     .navigationTitle("")
             }
         }
@@ -147,7 +168,7 @@ public struct CodeLibraryView: View {
                 }
             }
         }, detail: {
-            PackageRepositoryView(repo: selectedRepo)
+            MaybePackageRepositoryView(repo: selectedRepo)
         })
 //        .navigationSplitViewStyle(.balanced)
 //        .environmentObject(viewModel)

@@ -2,7 +2,7 @@ import Foundation
 import RealmSwift
 
 public enum DefaultRealmConfiguration {
-    public static let schemaVersion: UInt64 = 2
+    public static let schemaVersion: UInt64 = 4
     
     public static var configuration: Realm.Configuration {
         var config = Realm.Configuration.defaultConfiguration
@@ -15,6 +15,7 @@ public enum DefaultRealmConfiguration {
         config.objectTypes = [
             PackageRepository.self,
             RepositoryCollection.self,
+            CodeExtension.self,
         ]
         return config
     }

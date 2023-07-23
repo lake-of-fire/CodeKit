@@ -1,5 +1,5 @@
 import { nodeResolve } from "@rollup/plugin-node-resolve";
-import { typescript } from "@rollup/plugin-typescript";
+import commonjs from '@rollup/plugin-commonjs';
 import { terser } from "@wwa/rollup-plugin-terser";
 
 export default {
@@ -9,18 +9,30 @@ export default {
         format: "iife",
         extend: true,
         name: "CodeCore",
-        exports: "named",
+        //exports: "named",
+        exports: "none",
+        externalLiveBindings: false,
         globals: {
             livecodes: 'livecodes',
         },
         plugins: [
             terser(),
-            typescript(),
-            nodeResolve(),
         ],
     },
     external: [
-        //'livecodes',
+        'livecodes',
     ],
-    plugins: [nodeResolve()],
+    plugins: [
+        nodeResolve({
+            browser: true,
+            ignoreGlobal: false,
+//            include: ['node_modules/**'],
+            moduleDirectories: ['node_modules'],
+            extensions: ['.ts', '.tsx', '.mjs', '.js', '.json'],
+//            exportConditions: ['node'],
+            preferBuiltins: false,
+//        rootDir: process.cwd()
+        }),
+//        commonjs(),
+    ],
 };

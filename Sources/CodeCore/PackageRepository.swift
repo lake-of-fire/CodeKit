@@ -18,6 +18,7 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
     @Persisted public var isEnabled = true
     
     @Persisted(originProperty: "repositories") public var repositoryCollection: LinkingObjects<RepositoryCollection>
+    @Persisted(originProperty: "repository") public var codeExtensions: LinkingObjects<CodeExtension>
     
     // Git UI states
     @MainActor @Published public var gitTracks: [URL: Diff.Status] = [:]
@@ -43,11 +44,11 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
                         return
                     }
                     let dir = directoryURL
-                    workspaceStorage.updateDirectory(url: dir.standardizedFileURL)
+                    workspaceStorage.updateDirectory(url: dir) //.standardizedFileURL)
                     workspaceStorage.onDirectoryChange { url in
-                        Task { [weak self] in try await self?.gitStatus() }
+                        Task { [weak self] in try await self?.loadRepository() }
                     }
-                    try await gitStatus()
+                    try await loadRepository()
                 }
             }
         }
@@ -67,12 +68,11 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
     }
     
     public var directoryURL: URL {
-        return getRootDirectory().appending(path: name + "-" + id.uuidString.suffix(6), directoryHint: .isDirectory)
+        return getRootDirectory().appending(component: name + "-" + id.uuidString.suffix(6), directoryHint: .isDirectory)
     }
     
-    @MainActor
-    var isRepositoryInitialized: Bool {
-        return gitTracks.count > 0 || !branch.isEmpty
+    @MainActor var isWorkspaceInitialized: Bool {
+        return workspaceStorage.currentDirectory.url == directoryURL.absoluteString && gitTracks.count > 0 || !branch.isEmpty
     }
     
     enum CodingKeys: CodingKey {
@@ -86,14 +86,73 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
 
 public extension PackageRepository {
     enum PackageRepositoryError: Error {
+        case repositoryLoadingFailed
         case missingGitServiceProvider
         case gitRepositoryInitializationError
     }
     
     @MainActor
+    private func loadRepository() async throws {
+        try await gitStatus()
+        
+        guard isWorkspaceInitialized, let currentDirectory = URL(string: workspaceStorage.currentDirectory.url) else {
+            throw PackageRepositoryError.repositoryLoadingFailed
+        }
+        var urls = [URL]()
+        for prefix in [".", ""] {
+            var extensionsDir = currentDirectory
+            var comps = CodeExtension.extensionsPathComponents
+            if !comps.isEmpty {
+                let first = comps.removeFirst()
+                comps = [(prefix + first)] + comps
+            }
+            for comp in CodeExtension.extensionsPathComponents {
+                extensionsDir.append(component: comp, directoryHint: .isDirectory)
+            }
+            
+            urls = try await workspaceStorage.contentsOfDirectory(at: extensionsDir)
+            if !urls.isEmpty {
+                break
+            }
+        }
+        let names = urls.map { $0.lastPathComponent }
+        guard let realm = realm else { return }
+        try await realm.asyncWrite {
+            let allExisting = realm.objects(CodeExtension.self).where { $0.repositoryURL == repositoryURL }
+            for ext in allExisting {
+                guard names.contains(ext.name) else {
+                    ext.isDeleted = true
+                    return
+                }
+                
+                if ext.repository != self {
+                    ext.repository = self
+                }
+            }
+            
+            let existingNames = Set(allExisting.map { $0.name })
+            for name in names {
+                if existingNames.contains(name) {
+                    continue
+                }
+                realm.create(CodeExtension.self, value: [
+                    "repositoryURL": self.repositoryURL,
+                    "name": name,
+                    "repository": self,
+                ], update: .modified)
+            }
+        }
+    }
+    
+    @MainActor
     private func createDirectoryIfNeeded(completionHandler: @escaping (Error?) -> Void) {
+        guard !name.isEmpty else {
+            completionHandler(PackageRepositoryError.gitRepositoryInitializationError)
+            return
+        }
         let dir = directoryURL
         Task { @MainActor in
+            print(dir)
             if try await !workspaceStorage.fileExists(at: dir) {
                 workspaceStorage.createDirectory(at: dir, withIntermediateDirectories: true, completionHandler: completionHandler)
             } else {
@@ -111,7 +170,7 @@ public extension PackageRepository {
                     completionHandler(error)
                     return
                 }
-                if isRepositoryInitialized {
+                if isWorkspaceInitialized {
                     workspaceStorage.gitServiceProvider?.loadDirectory(url: directoryURL.standardizedFileURL)
                     try await gitStatus()
                     completionHandler(nil)
@@ -186,25 +245,6 @@ public extension PackageRepository {
                     }
                 }
             }
-        }
-    }
-}
-
-fileprivate func walkDirectory(at url: URL, options: FileManager.DirectoryEnumerationOptions ) -> AsyncStream<URL> {
-    AsyncStream { continuation in
-        Task {
-            let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: nil, options: options)
-            
-            while let fileURL = enumerator?.nextObject() as? URL {
-                if fileURL.hasDirectoryPath {
-                    for await item in walkDirectory(at: fileURL, options: options) {
-                        continuation.yield(item)
-                    }
-                } else {
-                    continuation.yield( fileURL )
-                }
-            }
-            continuation.finish()
         }
     }
 }

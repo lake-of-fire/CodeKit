@@ -8,6 +8,10 @@ import Foundation
 
 public func getRootDirectory() -> URL {
     // We want ./private prefix because all other files have it
+    var dir = URL.documentsDirectory
+#if os(macOS)
+    dir = .homeDirectory
+#endif
     if let documentsPathURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
         .first
     {

@@ -34,17 +34,19 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
     @Persisted public var isDeleted = false
     public var needsSyncToServer: Bool { false }
     
+    var cachedRootDirectory: URL? = nil
+        
     @MainActor public lazy var workspaceStorage: WorkspaceStorage = {
         let workspaceStorage = WorkspaceStorage(url: getRootDirectory())
         Task { @MainActor in
-            createDirectoryIfNeeded { error in
+            createAndUpdateDirectoryIfNeeded { error in
                 Task { @MainActor [weak self] in
                     guard let self = self, error == nil else {
                         print(error?.localizedDescription ?? "")
                         return
                     }
                     let dir = directoryURL
-                    workspaceStorage.updateDirectory(url: dir) //.standardizedFileURL)
+                    await workspaceStorage.updateDirectory(url: dir) //.standardizedFileURL)
                     workspaceStorage.onDirectoryChange { url in
                         Task { [weak self] in try await self?.loadRepository() }
                     }
@@ -68,7 +70,7 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
     }
     
     public var directoryURL: URL {
-        return getRootDirectory().appending(component: name + "-" + id.uuidString.suffix(6), directoryHint: .isDirectory)
+        return getRootDirectory().appending(component: "Extensions").appending(component: name + "-" + id.uuidString.suffix(6), directoryHint: .isDirectory)
     }
     
     @MainActor var isWorkspaceInitialized: Bool {
@@ -81,6 +83,51 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
         case isEnabled
         case modifiedAt
         case isDeleted
+    }
+    
+    func getRootDirectory() -> URL {
+        if let cachedRootDirectory = cachedRootDirectory {
+            return cachedRootDirectory
+        }
+        // We want ./private prefix because all other files have it
+        //    var dir = URL.documentsDirectory
+        #if os(iOS)
+        let documentsPathURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)?.appending(component: "Documents", directoryHint: .isDirectory) ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        #else
+        let documentsPathURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)?.appending(component: "Documents", directoryHint: .isDirectory) ?? Optional(URL.homeDirectory)
+        #endif
+        if let documentsPathURL = documentsPathURL {
+            if (!FileManager.default.fileExists(atPath: documentsPathURL.path)) {
+                do {
+                    try FileManager.default.createDirectory(at: documentsPathURL, withIntermediateDirectories: true, attributes: nil)
+                } catch {
+                    print("Error in creating root directory for workspace storage")
+                }
+            }
+            
+#if targetEnvironment(simulator)
+            cachedRootDirectory = documentsPathURL
+            return documentsPathURL
+#else
+#if os(iOS)
+            if let standardURL = URL(
+                string: documentsPathURL.absoluteString.replacingOccurrences(
+                    of: "file:///", with: "file:///private/"))
+            {
+                cachedRootDirectory = standardURL
+                return standardURL
+            } else {
+                cachedRootDirectory = documentsPathURL
+                return documentsPathURL
+            }
+#else
+            cachedRootDirectory = documentsPathURL
+            return documentsPathURL
+#endif
+#endif
+        } else {
+            fatalError("Could not locate iCloud Documents Directory")
+        }
     }
 }
 
@@ -145,45 +192,92 @@ public extension PackageRepository {
     }
     
     @MainActor
-    private func createDirectoryIfNeeded(completionHandler: @escaping (Error?) -> Void) {
+    private func createAndUpdateDirectoryIfNeeded(completionHandler: @escaping (Error?) -> Void) {
         guard !name.isEmpty else {
             completionHandler(PackageRepositoryError.gitRepositoryInitializationError)
             return
         }
         let dir = directoryURL
         Task { @MainActor in
-            print(dir)
             if try await !workspaceStorage.fileExists(at: dir) {
-                workspaceStorage.createDirectory(at: dir, withIntermediateDirectories: true, completionHandler: completionHandler)
+                workspaceStorage.createDirectory(at: dir, withIntermediateDirectories: true) { maybeError in
+                    Task { @MainActor [weak self] in
+                        await self?.workspaceStorage.updateDirectory(url: dir)
+                        completionHandler(maybeError)
+                    }
+                }
             } else {
+                await workspaceStorage.updateDirectory(url: dir)
                 completionHandler(nil)
             }
         }
     }
     
     @MainActor
-    func cloneIfNeeded(completionHandler: @escaping (Error?) -> Void) {
-        createDirectoryIfNeeded { error in
+    func cloneOrPullIfNeeded(completionHandler: @escaping (Error?) -> Void) {
+        guard let repositoryURL = URL(string: repositoryURL) else {
+            completionHandler(PackageRepositoryError.repositoryLoadingFailed)
+            return
+        }
+        
+        createAndUpdateDirectoryIfNeeded { error in
             Task { @MainActor [weak self] in
                 guard let self = self, error == nil else {
                     print(error?.localizedDescription ?? "")
                     completionHandler(error)
                     return
                 }
+                
                 if isWorkspaceInitialized {
                     workspaceStorage.gitServiceProvider?.loadDirectory(url: directoryURL.standardizedFileURL)
                     try await gitStatus()
+                    try await pull()
                     completionHandler(nil)
                 } else {
-                    workspaceStorage.gitServiceProvider?.initialize(error: { error in
-                        print(error)
-                        completionHandler(PackageRepositoryError.gitRepositoryInitializationError)
-                    }) {
-                        Task { @MainActor [weak self] in
-                            try await self?.gitStatus()
-                            completionHandler(nil)
+                    workspaceStorage.gitServiceProvider?.clone(
+                        from: repositoryURL,
+                        to: directoryURL,
+                        progress: nil) { error in
+                            print(error)
+                            completionHandler(PackageRepositoryError.gitRepositoryInitializationError)
+                        } completionHandler: {
+                            Task { @MainActor [weak self] in
+                                try await self?.gitStatus()
+                                completionHandler(nil)
+                            }
                         }
+                }
+            }
+        }
+    }
+    
+    @MainActor
+    func pull() async throws {
+        return try await withCheckedThrowingContinuation { continuation in
+           workspaceStorage.gitServiceProvider?.fetch(error: {
+                print($0.localizedDescription)
+                continuation.resume(throwing: $0)
+            }) {
+                Task { @MainActor [weak self] in
+                    guard let self = self else {
+                        continuation.resume(throwing: PackageRepositoryError.repositoryLoadingFailed)
+                        return
                     }
+                    try await gitStatus()
+                    continuation.resume()
+                    
+                    workspaceStorage.gitServiceProvider?.checkout(
+                        remoteBranchName: remote + "/" + branch,
+                        detached: false,
+                        error: {
+                            print($0.localizedDescription)
+                            continuation.resume(throwing: $0)
+                        }) {
+                            Task { @MainActor [weak self] in
+                                try await self?.gitStatus()
+                                continuation.resume()
+                            }
+                        }
                 }
             }
         }
@@ -204,8 +298,9 @@ public extension PackageRepository {
         }
 
         return try await withCheckedThrowingContinuation { continuation in
-            workspaceStorage.gitServiceProvider?.status(error: { _ in
+            workspaceStorage.gitServiceProvider?.status(error: { error in
                 clearState()
+                continuation.resume(throwing: error)
             }) { indexed, worktree, branch in
                 guard let hasRemote = self.workspaceStorage.gitServiceProvider?.hasRemote() else {
                     continuation.resume(with: .failure(PackageRepositoryError.missingGitServiceProvider))

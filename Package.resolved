@@ -1,0 +1,158 @@
+{
+  "pins" : [
+    {
+      "identity" : "bigsynckit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/lake-of-fire/BigSyncKit.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "9f79ee8cceaf436391ab142a6000512716aeb609"
+      }
+    },
+    {
+      "identity" : "clibgit2",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/allotropeinc/Clibgit2.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "d3f3033d6ab2a8aee5740576a604a1d3ba75e714"
+      }
+    },
+    {
+      "identity" : "elva",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/L1MeN9Yu/Elva.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "9cd193dd5f0df430726256ab5d6aa08455f5d39b"
+      }
+    },
+    {
+      "identity" : "filepicker",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/lake-of-fire/FilePicker.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "4e445870eb07ae9c1e1aeedbb9b1098eaaabfb69"
+      }
+    },
+    {
+      "identity" : "fileprovider",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/amosavian/FileProvider.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "abf68a62541a4193c8d106367ddb3648e8ab693f"
+      }
+    },
+    {
+      "identity" : "opengraph",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/satoshi-takano/OpenGraph.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "7a76976df4625c599f2685e376291669d841d369"
+      }
+    },
+    {
+      "identity" : "opml",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/lake-of-fire/opml",
+      "state" : {
+        "branch" : "master",
+        "revision" : "ae3c16303dc63f4ce0e717e82c8c82c47d76aefd"
+      }
+    },
+    {
+      "identity" : "realm-core",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/realm/realm-core.git",
+      "state" : {
+        "revision" : "f1e962cd447f8b69f8f7cf46a188b1c6246923c5",
+        "version" : "13.17.0"
+      }
+    },
+    {
+      "identity" : "realm-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/realm/realm-swift.git",
+      "state" : {
+        "revision" : "0155caac1a0830a9fbaaffe5866b909fad3a6fc4",
+        "version" : "10.41.1"
+      }
+    },
+    {
+      "identity" : "realmswiftgaps",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/lake-of-fire/RealmSwiftGaps.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "ebd50dafbea902ad2c18e3df69448672eada6f05"
+      }
+    },
+    {
+      "identity" : "swift-html",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/hallee/swift-html.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "d28317dd348a266c444deba046da33f0421667df"
+      }
+    },
+    {
+      "identity" : "swift-snapshot-testing",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-snapshot-testing.git",
+      "state" : {
+        "revision" : "dc46eeb3928a75390651fac6c1ef7f93ad59a73b",
+        "version" : "1.11.1"
+      }
+    },
+    {
+      "identity" : "swiftgit2",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/lake-of-fire/SwiftGit2.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "7e3a4afdc162fd75cfbddd1539506d45ec2cdbbc"
+      }
+    },
+    {
+      "identity" : "swiftui-webview",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/lake-of-fire/swiftui-webview.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "0ca02661d03279bb7bc45596ce67a52f5d55d86e"
+      }
+    },
+    {
+      "identity" : "swiftuidownloads",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/lake-of-fire/SwiftUIDownloads.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "608d2e0b107bd30bf2c6c46bdbe80d07ef52c665"
+      }
+    },
+    {
+      "identity" : "swiftutilities",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/lake-of-fire/SwiftUtilities.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "a39caec744894d1ed8f7862330f1d696578f2d70"
+      }
+    },
+    {
+      "identity" : "zipfoundation",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/weichsel/ZIPFoundation.git",
+      "state" : {
+        "branch" : "development",
+        "revision" : "22bfd0ad22e1b2057088180e8e9c66e204755098"
+      }
+    }
+  ],
+  "version" : 2
+}

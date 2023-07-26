@@ -72,27 +72,34 @@ public class WorkspaceStorage: ObservableObject {
     }
 
     /// Reload the whole directory and invalidate all existing cache
-    func updateDirectory(url: URL) {
-        let urlStr = url.absoluteString
-        if urlStr != currentDirectory.url {
-            // Directory is updated
-            directoryMonitor.removeAll()
-            directoryStorage.removeAll()
-            currentDirectory = FileItemRepresentable(name: url.lastPathComponent, url: urlStr, isDirectory: true)
-            requestDirectoryUpdateAt(id: urlStr)
-        } else {
-            // Directory is not updated
-            for key in directoryStorage.keys {
-                loadURL(
-                    url: key,
-                    completionHandler: { items, error in
-                        self.directoryStorage[key] = items
-                    })
-            }
-
-            DispatchQueue.main.async {
-                withAnimation(.easeInOut) {
-                    self.currentDirectory = self.buildTree(at: urlStr)
+    @MainActor
+    func updateDirectory(url: URL) async {
+        return await withCheckedContinuation { continuation in
+            let urlStr = url.absoluteString
+            if urlStr != currentDirectory.url {
+                // Directory is updated
+                directoryMonitor.removeAll()
+                directoryStorage.removeAll()
+                currentDirectory = FileItemRepresentable(name: url.lastPathComponent, url: urlStr, isDirectory: true)
+                requestDirectoryUpdateAt(id: urlStr) {
+                    continuation.resume(with: .success(()))
+                }
+            } else {
+                // Directory is not updated
+                for key in directoryStorage.keys {
+                    // TODO: Wait on these to complete too
+                    loadURL(
+                        url: key,
+                        completionHandler: { items, error in
+                            self.directoryStorage[key] = items
+                        })
+                }
+                
+                DispatchQueue.main.async {
+                    withAnimation(.easeInOut) {
+                        self.currentDirectory = self.buildTree(at: urlStr)
+                        continuation.resume(with: .success(()))
+                    }
                 }
             }
         }
@@ -103,8 +110,9 @@ public class WorkspaceStorage: ObservableObject {
     }
 
     /// Reload a specific subdirectory
-    func requestDirectoryUpdateAt(id: String, forceUpdate: Bool = false) {
+    func requestDirectoryUpdateAt(id: String, forceUpdate: Bool = false, completion: (() -> Void)? = nil) {
         guard forceUpdate || !directoryStorage.keys.contains(id) else {
+            if let completion = completion { completion() }
             return
         }
         if !directoryMonitor.keys.contains(id) && id.hasPrefix("file://") {
@@ -118,12 +126,14 @@ public class WorkspaceStorage: ObservableObject {
             url: id,
             completionHandler: { items, error in
                 guard let items = items else {
+                    if let completion = completion { completion() }
                     return
                 }
                 self.directoryStorage[id] = items
                 DispatchQueue.main.async {
                     withAnimation(.easeInOut) {
                         self.currentDirectory = self.buildTree(at: self.currentDirectory.url)
+                        if let completion = completion { completion() }
                     }
                 }
             })

@@ -57,7 +57,6 @@ extension Diff.Status {
 }
 
 class LocalGitServiceProvider: GitServiceProvider {
-
     private var workingURL: URL
     private var repository: Repository? = nil
     private var signature: Signature? = nil
@@ -79,6 +78,7 @@ class LocalGitServiceProvider: GitServiceProvider {
     }
 
     func loadDirectory(url: URL) {
+        print("### loadDir \(url.absoluteString)")
         contentCache.removeAllObjects()
         newAndIgnored.removeAll()
 
@@ -536,19 +536,19 @@ class LocalGitServiceProvider: GitServiceProvider {
                 error(err)
                 return
             }
-            guard self.credential != nil else {
-                let err = NSError(
-                    domain: "", code: 401,
-                    userInfo: [NSLocalizedDescriptionKey: "Credentials are not configured"])
-                error(err)
-                return
-            }
+//            guard self.credential != nil else {
+//                let err = NSError(
+//                    domain: "", code: 401,
+//                    userInfo: [NSLocalizedDescriptionKey: "Credentials are not configured"])
+//                error(err)
+//                return
+//            }
             let result = self.repository!.allRemotes()
             switch result {
             case let .success(remotes):
                 for remote in remotes {
                     if remote.name == "origin" {
-                        let result = self.repository!.fetch(remote, credentials: self.credential!)
+                        let result = self.repository!.fetch(remote, credentials: self.credential ?? .default)
                         switch result {
                         case .success:
                             completionHandler()

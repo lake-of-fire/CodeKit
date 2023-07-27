@@ -15,8 +15,26 @@ createPlayground('#container', {
     exports.playground = window.playground;
 });
 
-window.buildCode = () => {
-    console.log("build")
+window.buildCode = async (id, markupLanguage, markupContent, styleLanguage, styleContent, scriptLanguage, scriptContent) => {
+    await playground.load();
+    await window.playground.setConfig({
+        markup: {
+            language: markupLanguage,
+            content: markupContent,
+        },
+        style: {
+            language: styleLanguage,
+            content: styleContent,
+        },
+        script: {
+            language: scriptLanguage,
+            content: scriptContent,
+        },
+    });
+    let code = await playground.getCode();
+    let resultPageHTML = code.result;
+    return "Hello world"
+    return resultPageHTML;
 }
 
 window.runTests = () => {

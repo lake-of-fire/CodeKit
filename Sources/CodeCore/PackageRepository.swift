@@ -35,9 +35,9 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
     public var needsSyncToServer: Bool { false }
     
     var cachedRootDirectory: URL? = nil
-        
+    
     @MainActor public lazy var workspaceStorage: WorkspaceStorage = {
-        let workspaceStorage = WorkspaceStorage(url: getRootDirectory())
+        let workspaceStorage = WorkspaceStorage(url: directoryURL)
         Task { @MainActor in
             createAndUpdateDirectoryIfNeeded { error in
                 Task { @MainActor [weak self] in
@@ -140,8 +140,42 @@ public extension PackageRepository {
     
     @MainActor
     private func loadRepository() async throws {
-        try await gitStatus()
+        let extensionNames = try await extensionNamesFromFiles()
         
+        guard let realm = realm else { return }
+        try await realm.asyncWrite {
+            let allExisting = realm.objects(CodeExtension.self).where { $0.repositoryURL == repositoryURL }
+            for ext in allExisting {
+                guard extensionNames.contains(ext.name) else {
+                    ext.isDeleted = true
+                    if let directoryURL = ext.directoryURL {
+                        workspaceStorage.removeItem(at: directoryURL) { _ in }
+                    }
+                    return
+                }
+                
+                if ext.repository != self {
+                    ext.repository = self
+                }
+            }
+            
+            let existingNames = Set(allExisting.map { $0.name })
+            for name in extensionNames {
+                if existingNames.contains(name) {
+                    continue
+                }
+                realm.create(CodeExtension.self, value: [
+                    "repositoryURL": self.repositoryURL,
+                    "name": name,
+                    "repository": self,
+                ] as [String: Any], update: .modified)
+            }
+        }
+    }
+    
+    @MainActor
+    func listExtensionFiles() async throws -> [URL] {
+        try await gitStatus()
         guard isWorkspaceInitialized, let currentDirectory = URL(string: workspaceStorage.currentDirectory.url) else {
             throw PackageRepositoryError.repositoryLoadingFailed
         }
@@ -157,38 +191,25 @@ public extension PackageRepository {
                 extensionsDir.append(component: comp, directoryHint: .isDirectory)
             }
             
-            urls = try await workspaceStorage.contentsOfDirectory(at: extensionsDir)
+            do {
+                urls = try await workspaceStorage.contentsOfDirectory(at: extensionsDir)
+            } catch {
+                continue
+            }
             if !urls.isEmpty {
                 break
             }
         }
-        let names = urls.map { $0.lastPathComponent }
-        guard let realm = realm else { return }
-        try await realm.asyncWrite {
-            let allExisting = realm.objects(CodeExtension.self).where { $0.repositoryURL == repositoryURL }
-            for ext in allExisting {
-                guard names.contains(ext.name) else {
-                    ext.isDeleted = true
-                    return
-                }
-                
-                if ext.repository != self {
-                    ext.repository = self
-                }
-            }
-            
-            let existingNames = Set(allExisting.map { $0.name })
-            for name in names {
-                if existingNames.contains(name) {
-                    continue
-                }
-                realm.create(CodeExtension.self, value: [
-                    "repositoryURL": self.repositoryURL,
-                    "name": name,
-                    "repository": self,
-                ], update: .modified)
-            }
-        }
+        return urls
+    }
+    
+    @MainActor
+    func extensionNamesFromFiles() async throws -> Set<String> {
+        print("get urls \(await workspaceStorage.currentDirectory.url)")
+        let urls = try await listExtensionFiles()
+        print("got em...")
+        print(Set<String>(urls.map { $0.deletingPathExtension().lastPathComponent }))
+        return Set<String>(urls.map { $0.deletingPathExtension().lastPathComponent })
     }
     
     @MainActor
@@ -219,7 +240,7 @@ public extension PackageRepository {
             completionHandler(PackageRepositoryError.repositoryLoadingFailed)
             return
         }
-        
+        print("### clone or pull if needed")
         createAndUpdateDirectoryIfNeeded { error in
             Task { @MainActor [weak self] in
                 guard let self = self, error == nil else {
@@ -227,25 +248,33 @@ public extension PackageRepository {
                     completionHandler(error)
                     return
                 }
+        print("### clone or pull if needed \(url?.absoluteString): loadDirectory")
+                workspaceStorage.gitServiceProvider?.loadDirectory(url: directoryURL.standardizedFileURL)
                 
-                if isWorkspaceInitialized {
-                    workspaceStorage.gitServiceProvider?.loadDirectory(url: directoryURL.standardizedFileURL)
+                do {
+        print("### clone or pull if needed: git status")
                     try await gitStatus()
-                    try await pull()
-                    completionHandler(nil)
-                } else {
-                    workspaceStorage.gitServiceProvider?.clone(
-                        from: repositoryURL,
-                        to: directoryURL,
-                        progress: nil) { error in
-                            print(error)
-                            completionHandler(PackageRepositoryError.gitRepositoryInitializationError)
-                        } completionHandler: {
-                            Task { @MainActor [weak self] in
-                                try await self?.gitStatus()
-                                completionHandler(nil)
+                    
+        print("### clone or pull if needed: git status complete")
+                    if isWorkspaceInitialized {
+                        try await pull()
+                        completionHandler(nil)
+                    } else {
+                        workspaceStorage.gitServiceProvider?.clone(
+                            from: repositoryURL,
+                            to: directoryURL,
+                            progress: nil) { error in
+                                print(error)
+                                completionHandler(PackageRepositoryError.gitRepositoryInitializationError)
+                            } completionHandler: {
+                                Task { @MainActor [weak self] in
+                                    try await self?.gitStatus()
+                                    completionHandler(nil)
+                                }
                             }
-                        }
+                    }
+                } catch {
+                    completionHandler(error)
                 }
             }
         }
@@ -264,7 +293,6 @@ public extension PackageRepository {
                         return
                     }
                     try await gitStatus()
-                    continuation.resume()
                     
                     workspaceStorage.gitServiceProvider?.checkout(
                         remoteBranchName: remote + "/" + branch,

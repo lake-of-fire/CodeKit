@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import FilesProvider
 
+@MainActor
 public class WorkspaceStorage: ObservableObject {
     @Published public var currentDirectory: FileItemRepresentable
     @Published public var explorerIsBusy = false
@@ -241,7 +242,7 @@ public extension WorkspaceStorage {
             self.url
         }
         var name: String
-        var url: String
+        public var url: String
         var subFolderItems: [FileItemRepresentable]?
         var isDownloading = false
         var isFolder: Bool {

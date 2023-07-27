@@ -27,11 +27,10 @@ public actor CodeCIActor: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     @MainActor private var buildTask: Task<(), Error>?
     
-//    enum CodeCIError: Error {
-//        case repositoryLoadingFailed
-//        case missingGitServiceProvider
-//        case gitRepositoryInitializationError
-//    }
+    enum CodeCIError: Error {
+        case unknownError
+    }
+    
     public init(realmConfiguration: Realm.Configuration) {
         configuration = realmConfiguration
         Task { await wireRepos() }
@@ -47,15 +46,14 @@ public actor CodeCIActor: ObservableObject {
                 case .initial(let results):
                     let ref = ThreadSafeReference(to: results)
                     Task { @MainActor [weak self] in
-                        guard let results = try? await self?.realm.resolve(ref) else { return }
-                        print("Gonna build for \(results)")
-                        try? await self?.buildIfNeeded(repos: Array(results))
+                        guard let self = self, let results = try? await realm.resolve(ref) else { return }
+                        buildIfNeeded(repos: Array(results))
                     }
                 case .update(let results, let deletions, let insertions, let modifications):
                     let ref = ThreadSafeReference(to: results)
                     Task { @MainActor [weak self] in
-                        guard let results = try? await self?.realm.resolve(ref) else { return }
-                        try? await self?.buildIfNeeded(repos: Set(insertions + modifications).map { results[$0] })
+                        guard let self = self, let results = try? await realm.resolve(ref) else { return }
+                        buildIfNeeded(repos: Set(insertions + modifications).map { results[$0] })
                     }
                 case .error(let error):
                     print(error)
@@ -63,38 +61,86 @@ public actor CodeCIActor: ObservableObject {
             }
             .store(in: &cancellables)
     }
-    
+   
     @MainActor
-    func buildIfNeeded(repo: PackageRepository) async throws {
-        return try await withCheckedThrowingContinuation { continuation in
-            Task { @MainActor in
-                try Task.checkCancellation()
-                let ref = ThreadSafeReference(to: repo)
-                repo.cloneOrPullIfNeeded { [weak self] error in
-                    if let error = error {
-                        print(error)
-                        continuation.resume(throwing: error)
-                        return
-                    }
-                    Task { [weak self] in
-                        try Task.checkCancellation()
-                        guard let self = self else { return }
-                        guard let repo = try await realm.resolve(ref) else { return }
-                        
-                        //                codeCoreViewModel
-                    }
-                }
-            }
-        }
-    }
-
-    @MainActor
-    func buildIfNeeded(repos: [PackageRepository]) async throws {
+    func buildIfNeeded(repos: [PackageRepository]) {
         buildTask?.cancel()
         buildTask = Task { @MainActor [weak self] in
             for repo in repos {
                 try? await self?.buildIfNeeded(repo: repo)
             }
         }
+    }
+    
+    @MainActor
+    func buildIfNeeded(repo: PackageRepository) async throws {
+        
+        print("### build if need \(repo.name)- \(repo.workspaceStorage.currentDirectory.url)")
+        return try await withCheckedThrowingContinuation { continuation in
+            let ref = ThreadSafeReference(to: repo)
+            repo.cloneOrPullIfNeeded { [weak self] error in
+                if let error = error {
+                    print(error)
+                    continuation.resume(throwing: error)
+                    return
+                }
+                Task { [weak self] in
+                    print("### build if need \(repo.name): task1 - \(repo.workspaceStorage.currentDirectory.url)")
+                    do {
+                        try Task.checkCancellation()
+                    } catch {
+                        continuation.resume(throwing: CodeCIError.unknownError)
+                        return
+                    }
+                    
+                    do {
+                        guard let self = self, let repo = try await realm.resolve(ref) else {
+                            continuation.resume(throwing: CodeCIError.unknownError)
+                            return
+                        }
+                        print("### build if need \(repo.name): task1b - \(repo.workspaceStorage.currentDirectory.url)")
+
+                        let names = try await repo.extensionNamesFromFiles()
+                        for extensionName in names {
+                            guard let codeExtension = repo.codeExtensions.where({ $0.name == extensionName }).first else {
+                                print("Warning: Couldn't find CodeExtension matching \(repo.name) \(extensionName)")
+                                continue
+                            }
+                            
+                            try await build(codeExtension: codeExtension)
+                        }
+                        continuation.resume(returning: ())
+                    } catch {
+                        print(error)
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+        }
+    }
+
+    func build(codeExtension: CodeExtension) async throws {
+                    //                codeCoreViewModel
+        let buildDirectoryURL = try await codeExtension.createBuildDirectoryIfNeeded()
+        let sourcePackage = try await codeExtension.readSources()
+        let resultPageHTML = try await codeCoreViewModel.callAsyncJavaScript(
+            """
+            await window.buildCode(
+                id,
+                markupLanguage, markupContent,
+                styleLanguage, styleContent,
+                scriptLanguage, scriptContent)
+            """,
+            arguments: [
+                "id": codeExtension.id.uuidString,
+                "markupLanguage": sourcePackage.markup?.language ?? "html",
+                "markupContent": sourcePackage.markup?.content ?? "",
+                "styleLanguage": sourcePackage.style?.language ?? "css",
+                "styleContent": sourcePackage.style?.content ?? "",
+                "scriptLanguage": sourcePackage.script.language,
+                "scriptContent": sourcePackage.script.content,
+            ])
+        print(resultPageHTML)
+        print()
     }
 }

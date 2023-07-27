@@ -5,7 +5,7 @@ import BigSyncKit
 import RealmSwiftGaps
 import SwiftGit2
 
-public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifiable  {
+public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifiable, GitRepositoryProtocol {
     @Persisted(primaryKey: true) public var id = UUID()
     @Persisted public var repositoryURL = ""
 //    @Persisted public var name = ""
@@ -36,7 +36,7 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
     
     var cachedRootDirectory: URL? = nil
     
-    @MainActor public lazy var workspaceStorage: WorkspaceStorage = {
+    @MainActor public lazy var workspaceStorage: WorkspaceStorage? = {
         let workspaceStorage = WorkspaceStorage(url: directoryURL)
         Task { @MainActor in
             createAndUpdateDirectoryIfNeeded { error in
@@ -74,6 +74,7 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
     }
     
     @MainActor var isWorkspaceInitialized: Bool {
+        guard let workspaceStorage = workspaceStorage else { return false }
         return workspaceStorage.currentDirectory.url == directoryURL.absoluteString && gitTracks.count > 0 || !branch.isEmpty
     }
     
@@ -134,7 +135,6 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
 public extension PackageRepository {
     enum PackageRepositoryError: Error {
         case repositoryLoadingFailed
-        case missingGitServiceProvider
         case gitRepositoryInitializationError
     }
     
@@ -142,33 +142,37 @@ public extension PackageRepository {
     private func loadRepository() async throws {
         let extensionNames = try await extensionNamesFromFiles()
         
-        guard let realm = realm else { return }
-        try await realm.asyncWrite {
-            let allExisting = realm.objects(CodeExtension.self).where { $0.repositoryURL == repositoryURL }
-            for ext in allExisting {
-                guard extensionNames.contains(ext.name) else {
+        guard let realm = realm, let workspaceStorage = workspaceStorage else { return }
+        let allExisting = realm.objects(CodeExtension.self).where { $0.repositoryURL == repositoryURL }
+        for ext in allExisting {
+            guard extensionNames.contains(ext.name) else {
+                try! realm.write {
                     ext.isDeleted = true
-                    if let directoryURL = ext.directoryURL {
-                        workspaceStorage.removeItem(at: directoryURL) { _ in }
-                    }
-                    return
                 }
-                
-                if ext.repository != self {
+                if let directoryURL = ext.directoryURL {
+                    workspaceStorage.removeItem(at: directoryURL) { _ in }
+                }
+                return
+            }
+            
+            if ext.repository != self {
+                try! realm.write {
                     ext.repository = self
                 }
             }
-            
-            let existingNames = Set(allExisting.map { $0.name })
-            for name in extensionNames {
-                if existingNames.contains(name) {
-                    continue
+        }
+        
+        let existingNames = Set(allExisting.map { $0.name })
+        let newNames = extensionNames.subtracting(existingNames)
+        if !newNames.isEmpty {
+            try! realm.write {
+                for name in newNames {
+                    realm.create(CodeExtension.self, value: [
+                        "repositoryURL": self.repositoryURL,
+                        "name": name,
+                        "repository": self,
+                    ] as [String: Any], update: .modified)
                 }
-                realm.create(CodeExtension.self, value: [
-                    "repositoryURL": self.repositoryURL,
-                    "name": name,
-                    "repository": self,
-                ] as [String: Any], update: .modified)
             }
         }
     }
@@ -176,7 +180,7 @@ public extension PackageRepository {
     @MainActor
     func listExtensionFiles() async throws -> [URL] {
         try await gitStatus()
-        guard isWorkspaceInitialized, let currentDirectory = URL(string: workspaceStorage.currentDirectory.url) else {
+        guard let workspaceStorage = workspaceStorage, isWorkspaceInitialized, let currentDirectory = URL(string: workspaceStorage.currentDirectory.url) else {
             throw PackageRepositoryError.repositoryLoadingFailed
         }
         var urls = [URL]()
@@ -205,10 +209,7 @@ public extension PackageRepository {
     
     @MainActor
     func extensionNamesFromFiles() async throws -> Set<String> {
-        print("get urls \(await workspaceStorage.currentDirectory.url)")
         let urls = try await listExtensionFiles()
-        print("got em...")
-        print(Set<String>(urls.map { $0.deletingPathExtension().lastPathComponent }))
         return Set<String>(urls.map { $0.deletingPathExtension().lastPathComponent })
     }
     
@@ -220,10 +221,11 @@ public extension PackageRepository {
         }
         let dir = directoryURL
         Task { @MainActor in
+            guard let workspaceStorage = workspaceStorage else { return }
             if try await !workspaceStorage.fileExists(at: dir) {
                 workspaceStorage.createDirectory(at: dir, withIntermediateDirectories: true) { maybeError in
                     Task { @MainActor [weak self] in
-                        await self?.workspaceStorage.updateDirectory(url: dir)
+                        await self?.workspaceStorage?.updateDirectory(url: dir)
                         completionHandler(maybeError)
                     }
                 }
@@ -240,22 +242,18 @@ public extension PackageRepository {
             completionHandler(PackageRepositoryError.repositoryLoadingFailed)
             return
         }
-        print("### clone or pull if needed")
         createAndUpdateDirectoryIfNeeded { error in
             Task { @MainActor [weak self] in
-                guard let self = self, error == nil else {
+                guard let self = self, error == nil, let workspaceStorage = workspaceStorage else {
                     print(error?.localizedDescription ?? "")
                     completionHandler(error)
                     return
                 }
-        print("### clone or pull if needed \(url?.absoluteString): loadDirectory")
                 workspaceStorage.gitServiceProvider?.loadDirectory(url: directoryURL.standardizedFileURL)
                 
                 do {
-        print("### clone or pull if needed: git status")
                     try await gitStatus()
                     
-        print("### clone or pull if needed: git status complete")
                     if isWorkspaceInitialized {
                         try await pull()
                         completionHandler(nil)
@@ -283,7 +281,7 @@ public extension PackageRepository {
     @MainActor
     func pull() async throws {
         return try await withCheckedThrowingContinuation { continuation in
-           workspaceStorage.gitServiceProvider?.fetch(error: {
+           workspaceStorage?.gitServiceProvider?.fetch(error: {
                 print($0.localizedDescription)
                 continuation.resume(throwing: $0)
             }) {
@@ -294,7 +292,7 @@ public extension PackageRepository {
                     }
                     try await gitStatus()
                     
-                    workspaceStorage.gitServiceProvider?.checkout(
+                    workspaceStorage?.gitServiceProvider?.checkout(
                         remoteBranchName: remote + "/" + branch,
                         detached: false,
                         error: {
@@ -306,66 +304,6 @@ public extension PackageRepository {
                                 continuation.resume()
                             }
                         }
-                }
-            }
-        }
-    }
-    
-    @MainActor
-    func gitStatus() async throws {
-        func clearState() {
-            remote = ""
-            branch = ""
-            gitTracks = [:]
-            indexedResources = [:]
-            workingResources = [:]
-        }
-
-        if workspaceStorage.gitServiceProvider == nil {
-            clearState()
-        }
-
-        return try await withCheckedThrowingContinuation { continuation in
-            workspaceStorage.gitServiceProvider?.status(error: { error in
-                clearState()
-                continuation.resume(throwing: error)
-            }) { indexed, worktree, branch in
-                guard let hasRemote = self.workspaceStorage.gitServiceProvider?.hasRemote() else {
-                    continuation.resume(with: .failure(PackageRepositoryError.missingGitServiceProvider))
-                    return
-                }
-                
-                Task { @MainActor in
-                    let indexedDictionary = Dictionary(uniqueKeysWithValues: indexed)
-                    let workingDictionary = Dictionary(uniqueKeysWithValues: worktree)
-                    
-                    if hasRemote {
-                        self.remote = "origin"
-                    } else {
-                        self.remote = ""
-                    }
-                    self.branch = branch
-                    self.indexedResources = indexedDictionary
-                    self.workingResources = workingDictionary
-                    
-                    self.gitTracks = indexedDictionary.merging(
-                        workingDictionary,
-                        uniquingKeysWith: { current, _ in
-                            current
-                        })
-                    
-                    self.workspaceStorage.gitServiceProvider?.aheadBehind(error: { error in
-                        print(error.localizedDescription)
-                        Task { @MainActor in
-                            self.aheadBehind = nil
-                            continuation.resume(with: .failure(error))
-                        }
-                    }) { result in
-                        Task { @MainActor in
-                            self.aheadBehind = result
-                            continuation.resume(with: .success(()))
-                        }
-                    }
                 }
             }
         }

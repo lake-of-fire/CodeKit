@@ -5,7 +5,7 @@ import BigSyncKit
 import RealmSwiftGaps
 import SwiftGit2
 
-public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable  {
+public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable, GitRepositoryProtocol {
     /// Do not prepend dot. Checks both dot-prepended and as-is automatically and in that order.
     public static var extensionsPathComponents = [String]()
     
@@ -19,13 +19,25 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     @Persisted public var isDeleted = false
     public var needsSyncToServer: Bool { false }
     
+    // Git UI states
+    @MainActor @Published public var gitTracks: [URL: Diff.Status] = [:]
+    @MainActor @Published public var indexedResources: [URL: Diff.Status] = [:]
+    @MainActor @Published public var workingResources: [URL: Diff.Status] = [:]
+    @MainActor @Published public var branch: String = ""
+    @MainActor @Published public var remote: String = ""
+    @MainActor @Published public var commitMessage: String = ""
+    @MainActor @Published public var isSyncing: Bool = false
+    @MainActor @Published public var aheadBehind: (Int, Int)? = nil
     @MainActor private var cachedWorkspaceStorage: WorkspaceStorage? = nil
+    
     @MainActor public var workspaceStorage: WorkspaceStorage? {
         get {
             if let cachedWorkspaceStorage = cachedWorkspaceStorage {
                 return cachedWorkspaceStorage
             }
-            guard let repo = repository, repo.isWorkspaceInitialized, let directoryURL = directoryURL else { return nil }
+            guard let repo = repository, repo.isWorkspaceInitialized, let directoryURL = directoryURL else {
+                return nil
+            }
             let workspaceStorage = WorkspaceStorage(url: directoryURL)
             workspaceStorage.onDirectoryChange { url in
 //                Task { [weak self] in try await self?.loadFromWorkspace() }
@@ -136,12 +148,16 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
                 return
             }
             let buildURL = directoryURL.appending(component: "build")
-            workspaceStorage?.createDirectory(at: buildURL, withIntermediateDirectories: false) { error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: buildURL)
+            if let workspaceStorage = workspaceStorage {
+                workspaceStorage.createDirectory(at: buildURL, withIntermediateDirectories: false) { error in
+                    if let error = error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: buildURL)
+                    }
                 }
+            } else {
+                continuation.resume(throwing: CodeExtensionError.unknownError)
             }
         }
     }

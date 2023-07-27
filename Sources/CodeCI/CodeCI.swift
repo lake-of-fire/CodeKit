@@ -15,8 +15,10 @@ let _ = Self._printChanges()
             .allowsHitTesting(false)
         
         ForEach(repos) { repo in
-            CodeCIRepository(repo: repo, workspaceStorage: repo.workspaceStorage) {
-                try? await ciActor.buildIfNeeded(repos: [repo])
+            if let workspaceStorage = repo.workspaceStorage {
+                CodeCIRepository(repo: repo, workspaceStorage: workspaceStorage) {
+                    try? await ciActor.buildIfNeeded(repos: [repo])
+                }
             }
         }
 //        .environmentObject(codeCoreViewModel)

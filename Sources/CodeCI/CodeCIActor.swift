@@ -75,7 +75,6 @@ public actor CodeCIActor: ObservableObject {
     @MainActor
     func buildIfNeeded(repo: PackageRepository) async throws {
         
-        print("### build if need \(repo.name)- \(repo.workspaceStorage.currentDirectory.url)")
         return try await withCheckedThrowingContinuation { continuation in
             let ref = ThreadSafeReference(to: repo)
             repo.cloneOrPullIfNeeded { [weak self] error in
@@ -85,7 +84,6 @@ public actor CodeCIActor: ObservableObject {
                     return
                 }
                 Task { [weak self] in
-                    print("### build if need \(repo.name): task1 - \(repo.workspaceStorage.currentDirectory.url)")
                     do {
                         try Task.checkCancellation()
                     } catch {
@@ -98,7 +96,6 @@ public actor CodeCIActor: ObservableObject {
                             continuation.resume(throwing: CodeCIError.unknownError)
                             return
                         }
-                        print("### build if need \(repo.name): task1b - \(repo.workspaceStorage.currentDirectory.url)")
 
                         let names = try await repo.extensionNamesFromFiles()
                         for extensionName in names {

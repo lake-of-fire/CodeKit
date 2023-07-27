@@ -349,7 +349,7 @@ extension WorkspaceStorage: FileSystemProvider {
         return fs.createDirectory(
             at: at, withIntermediateDirectories: withIntermediateDirectories
         ) { error in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 completionHandler(error)
             }
         }

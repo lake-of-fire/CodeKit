@@ -2,11 +2,11 @@
 
 //import { createPlayground } from 'codekit:///livecodes';
 
-//import { createPlayground } from 'livecodes';
+import { createPlayground } from 'livecodes';
 
 //let playgroundLoadedPromise = new Promise((resolve, reject) => {
 //    return createPlayground('#container', {
-let playgroundPromise = livecodes.createPlayground('#container', {
+let playgroundPromise = createPlayground('#container', {
     appUrl: 'codekit:///livecodes/',
     lite: true,
     eager: true,

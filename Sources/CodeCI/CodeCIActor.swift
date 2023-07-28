@@ -74,7 +74,6 @@ public actor CodeCIActor: ObservableObject {
     
     @MainActor
     func buildIfNeeded(repo: PackageRepository) async throws {
-        
         return try await withCheckedThrowingContinuation { continuation in
             let ref = ThreadSafeReference(to: repo)
             repo.cloneOrPullIfNeeded { [weak self] error in
@@ -99,8 +98,7 @@ public actor CodeCIActor: ObservableObject {
 
                         let names = try await repo.extensionNamesFromFiles()
                         for extensionName in names {
-                            print(repo.codeExtensions)
-                            guard let codeExtension = repo.codeExtensions.where({ $0.name == extensionName }).first else {
+                            guard let codeExtension = repo.codeExtensions.where({ $0.name == extensionName && !$0.isDeleted }).first else {
                                 print("Warning: Couldn't find CodeExtension matching \(repo.name) \(extensionName)")
                                 continue
                             }
@@ -125,13 +123,11 @@ public actor CodeCIActor: ObservableObject {
         let resultPageHTML = try await codeCoreViewModel.callAsyncJavaScript(
             """
             await window.buildCode(
-                id,
                 markupLanguage, markupContent,
                 styleLanguage, styleContent,
                 scriptLanguage, scriptContent)
             """,
             arguments: [
-                "id": codeExtension.id.uuidString,
                 "markupLanguage": sourcePackage.markup?.language ?? "html",
                 "markupContent": sourcePackage.markup?.content ?? "",
                 "styleLanguage": sourcePackage.style?.language ?? "css",

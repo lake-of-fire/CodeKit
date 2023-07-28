@@ -142,22 +142,23 @@ public extension PackageRepository {
     private func loadRepository() async throws {
         let extensionNames = try await extensionNamesFromFiles()
         
-        guard let realm = realm, let workspaceStorage = workspaceStorage else { return }
-        let allExisting = realm.objects(CodeExtension.self).where { $0.repositoryURL == repositoryURL }
+        guard let realm = (realm?.isFrozen ?? false) ? realm?.thaw() : realm, let workspaceStorage = workspaceStorage else { return }
+        let allExisting = realm.objects(CodeExtension.self).where { $0.repositoryURL == repositoryURL && !$0.isDeleted }
         for ext in allExisting {
             guard extensionNames.contains(ext.name) else {
                 try! realm.write {
                     ext.isDeleted = true
                 }
-                if let directoryURL = ext.directoryURL {
-                    workspaceStorage.removeItem(at: directoryURL) { _ in }
+                if let builtResultPageURL = ext.builtResultPageURL {
+                    try? await workspaceStorage.removeItem(at: builtResultPageURL)
                 }
                 return
             }
             
             if ext.repository != self {
                 try! realm.write {
-                    ext.repository = self
+                    let repo = isFrozen ? thaw() : self
+                    ext.repository = repo
                 }
             }
         }
@@ -180,9 +181,11 @@ public extension PackageRepository {
     @MainActor
     func listExtensionFiles() async throws -> [URL] {
         try await gitStatus()
+        
         guard let workspaceStorage = workspaceStorage, isWorkspaceInitialized, let currentDirectory = URL(string: workspaceStorage.currentDirectory.url) else {
             throw PackageRepositoryError.repositoryLoadingFailed
         }
+        
         var urls = [URL]()
         for prefix in [".", ""] {
             var extensionsDir = currentDirectory
@@ -197,6 +200,7 @@ public extension PackageRepository {
             
             do {
                 urls = try await workspaceStorage.contentsOfDirectory(at: extensionsDir)
+                    .filter { CodeExtension.isValidExtension(fileURL: $0) }
             } catch {
                 continue
             }
@@ -249,11 +253,11 @@ public extension PackageRepository {
                     completionHandler(error)
                     return
                 }
-                workspaceStorage.gitServiceProvider?.loadDirectory(url: directoryURL.standardizedFileURL)
                 
-                do {
-                    try await gitStatus()
+                workspaceStorage.gitServiceProvider?.loadDirectory(url: directoryURL.standardizedFileURL)
+                try? await gitStatus()
                     
+                do {
                     if isWorkspaceInitialized {
                         try await pull()
                         completionHandler(nil)
@@ -294,6 +298,7 @@ public extension PackageRepository {
                     
                     workspaceStorage?.gitServiceProvider?.checkout(
                         remoteBranchName: remote + "/" + branch,
+//                        localBranchName: branch,
                         detached: false,
                         error: {
                             print($0.localizedDescription)
@@ -301,7 +306,7 @@ public extension PackageRepository {
                         }) {
                             Task { @MainActor [weak self] in
                                 try await self?.gitStatus()
-                                continuation.resume()
+                                continuation.resume(returning: ())
                             }
                         }
                 }

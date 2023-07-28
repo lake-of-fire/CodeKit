@@ -23,9 +23,9 @@
         <script src="livecodes/sdk/livecodes.umd.js"></script>
         <script src="build/codecore.bundle.js"></script>
         <script>
-            //if (window.webkit) {
-                //window.webkit.messageHandlers.codeCoreIsReady.postMessage(null);
-            //}
+            if (window.webkit) {
+                window.webkit.messageHandlers.codeCoreIsReady.postMessage(null);
+            }
         </script>
     </body>
 </html>

@@ -61,6 +61,15 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
         return baseURL
     }
     
+    public var buildDirectoryURL: URL? {
+        return directoryURL?.appending(component: "build", directoryHint: .isDirectory)
+    }
+    
+    public var builtResultPageURL: URL? {
+        return buildDirectoryURL?.appending(component: name + ".html")
+    }
+
+    
     enum CodeExtensionError: Error {
         case unknownError
     }
@@ -69,6 +78,11 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
             public var language: String
             public let content: String
             
+            init(language: String, content: String) {
+                self.language = language
+                self.content = content
+            }
+                
             init?(scriptFileURL: URL) {
 //                if scriptFileURL.pathExtension == "js" {
 //                    do {
@@ -85,10 +99,10 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
 //                        }
 //                    } catch { }
 //                }
-                if let language = scriptFileExtensions[scriptFileURL.pathExtension] {
-                    self.language = language
+                if scriptFileURL.isFileURL, let language = scriptFileExtensions[scriptFileURL.pathExtension] {
                     do {
-                        content = try String(contentsOfFile: scriptFileURL.path())
+                        let content = try String(contentsOfFile: scriptFileURL.standardizedFileURL.path(percentEncoded: false), encoding: .utf8)
+                        self = Source(language: language, content: content)
                         return
                     } catch { return nil }
                 }
@@ -96,10 +110,10 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
             }
             
             init?(styleFileURL: URL) {
-                if let language = styleFileExtensions[styleFileURL.pathExtension] {
-                    self.language = language
+                if styleFileURL.isFileURL, let language = styleFileExtensions[styleFileURL.pathExtension] {
                     do {
-                        content = try String(contentsOfFile: styleFileURL.path())
+                        let content = try String(contentsOfFile: styleFileURL.standardizedFileURL.path(percentEncoded: false), encoding: .utf8)
+                        self = Source(language: language, content: content)
                         return
                     } catch { return nil }
                 }
@@ -107,10 +121,10 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
             }
             
             init?(markupFileURL: URL) {
-                if let language = markupFileExtensions[markupFileURL.pathExtension] {
-                    self.language = language
+                if markupFileURL.isFileURL, let language = markupFileExtensions[markupFileURL.pathExtension] {
                     do {
-                        content = try String(contentsOfFile: markupFileURL.path())
+                        let content = try String(contentsOfFile: markupFileURL.standardizedFileURL.path(percentEncoded: false), encoding: .utf8)
+                        self = Source(language: language, content: content)
                         return
                     } catch { return nil }
                 }
@@ -144,39 +158,28 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     
     @MainActor
     public func createBuildDirectoryIfNeeded() async throws -> URL {
-        return try await withCheckedThrowingContinuation { continuation in
-            guard let directoryURL = directoryURL else {
-                continuation.resume(throwing: CodeExtensionError.unknownError)
-                return
-            }
-            let buildURL = directoryURL.appending(component: "build")
-            if let workspaceStorage = workspaceStorage {
-                workspaceStorage.createDirectory(at: buildURL, withIntermediateDirectories: false) { error in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume(returning: buildURL)
-                    }
-                }
-            } else {
-                continuation.resume(throwing: CodeExtensionError.unknownError)
-            }
+        guard let buildDirectoryURL = buildDirectoryURL, let workspaceStorage = workspaceStorage else {
+            throw CodeExtensionError.unknownError
         }
+        if try await !workspaceStorage.fileExists(at: buildDirectoryURL) {
+            try await workspaceStorage.createDirectory(at: buildDirectoryURL, withIntermediateDirectories: true)
+        }
+        return buildDirectoryURL
     }
     
     @MainActor
     public func readSources() async throws -> CodeExtension.ExtensionPackage {
-//        let targetURLs = urls.filter { $0.deletingPathExtension().lastPathComponent == name }
         guard let directoryURL = directoryURL, let workspaceStorage = workspaceStorage else {
             throw CodeExtensionError.unknownError
         }
-        
-        let targetURLs = try await workspaceStorage.contentsOfDirectory(at: directoryURL)
+        let candidateURLs = try await workspaceStorage.contentsOfDirectory(at: directoryURL)
+        let targetURLs = candidateURLs
             .filter {
-                $0.deletingPathExtension().lastPathComponent == name
+                return $0.deletingPathExtension().lastPathComponent == name
             }
-        
-        guard let script = targetURLs.compactMap({ CodeExtension.ExtensionPackage.Source(scriptFileURL: $0) }).first else {
+        guard let script = targetURLs.compactMap({
+            CodeExtension.ExtensionPackage.Source(scriptFileURL: $0)
+        }).first else {
             throw CodeExtensionError.unknownError
         }
         let style = targetURLs.compactMap { CodeExtension.ExtensionPackage.Source(styleFileURL: $0) }.first
@@ -189,6 +192,12 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
             script: script)
     }
 
+    public static func isValidExtension(fileURL: URL) -> Bool {
+        guard fileURL.isFileURL else { return false }
+        let pathExtension = fileURL.pathExtension
+        return scriptFileExtensions.contains(where: { $0.key == pathExtension }) || styleFileExtensions.contains(where: { $0.key == pathExtension }) || markupFileExtensions.contains(where: { $0.key == pathExtension })
+    }
+    
     enum CodingKeys: CodingKey {
         case id
         case repositoryURL

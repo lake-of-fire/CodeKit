@@ -28,6 +28,7 @@ public class CodeCoreViewModel: ObservableObject {
     public func callAsyncJavaScript(_ js: String, arguments: [String: Any]? = nil) async throws -> Any? {
         // TODO: Should instead error if nil
         guard let asyncJavaScriptCaller = asyncJavaScriptCaller else { return nil }
-        return try await asyncJavaScriptCaller(js, arguments, nil, .defaultClient)
+//        return try await asyncJavaScriptCaller(js, arguments, nil, .defaultClient)
+        return try await asyncJavaScriptCaller(js, arguments, nil, .page)
     }
 }

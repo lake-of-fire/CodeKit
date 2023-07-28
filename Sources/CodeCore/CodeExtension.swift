@@ -32,10 +32,12 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     
     @MainActor public var workspaceStorage: WorkspaceStorage? {
         get {
+            guard !name.isEmpty && !repositoryURL.isEmpty else { return nil }
             if let cachedWorkspaceStorage = cachedWorkspaceStorage {
                 return cachedWorkspaceStorage
             }
-            guard let repo = repository, repo.isWorkspaceInitialized, let directoryURL = directoryURL else {
+//            guard let repo = repository, repo.isWorkspaceInitialized, let directoryURL = directoryURL else {
+            guard let directoryURL = directoryURL else {
                 return nil
             }
             let workspaceStorage = WorkspaceStorage(url: directoryURL)
@@ -56,7 +58,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
         for component in Self.extensionsPathComponents {
             baseURL.append(component: component, directoryHint: .isDirectory)
         }
-        return baseURL.appending(component: name)
+        return baseURL
     }
     
     enum CodeExtensionError: Error {

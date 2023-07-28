@@ -78,7 +78,6 @@ class LocalGitServiceProvider: GitServiceProvider {
     }
 
     func loadDirectory(url: URL) {
-        print("### loadDir \(url.absoluteString)")
         contentCache.removeAllObjects()
         newAndIgnored.removeAll()
 

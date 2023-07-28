@@ -99,6 +99,7 @@ public actor CodeCIActor: ObservableObject {
 
                         let names = try await repo.extensionNamesFromFiles()
                         for extensionName in names {
+                            print(repo.codeExtensions)
                             guard let codeExtension = repo.codeExtensions.where({ $0.name == extensionName }).first else {
                                 print("Warning: Couldn't find CodeExtension matching \(repo.name) \(extensionName)")
                                 continue
@@ -116,6 +117,7 @@ public actor CodeCIActor: ObservableObject {
         }
     }
 
+    @MainActor
     func build(codeExtension: CodeExtension) async throws {
                     //                codeCoreViewModel
         let buildDirectoryURL = try await codeExtension.createBuildDirectoryIfNeeded()

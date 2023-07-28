@@ -122,10 +122,15 @@ public actor CodeCIActor: ObservableObject {
         let sourcePackage = try await codeExtension.readSources()
         let resultPageHTML = try await codeCoreViewModel.callAsyncJavaScript(
             """
-            await window.buildCode(
-                markupLanguage, markupContent,
-                styleLanguage, styleContent,
-                scriptLanguage, scriptContent)
+            return new Promise(resolve => {
+                (async () => {
+                    let result = await window.buildCode(
+                        markupLanguage, markupContent,
+                        styleLanguage, styleContent,
+                        scriptLanguage, scriptContent);
+                    resolve(result);
+                })();
+            });
             """,
             arguments: [
                 "markupLanguage": sourcePackage.markup?.language ?? "html",

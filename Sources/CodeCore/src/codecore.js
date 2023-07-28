@@ -6,32 +6,32 @@
 
 //let playgroundLoadedPromise = new Promise((resolve, reject) => {
 //    return createPlayground('#container', {
-let playgroundLoadedPromise = livecodes.createPlayground('#container', {
+let playgroundPromise = livecodes.createPlayground('#container', {
     appUrl: 'codekit:///livecodes/',
     lite: true,
     eager: true,
     params: {
-        
     },
-})
-    .catch(error => {
-        console.log("hi error");
-        console.log(error)
-    })
-    .then((playground) => {
-        console.log("hi3");
-        window.playground = playground;
+});
+//    .then((playground) => {
+//        console.log("hi3");
+//        window.playground = playground;
 //        exports.playground = window.playground;
 //        resolve(playground)
-    });
-window.playgroundLoadedPromise = playgroundLoadedPromise;
+//    });
+//window.playgroundLoadedPromise = playgroundLoadedPromise;
 //});
 
 window.buildCode = async (markupLanguage, markupContent, styleLanguage, styleContent, scriptLanguage, scriptContent) => {
-        console.log("hi1");
-    let buildCode = async () => {
-        console.log("hi2");
-        let playground = window.playground;
+//    let buildCode = async () => {
+        console.log("play?")
+//        let playground = window.playground;
+        console.log(playgroundPromise);
+        let playground = await playgroundPromise;
+        console.log("Hmm");
+        console.log(playground);
+        return "Hello world";
+        
         await playground.load();
         await playground.setConfig({
             markup: { language: markupLanguage, content: markupContent },
@@ -40,12 +40,11 @@ window.buildCode = async (markupLanguage, markupContent, styleLanguage, styleCon
         });
         let code = await playground.getCode();
         let resultPageHTML = code.result;
-        return "Hello world";
         return resultPageHTML;
-    };
+//    };
     
-    await playgroundLoadedPromise;
-    return await buildCode(playground);
+//    await playgroundLoadedPromise;
+//    return await buildCode(playground);
     
 //    return await playgroundLoadedPromise.then((playground) => {
 //        (async () => {

@@ -122,6 +122,7 @@ public class Coordinator: NSObject {
         function: JavascriptFunction,
         callback: JavascriptCallback? = nil
     ) {
+        /*
         // not sure why but callAsyncJavaScript always callback with result of nil
         if let callback = callback {
             webView.evaluateJavaScript(function.functionString) { (response, error) in
@@ -133,7 +134,7 @@ public class Coordinator: NSObject {
                 }
             }
         }
-        else {
+        else {*/
             webView.callAsyncJavaScript(
                 function.functionString,
                 arguments: function.args,
@@ -147,7 +148,7 @@ public class Coordinator: NSObject {
                     callback?(.success(data))
                 }
             }
-        }
+//        }
     }
 }
 

@@ -4,14 +4,18 @@
 
 import { createPlayground } from 'livecodes';
 
-//let playgroundLoadedPromise = new Promise((resolve, reject) => {
-//    return createPlayground('#container', {
-let playgroundPromise = createPlayground('#container', {
-    appUrl: 'codekit:///livecodes/',
-    lite: true,
-    eager: true,
-    params: {
-    },
+let playgroundPromise = new Promise((resolve, reject) => {
+    createPlayground('#container', {
+        //let playgroundPromise = createPlayground('#container', {
+        appUrl: 'codekit:///livecodes/',
+        lite: true,
+        eager: true,
+        params: {
+        },
+    })
+    .then(playground => {
+        resolve(playground)
+    });
 });
 //    .then((playground) => {
 //        console.log("hi3");

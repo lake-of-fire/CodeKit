@@ -53,7 +53,7 @@ public struct CodeCoreView: NativeView {
             webView.isOpaque = false
         #endif
         
-        if let indexURL = Bundle.module.url(forResource: "index", withExtension: "html", subdirectory: "src"), let webViewBaseURL = URL(string: "codekit:///") {
+        if let indexURL = Bundle.module.url(forResource: "index", withExtension: "html", subdirectory: "src"), let webViewBaseURL = URL(string: "codekit://codekit/") {
             let data = try! Data.init(contentsOf: indexURL)
             webView.load(data, mimeType: "text/html", characterEncodingName: "utf-8", baseURL: webViewBaseURL)
         }

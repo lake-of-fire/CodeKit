@@ -10,9 +10,9 @@ public struct CodeCI: View {
     public var body: some View {
 let _ = Self._printChanges()
         CodeCoreView(ciActor.codeCoreViewModel)
-            .opacity(0)
-            .frame(maxWidth: 0.00001, maxHeight: 0.00001)
-            .allowsHitTesting(false)
+//            .opacity(0)
+//            .frame(maxWidth: 0.00001, maxHeight: 0.00001)
+//            .allowsHitTesting(false)
         
         ForEach(repos) { repo in
             if let workspaceStorage = repo.workspaceStorage {

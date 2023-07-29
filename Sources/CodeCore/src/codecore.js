@@ -3,10 +3,9 @@
 import { createPlayground } from 'livecodes';
 
 let playgroundPromise = createPlayground('#container', {
-    appUrl: 'codekit:///livecodes/',
+    appUrl: 'codekit://codekit/livecodes/',
     loading: 'eager',
-    //template: 'react',
-    lite: true,
+    //lite: true, // <-- This breaks builds
     config: {
         markup: { language: "html", content: "" },
         style: { language: "css", content: "" },
@@ -17,22 +16,16 @@ let playgroundPromise = createPlayground('#container', {
 });
 
 window.buildCode = async (markupLanguage, markupContent, styleLanguage, styleContent, scriptLanguage, scriptContent) => {
-        let playground = await playgroundPromise;
-//        await playground.load();
-    console.log("got playg")
-//    await playground.run();
-    //await playground.exec('showVersion');
-
-    //console.log("fin showV")
+    let playground = await playgroundPromise;
+    //        await playground.load();
     await playground.setConfig({
         markup: { language: markupLanguage, content: markupContent },
         style: { language: styleLanguage, content: styleContent },
         script: { language: scriptLanguage, content: scriptContent },
     });
-    console.log("fin setconfig")
-        let code = await playground.getCode();
-        let resultPageHTML = code.result;
-        return resultPageHTML;
+    let code = await playground.getCode();
+    let resultPageHTML = code.result;
+    return resultPageHTML;
 };
 
 window.runTests = () => {

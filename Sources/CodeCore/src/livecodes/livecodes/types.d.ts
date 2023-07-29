@@ -895,6 +895,10 @@ declare module "livecodes/languages/utils" {
     export const languageIsEnabled: (language: Language, config: Config) => boolean;
     export const processorIsEnabled: (processor: Processor, config: Config) => boolean;
     export const processorIsActivated: (processor: Processor, config: Config) => boolean;
+    /**
+     * returns a string with names of enabled processors/postcss plugins
+     * for the supplied language (separated by hyphens)
+     */
     export const getActivatedProcessors: (language: Language, config: Config) => string;
     export const escapeCode: (code: string, slash?: boolean) => string;
     export const getCustomSettings: (language: Language | Processor, config: Config) => CustomSettings;
@@ -1484,6 +1488,9 @@ declare module "livecodes/storage/fake-storage" {
 }
 declare module "livecodes/storage/simple-storage" {
     import type { SimpleStorage, StoreName } from "livecodes/storage/models";
+    /**
+     * Creates a simple synchronous key/value data store using localstorage
+     */
     export const createSimpleStorage: <T>(name: StoreName, isEmbed: boolean) => SimpleStorage<T>;
 }
 declare module "livecodes/storage/stores" {
@@ -1650,6 +1657,9 @@ declare module "livecodes/storage/models" {
 declare module "livecodes/storage/storage" {
     import type { Storage, StoreName } from "livecodes/storage/models";
     export const generateId: () => string;
+    /**
+     * Creates asynchronous data store using localforage
+     */
     export const createStorage: <T>(name: StoreName, isEmbed: boolean) => Promise<Storage<T>>;
 }
 declare module "livecodes/utils/compression" {
@@ -2491,6 +2501,9 @@ declare module "livecodes/result/index" {
 }
 declare module "livecodes/templates/get-starter-templates" {
     import type { Config, Template } from "livecodes/models";
+    /**
+     * get starter templates with languages that are enabled in the current config
+     */
     export const getStarterTemplates: (config: Config, baseUrl: string) => Promise<Template[]>;
     export const getTemplate: (name: string, config: Config, baseUrl: string) => Promise<Template>;
 }
@@ -2793,6 +2806,15 @@ declare module "livecodes/types/index" {
     export * from "livecodes/types/type-loader";
 }
 declare module "livecodes/_modules" {
+    /**
+     * <h2>Internal API.</h2>
+     * This module should <strong>NOT</strong> be used.
+     * It is only there for generating documentation for internal modules.
+     *
+     * Importing from it is prevented by the eslint rule 'no-restricted-imports'
+     *
+     * @module
+     */
     export * as cache from "livecodes/cache/index";
     export * as compiler from "livecodes/compiler/index";
     export * as config from "livecodes/config/index";

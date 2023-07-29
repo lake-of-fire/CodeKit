@@ -21,17 +21,31 @@ struct PackageRepositoryView: View {
             Toggle("Extensions Enabled", isOn: $repo.isEnabled)
             
             Section("Extensions") {
-                ForEach(repo.codeExtensions) { ext in
+                ForEach(repo.codeExtensions.where { !$0.isDeleted }) { ext in
                     LabeledContent("Name", value: ext.name)
                 }
             }
         }
         .onChange(of: repo.repositoryURL) { newURL in
             if URL(string: newURL) == nil {
-                $repo.isEnabled.wrappedValue = false
+                #warning("fixme implement this")
+//                $repo.isEnabled.wrappedValue = false
             }
         }
         .formStyle(.grouped)
+        .toolbar {
+            ToolbarItem {
+                Button {
+                    guard let repo = repo.thaw(), let realm = repo.realm?.thaw() else { return }
+                    try? realm.write {
+                        repo.buildRequested = true
+                    }
+                } label: {
+                    Label("Rebuild", systemImage: "arrow.clockwise")
+                        .labelStyle(.iconOnly)
+                }
+            }
+        }
     }
 }
 

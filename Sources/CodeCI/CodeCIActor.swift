@@ -47,7 +47,7 @@ public actor CodeCIActor: ObservableObject {
                     let ref = ThreadSafeReference(to: results)
                     Task { @MainActor [weak self] in
                         guard let self = self, let results = try? await realm.resolve(ref) else { return }
-                        buildIfNeeded(repos: Array(results))
+                        buildIfNeeded(repos: Array(results), forceBuild: true)
                     }
                 case .update(let results, let deletions, let insertions, let modifications):
                     let ref = ThreadSafeReference(to: results)
@@ -63,17 +63,17 @@ public actor CodeCIActor: ObservableObject {
     }
    
     @MainActor
-    func buildIfNeeded(repos: [PackageRepository]) {
+    func buildIfNeeded(repos: [PackageRepository], forceBuild: Bool = false) {
         buildTask?.cancel()
         buildTask = Task { @MainActor [weak self] in
             for repo in repos {
-                try? await self?.buildIfNeeded(repo: repo)
+                try? await self?.buildIfNeeded(repo: repo, forceBuild: forceBuild)
             }
         }
     }
     
     @MainActor
-    func buildIfNeeded(repo: PackageRepository) async throws {
+    func buildIfNeeded(repo: PackageRepository, forceBuild: Bool = false) async throws {
         return try await withCheckedThrowingContinuation { continuation in
             let ref = ThreadSafeReference(to: repo)
             repo.cloneOrPullIfNeeded { [weak self] error in
@@ -96,6 +96,15 @@ public actor CodeCIActor: ObservableObject {
                             return
                         }
 
+                        if repo.buildRequested {
+                            try! repo.realm?.write {
+                                repo.buildRequested = false
+                            }
+                        } else if !forceBuild {
+                            continuation.resume(returning: ())
+                            return
+                        }
+                        
                         let names = try await repo.extensionNamesFromFiles()
                         for extensionName in names {
                             guard let codeExtension = repo.codeExtensions.where({ $0.name == extensionName && !$0.isDeleted }).first else {

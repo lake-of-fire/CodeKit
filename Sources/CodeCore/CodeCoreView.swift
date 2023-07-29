@@ -53,9 +53,9 @@ public struct CodeCoreView: NativeView {
             webView.isOpaque = false
         #endif
         
-        if let baseURL = Bundle.module.url(forResource: "src", withExtension: nil), let indexURL = Bundle.module.url( forResource: "index", withExtension: "html", subdirectory: "src") {
+        if let indexURL = Bundle.module.url(forResource: "index", withExtension: "html", subdirectory: "src"), let webViewBaseURL = URL(string: "codekit:///") {
             let data = try! Data.init(contentsOf: indexURL)
-            webView.load(data, mimeType: "text/html", characterEncodingName: "utf-8", baseURL: baseURL)
+            webView.load(data, mimeType: "text/html", characterEncodingName: "utf-8", baseURL: webViewBaseURL)
         }
         context.coordinator.webView = webView
         return webView
@@ -198,7 +198,10 @@ final class GenericFileURLSchemeHandler: NSObject, WKURLSchemeHandler {
         if url.absoluteString.hasPrefix("\(scheme)://"),
            let path = url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
            let baseURL = Bundle.module.url(forResource: "src", withExtension: nil) {
-            let fileUrl = baseURL.appending(path: path)
+            var fileUrl = baseURL.appending(path: path)
+            if fileUrl.isDirectory {
+                fileUrl = fileUrl.appending(component: "index.html")
+            }
             let mimeType = mimeType(ofFileAtUrl: fileUrl)
             if let data = try? Data(contentsOf: fileUrl) {
                 let response = HTTPURLResponse(

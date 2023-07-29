@@ -16,6 +16,7 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
     
 //    @Persisted var packageJSONDirectory: String? = nil
     @Persisted public var isEnabled = true
+    @Persisted public var buildRequested = false
     
     @Persisted(originProperty: "repositories") public var repositoryCollection: LinkingObjects<RepositoryCollection>
     @Persisted(originProperty: "repository") public var codeExtensions: LinkingObjects<CodeExtension>

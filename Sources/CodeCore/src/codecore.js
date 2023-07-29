@@ -21,14 +21,14 @@ window.buildCode = async (markupLanguage, markupContent, styleLanguage, styleCon
 //        await playground.load();
     console.log("got playg")
 //    await playground.run();
-    await playground.exec('showVersion');
+    //await playground.exec('showVersion');
 
-    console.log("fin showV")
-        await playground.setConfig({
-            markup: { language: markupLanguage, content: markupContent },
-            style: { language: styleLanguage, content: styleContent },
-            script: { language: scriptLanguage, content: scriptContent },
-        });
+    //console.log("fin showV")
+    await playground.setConfig({
+        markup: { language: markupLanguage, content: markupContent },
+        style: { language: styleLanguage, content: styleContent },
+        script: { language: scriptLanguage, content: scriptContent },
+    });
     console.log("fin setconfig")
         let code = await playground.getCode();
         let resultPageHTML = code.result;

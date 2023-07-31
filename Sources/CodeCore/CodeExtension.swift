@@ -62,7 +62,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     }
     
     public var buildDirectoryURL: URL? {
-        return directoryURL?.appending(component: "build", directoryHint: .isDirectory)
+        return directoryURL?.appending(component: ".build", directoryHint: .isDirectory)
     }
     
     public var builtResultPageURL: URL? {
@@ -157,7 +157,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     }
     
     @MainActor
-    public func createBuildDirectoryIfNeeded() async throws -> URL {
+    func createBuildDirectoryIfNeeded() async throws -> URL {
         guard let buildDirectoryURL = buildDirectoryURL, let workspaceStorage = workspaceStorage else {
             throw CodeExtensionError.unknownError
         }
@@ -192,6 +192,18 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
             script: script)
     }
 
+    @MainActor
+    public func store(buildResultHTML: String) async throws -> URL {
+        let buildDirectoryURL = try await createBuildDirectoryIfNeeded()
+        guard !name.isEmpty, let workspaceStorage = workspaceStorage, let resultData = buildResultHTML.data(using: .utf8) else {
+            throw CodeExtensionError.unknownError
+        }
+        let storageURL = buildDirectoryURL.appending(component: name + ".html")
+        try await workspaceStorage.write(at: storageURL, content: resultData, atomically: true, overwrite: true)
+        return buildDirectoryURL
+    }
+    
+    @MainActor
     public static func isValidExtension(fileURL: URL) -> Bool {
         guard fileURL.isFileURL else { return false }
         let pathExtension = fileURL.pathExtension

@@ -127,7 +127,6 @@ public actor CodeCIActor: ObservableObject {
     @MainActor
     func build(codeExtension: CodeExtension) async throws {
                     //                codeCoreViewModel
-        let buildDirectoryURL = try await codeExtension.createBuildDirectoryIfNeeded()
         let sourcePackage = try await codeExtension.readSources()
         let resultPageHTML = try await codeCoreViewModel.callAsyncJavaScript(
             """
@@ -149,7 +148,9 @@ public actor CodeCIActor: ObservableObject {
                 "scriptLanguage": sourcePackage.script.language,
                 "scriptContent": sourcePackage.script.content,
             ])
-        print(resultPageHTML)
-        print()
+        guard let resultPageHTML = resultPageHTML as? String else {
+            throw CodeCIError.unknownError
+        }
+        let storedURL = try await codeExtension.store(buildResultHTML: resultPageHTML)
     }
 }

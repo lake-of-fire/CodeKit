@@ -17,7 +17,6 @@ let playgroundPromise = createPlayground('#container', {
 
 window.buildCode = async (markupLanguage, markupContent, styleLanguage, styleContent, scriptLanguage, scriptContent) => {
     let playground = await playgroundPromise;
-    //        await playground.load();
     await playground.setConfig({
         markup: { language: markupLanguage, content: markupContent },
         style: { language: styleLanguage, content: styleContent },

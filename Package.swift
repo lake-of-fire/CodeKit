@@ -30,7 +30,7 @@ let package = Package(
 //        .package(url: "https://github.com/Tunous/DebouncedOnChange.git", branch: "main"),
         .package(url: "https://github.com/lake-of-fire/SwiftUtilities.git", branch: "main"),
         .package(url: "https://github.com/lake-of-fire/SwiftUIDownloads.git", branch: "main"),
-        .package(url: "https://github.com/amosavian/FileProvider.git", branch: "master"),
+        .package(url: "https://github.com/thebaselab/FileProvider.git", branch: "master"),
         .package(url: "https://github.com/lake-of-fire/SwiftGit2.git", branch: "main"), // MBoxSpace/SwiftGit2 also interesting
     ],
     targets: [

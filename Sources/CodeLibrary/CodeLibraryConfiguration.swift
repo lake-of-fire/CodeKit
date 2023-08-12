@@ -15,7 +15,7 @@ public struct CodeLibraryConfiguration {
     public static var opmlURLs = [URL]()
 
     public var downloadables: Set<Downloadable> {
-        guard !Self.securityApplicationGroupIdentifier.isEmpty else { fatalError("securityApplicationGroupIdentifier unset") }
+//        guard !Self.securityApplicationGroupIdentifier.isEmpty else { fatalError("securityApplicationGroupIdentifier unset") }
         return Set(Self.opmlURLs.compactMap { url in
             Downloadable(
                 name: "App Data (\(url.lastPathComponent))",

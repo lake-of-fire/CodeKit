@@ -11,43 +11,6 @@ import RealmSwiftGaps
 import SwiftUtilities
 import CodeCore
 
-struct PackageRepositoryView: View {
-    @ObservedRealmObject var repo: PackageRepository
-    
-    var body: some View {
-        Form {
-            LabeledContent("Name", value: repo.name)
-            RealmTextField("Repository URL", object: repo, objectValue: $repo.repositoryURL)
-            Toggle("Extensions Enabled", isOn: $repo.isEnabled)
-            
-            Section("Extensions") {
-                ForEach(repo.codeExtensions.where { !$0.isDeleted }) { ext in
-                    LabeledContent("Name", value: ext.name)
-                }
-            }
-        }
-        .onChange(of: repo.repositoryURL) { newURL in
-            if URL(string: newURL) == nil {
-                #warning("fixme implement this")
-//                $repo.isEnabled.wrappedValue = false
-            }
-        }
-        .formStyle(.grouped)
-        .toolbar {
-            ToolbarItem {
-                Button {
-                    guard let repo = repo.thaw(), let realm = repo.realm?.thaw() else { return }
-                    try? realm.write {
-                        repo.buildRequested = true
-                    }
-                } label: {
-                    Label("Rebuild", systemImage: "arrow.clockwise")
-                        .labelStyle(.iconOnly)
-                }
-            }
-        }
-    }
-}
 
 struct MaybePackageRepositoryView: View {
     var repo: PackageRepository?

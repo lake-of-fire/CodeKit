@@ -4,6 +4,7 @@ import RealmSwift
 import BigSyncKit
 import RealmSwiftGaps
 import SwiftGit2
+import CryptoKit
 
 public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable, GitRepositoryProtocol {
     /// Do not prepend dot. Checks both dot-prepended and as-is automatically and in that order.
@@ -18,6 +19,8 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     @Persisted public var modifiedAt = Date()
     @Persisted public var isDeleted = false
     public var needsSyncToServer: Bool { false }
+    
+    @MainActor @Published public var buildHash: SHA256.Digest? = nil
     
     // Git UI states
     @MainActor @Published public var gitTracks: [URL: Diff.Status] = [:]
@@ -61,14 +64,18 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
         return baseURL
     }
     
+    var buildResultPageURL: URL? {
+        guard let repo = repository, !name.isEmpty else { return nil }
+        return URL(string: "codekit://codekit/extensions/")?.appending(component: "\(name)-\(repo.id.uuidString.prefix(6))")
+    }
+    
     public var buildDirectoryURL: URL? {
         return directoryURL?.appending(component: ".build", directoryHint: .isDirectory)
     }
     
-    public var builtResultPageURL: URL? {
+    public var buildResultStorageURL: URL? {
         return buildDirectoryURL?.appending(component: name + ".html")
     }
-
     
     enum CodeExtensionError: Error {
         case unknownError
@@ -145,6 +152,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
             .sink { _ in
                 Task { @MainActor [weak self] in
                     self?.cachedWorkspaceStorage = nil
+                    try? await self?.refreshBuildHash()
                 }
             }
             .store(in: &cancellables)
@@ -195,14 +203,33 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     @MainActor
     public func store(buildResultHTML: String) async throws -> URL {
         let buildDirectoryURL = try await createBuildDirectoryIfNeeded()
-        guard !name.isEmpty, let workspaceStorage = workspaceStorage, let resultData = buildResultHTML.data(using: .utf8) else {
+        guard !name.isEmpty, let workspaceStorage = workspaceStorage, let resultData = buildResultHTML.data(using: .utf8), let storageURL = buildResultStorageURL else {
             throw CodeExtensionError.unknownError
         }
-        let storageURL = buildDirectoryURL.appending(component: name + ".html")
         try await workspaceStorage.write(at: storageURL, content: resultData, atomically: true, overwrite: true)
+        try await refreshBuildHash()
         return buildDirectoryURL
     }
     
+    @MainActor
+    public func loadBuildResult() async throws -> (Data, URL) {
+        guard let workspaceStorage = workspaceStorage, let buildResultStorageURL = buildResultStorageURL, let buildResultPageURL = buildResultPageURL else {
+            throw CodeExtensionError.unknownError
+        }
+        let resultData = try await workspaceStorage.contents(at: buildResultStorageURL)
+        return (resultData, buildResultPageURL)
+    }
+    @MainActor
+    private func refreshBuildHash() async throws {
+        let buildDirectoryURL = try await createBuildDirectoryIfNeeded()
+        let storageURL = buildDirectoryURL.appending(component: name + ".html")
+        guard let workspaceStorage = workspaceStorage, try await workspaceStorage.fileExists(at: storageURL) else {
+            buildHash = nil
+            return
+        }
+        buildHash = try getSHA256(forFile: storageURL)
+    }
+        
     @MainActor
     public static func isValidExtension(fileURL: URL) -> Bool {
         guard fileURL.isFileURL else { return false }
@@ -218,6 +245,22 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
         case modifiedAt
         case isDeleted
     }
+}
+
+fileprivate func getSHA256(forFile url: URL) throws -> SHA256.Digest {
+    let handle = try FileHandle(forReadingFrom: url)
+    var hasher = SHA256()
+    while autoreleasepool(invoking: {
+        let nextChunk = handle.readData(ofLength: SHA256.blockByteCount)
+        guard !nextChunk.isEmpty else { return false }
+        hasher.update(data: nextChunk)
+        return true
+    }) { }
+    let digest = hasher.finalize()
+    return digest
+
+    // Here's how to convert to string form
+    //return digest.map { String(format: "%02hhx", $0) }.joined()
 }
 
 fileprivate let scriptFileExtensions = [

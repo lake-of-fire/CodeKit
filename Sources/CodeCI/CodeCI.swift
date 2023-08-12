@@ -8,7 +8,6 @@ public struct CodeCI: View {
     @ObservedResults(PackageRepository.self, where: { !$0.isDeleted && $0.isEnabled }) private var repos
     
     public var body: some View {
-let _ = Self._printChanges()
         CodeCoreView(ciActor.codeCoreViewModel)
             .opacity(0)
             .frame(maxWidth: 0.00001, maxHeight: 0.00001)
@@ -17,7 +16,7 @@ let _ = Self._printChanges()
         ForEach(repos) { repo in
             if let workspaceStorage = repo.workspaceStorage {
                 CodeCIRepository(repo: repo, workspaceStorage: workspaceStorage) {
-                    try? await ciActor.buildIfNeeded(repos: [repo])
+                    try? await ciActor.buildIfNeeded(repo: repo)
                 }
             }
         }

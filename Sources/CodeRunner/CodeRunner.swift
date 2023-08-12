@@ -4,26 +4,34 @@ import RealmSwift
 
 public struct CodeRunner: View {
     @ObservedRealmObject var codeExtension: CodeExtension
-    @StateObject var codeCoreViewModel = CodeCoreViewModel()
+    
+    @StateObject private var codeCoreViewModel = CodeCoreViewModel()
     
     public var body: some View {
-let _ = Self._printChanges()
-        CodeCoreView(ciActor.codeCoreViewModel)
+        CodeCoreView(codeCoreViewModel)
             .opacity(0)
-            .frame(maxWidth: 0.00001, maxHeight: 0.00001)
+            .frame(maxWidth: 0.0000001, maxHeight: 0.0000001)
             .allowsHitTesting(false)
-        
-        ForEach(repos) { repo in
-            if let workspaceStorage = repo.workspaceStorage {
-                CodeCIRepository(repo: repo, workspaceStorage: workspaceStorage) {
-                    try? await ciActor.buildIfNeeded(repos: [repo])
-                }
+            .task {
+                try? await run()
             }
-        }
-//        .environmentObject(codeCoreViewModel)
+            .onChange(of: codeExtension.buildHash) { buildHash in
+                guard buildHash != nil else {
+                    return
+                }
+                Task { @MainActor in try? await run() }
+            }
     }
     
     public init(codeExtension: CodeExtension) {
         self.codeExtension = codeExtension
+    }
+    
+    @MainActor
+    func run() async throws {
+        let (data, url) = try await codeExtension.loadBuildResult()
+        codeCoreViewModel.load(
+            htmlData: data,
+            baseURL: url)
     }
 }

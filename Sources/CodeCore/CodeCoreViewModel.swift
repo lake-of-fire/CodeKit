@@ -9,6 +9,7 @@ public class CodeCoreViewModel: ObservableObject {
 
 //    internal var executeJS: ((JavascriptFunction, JavascriptCallback?) -> Void)!
 //    internal var asyncJavaScriptCaller: ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?, ((Result<Any, any Error>) -> Void)?) async -> Void)? = nil
+    internal var load: ((Data, String, String, URL) -> Void)? = nil
     internal var asyncJavaScriptCaller: ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?)? = nil
 
 //    @Published public var  = false
@@ -23,6 +24,12 @@ public class CodeCoreViewModel: ObservableObject {
         self.onLoadSuccess = onLoadSuccess
         self.onLoadFailed = onLoadFailed
 //        self.onContentChange = onContentChange
+    }
+    
+    public func load(htmlData: Data, mimeType: String = "text/html", characterEncodingName: String = "utf-8", baseURL: URL) {
+        guard let loader = load else { return }
+        loader(
+            htmlData, mimeType, characterEncodingName, baseURL)
     }
     
     public func callAsyncJavaScript(_ js: String, arguments: [String: Any]? = nil) async throws -> Any? {

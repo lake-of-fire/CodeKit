@@ -53,10 +53,6 @@ public struct CodeCoreView: NativeView {
             webView.isOpaque = false
         #endif
         
-        if let indexURL = Bundle.module.url(forResource: "index", withExtension: "html", subdirectory: "src"), let webViewBaseURL = URL(string: "codekit://codekit/") {
-            let data = try! Data.init(contentsOf: indexURL)
-            webView.load(data, mimeType: "text/html", characterEncodingName: "utf-8", baseURL: webViewBaseURL)
-        }
         context.coordinator.webView = webView
         return webView
     }
@@ -67,6 +63,11 @@ public struct CodeCoreView: NativeView {
 
     public func makeCoordinator() -> Coordinator {
         let coordinator = Coordinator(parent: self, viewModel: viewModel)
+        
+        viewModel.load = { (data, mimeType, characterEncodingName, baseURL) in
+            coordinator.webView.load(
+                data, mimeType: mimeType, characterEncodingName: characterEncodingName, baseURL: baseURL)
+        }
         
         viewModel.asyncJavaScriptCaller = { (js, arguments, frame, world) -> Any? in
             try await withCheckedThrowingContinuation { continuation in

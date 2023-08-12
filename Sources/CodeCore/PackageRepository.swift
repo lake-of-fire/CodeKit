@@ -150,8 +150,8 @@ public extension PackageRepository {
                 try! realm.write {
                     ext.isDeleted = true
                 }
-                if let builtResultPageURL = ext.builtResultPageURL {
-                    try? await workspaceStorage.removeItem(at: builtResultPageURL)
+                if let buildResultStorageURL = ext.buildResultStorageURL {
+                    try? await workspaceStorage.removeItem(at: buildResultStorageURL)
                 }
                 return
             }

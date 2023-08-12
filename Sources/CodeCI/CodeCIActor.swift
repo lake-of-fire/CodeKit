@@ -33,10 +33,17 @@ public actor CodeCIActor: ObservableObject {
     
     public init(realmConfiguration: Realm.Configuration) {
         configuration = realmConfiguration
-        Task { await wireRepos() }
+        
+        Task {
+            let (liveCodesData, liveCodesURL) = loadLiveCodes()
+            await codeCoreViewModel.load(
+                htmlData: liveCodesData,
+                baseURL: liveCodesURL)
+            await wireRepos()
+        }
     }
     
-    public func wireRepos() async {
+    func wireRepos() async {
         try? await realm.objects(PackageRepository.self).where({ !$0.isDeleted && $0.isEnabled })
 //        try? await repos
             .changesetPublisher

@@ -16,11 +16,14 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     @Persisted public var name = ""
     @Persisted public var package: CodePackage?
     
+    @Persisted public var buildRequested = false
+    @Persisted public var isBuilding = false
+    @Persisted public var desiredBuildHash: String? = nil
+    @Persisted public var latestBuildHashAvailable: String? = nil
+    
     @Persisted public var modifiedAt = Date()
     @Persisted public var isDeleted = false
     public var needsSyncToServer: Bool { false }
-    
-    @MainActor @Published public var buildHash: SHA256.Digest? = nil
     
 //    // Git UI states
 //    @MainActor @Published public var gitTracks: [URL: Diff.Status] = [:]
@@ -73,14 +76,24 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
         return directoryURL?.appending(component: ".build", directoryHint: .isDirectory)
     }
     
-    public var buildResultStorageURL: URL? {
-        return buildDirectoryURL?.appending(component: name + ".html")
+    public var desiredBuildResultStorageURL: URL? {
+        guard let desiredBuildHash = desiredBuildHash else { return nil }
+        return buildResultStorageURL(forBuildHash: desiredBuildHash)
+    }
+    
+    public var latestBuildResultStorageURL: URL? {
+        guard let latestBuildHashAvailable = latestBuildHashAvailable else { return nil }
+        return buildResultStorageURL(forBuildHash: latestBuildHashAvailable)
+    }
+    
+    public func buildResultStorageURL(forBuildHash buildHash: String) -> URL? {
+        return buildDirectoryURL?.appending(component: "\(name)-\(buildHash).html")
     }
     
     enum CodeExtensionError: Error {
         case unknownError
     }
-    public struct ExtensionPackage {
+    public struct SourcePackage {
         public struct Source {
             public var language: String
             public let content: String
@@ -148,14 +161,15 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     public override init() {
         super.init()
         
-        name.publisher
-            .sink { _ in
-                Task { @MainActor [weak self] in
-//                    self?.cachedWorkspaceStorage = nil
-                    try? await self?.refreshBuildHash()
-                }
-            }
-            .store(in: &cancellables)
+//        name.publisher
+//            .sink { _ in
+//                Task { @MainActor [weak self] in
+////                    self?.cachedWorkspaceStorage = nil
+//                    try? await self?.refreshBuildHash()
+////                    buildHash =
+//                }
+//            }
+//            .store(in: &cancellables)
     }
     
 //    @MainActor
@@ -163,6 +177,23 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
 //        guard let repo = repository else { return false }
 //        return (repo.gitTracks.count > 0 || !repo.branch.isEmpty) && !name.isEmpty && cachedWorkspaceStorage != nil
 //    }
+    
+    @MainActor
+    func removeAllExtensionBuildsFromStorage(excludingBuildHash: String? = nil) async throws {
+        guard !name.isEmpty, let buildDirectoryURL = buildDirectoryURL, let workspaceStorage = package?.repository().workspaceStorage else {
+            throw CodeExtensionError.unknownError
+        }
+        let contents = try await workspaceStorage.contentsOfDirectory(at: buildDirectoryURL)
+        for path in contents {
+            let fileName = path.deletingPathExtension().lastPathComponent
+            if path.isFileURL, path.lastPathComponent.hasSuffix(".html"), let lastIndex = fileName.lastIndex(of: "-"), String(fileName[..<lastIndex]) == name {
+                let existingBuildHash = String(fileName[lastIndex...])
+                if existingBuildHash != excludingBuildHash {
+                    try await workspaceStorage.removeItem(at: path)
+                }
+            }
+        }
+    }
     
     @MainActor
     func createBuildDirectoryIfNeeded() async throws -> URL {
@@ -176,7 +207,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     }
     
     @MainActor
-    public func readSources() async throws -> CodeExtension.ExtensionPackage {
+    public func readSources() async throws -> CodeExtension.SourcePackage {
         guard let directoryURL = directoryURL, let workspaceStorage = package?.repository().workspaceStorage else {
             throw CodeExtensionError.unknownError
         }
@@ -186,14 +217,14 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
                 return $0.deletingPathExtension().lastPathComponent == name
             }
         guard let script = targetURLs.compactMap({
-            CodeExtension.ExtensionPackage.Source(scriptFileURL: $0)
+            CodeExtension.SourcePackage.Source(scriptFileURL: $0)
         }).first else {
             throw CodeExtensionError.unknownError
         }
-        let style = targetURLs.compactMap { CodeExtension.ExtensionPackage.Source(styleFileURL: $0) }.first
-        let markup = targetURLs.compactMap { CodeExtension.ExtensionPackage.Source(markupFileURL: $0) }.first
+        let style = targetURLs.compactMap { CodeExtension.SourcePackage.Source(styleFileURL: $0) }.first
+        let markup = targetURLs.compactMap { CodeExtension.SourcePackage.Source(markupFileURL: $0) }.first
         
-        return CodeExtension.ExtensionPackage(
+        return CodeExtension.SourcePackage(
             name: name,
             markup: markup,
             style: style,
@@ -201,35 +232,94 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     }
 
     @MainActor
-    public func store(buildResultHTML: String) async throws -> URL {
+    public func store(buildResultHTML: String, forSources sourcePackage: CodeExtension.SourcePackage) async throws -> URL {
         let buildDirectoryURL = try await createBuildDirectoryIfNeeded()
-        guard !name.isEmpty, let workspaceStorage = package?.repository().workspaceStorage, let resultData = buildResultHTML.data(using: .utf8), let storageURL = buildResultStorageURL else {
+        let buildHash = try await Self.buildHash(sourcePackage: sourcePackage)
+        guard !name.isEmpty, let workspaceStorage = package?.repository().workspaceStorage, let resultData = buildResultHTML.data(using: .utf8), let storageURL = buildResultStorageURL(forBuildHash: buildHash) else {
             throw CodeExtensionError.unknownError
         }
         try await workspaceStorage.write(at: storageURL, content: resultData, atomically: true, overwrite: true)
-        try await refreshBuildHash()
+        try await refreshBuildStatus()
+        try await removeAllExtensionBuildsFromStorage(excludingBuildHash: buildHash)
         return buildDirectoryURL
     }
     
     @MainActor
-    public func loadBuildResult() async throws -> (Data, URL) {
-        guard let workspaceStorage = package?.repository().workspaceStorage, let buildResultStorageURL = buildResultStorageURL, let buildResultPageURL = buildResultPageURL else {
+    public func refreshBuildStatus() async throws {
+        guard let workspaceStorage = package?.repository().workspaceStorage else {
+            safeWrite(self) { _, codeExtension in
+                codeExtension.desiredBuildHash = nil
+                codeExtension.latestBuildHashAvailable = nil
+            }
+            return
+        }
+ 
+        let sources = try await readSources()
+        let buildHash = try await Self.buildHash(sourcePackage: sources)
+        safeWrite(self) { _, codeExtension in
+            codeExtension.desiredBuildHash = buildHash
+        }
+        
+        if let storageURL = buildResultStorageURL(forBuildHash: buildHash) {
+            let buildExists = try await workspaceStorage.fileExists(at: storageURL)
+            if buildExists {
+                safeWrite(self) { _, codeExtension in
+                    codeExtension.latestBuildHashAvailable = buildHash
+                }
+            } else if let latestBuildHashAvailable = latestBuildHashAvailable, let oldStorageURL = buildResultStorageURL(forBuildHash: latestBuildHashAvailable) {
+                let oldBuildExists = try await workspaceStorage.fileExists(at: oldStorageURL)
+                if !oldBuildExists {
+                    safeWrite(self) { _, codeExtension in
+                        codeExtension.latestBuildHashAvailable = nil
+                    }
+                }
+            } else {
+                safeWrite(self) { _, codeExtension in
+                    codeExtension.latestBuildHashAvailable = nil
+                }
+            }
+        }
+    }
+    
+    @MainActor
+    public func loadLatestAvailableBuildResult() async throws -> (Data, URL) {
+        guard let workspaceStorage = package?.repository().workspaceStorage, let buildResultStorageURL = latestBuildResultStorageURL, let buildResultPageURL = buildResultPageURL else {
             throw CodeExtensionError.unknownError
         }
         let resultData = try await workspaceStorage.contents(at: buildResultStorageURL)
         return (resultData, buildResultPageURL)
     }
+    
     @MainActor
-    private func refreshBuildHash() async throws {
-        let buildDirectoryURL = try await createBuildDirectoryIfNeeded()
-        let storageURL = buildDirectoryURL.appending(component: name + ".html")
-        guard let workspaceStorage = package?.repository().workspaceStorage, try await workspaceStorage.fileExists(at: storageURL) else {
-            buildHash = nil
-            return
+    private static func buildHash(sourcePackage: SourcePackage) async throws -> String {
+        var hasher = SHA256()
+        for str in [
+            sourcePackage.name,
+            sourcePackage.script.language,
+            sourcePackage.script.content,
+            sourcePackage.markup?.language,
+            sourcePackage.markup?.content,
+            sourcePackage.style?.language,
+            sourcePackage.style?.content,
+            sourcePackage.style?.content,
+            Bundle.main.appVersionLong,
+            Bundle.main.appBuild,
+        ].compactMap({ $0 }) {
+            if let data = str.data(using: .utf8, allowLossyConversion: true) {
+                hasher.update(data: data)
+            }
         }
-        buildHash = try getSHA256(forFile: storageURL)
+        return String(hasher.finalize().hexString().prefix(12))
+//
+//        let buildDirectoryURL = try await createBuildDirectoryIfNeeded()
+//        let storageURL = buildDirectoryURL.appending(component: name + ".html")
+//        guard let workspaceStorage = package?.repository().workspaceStorage, try await workspaceStorage.fileExists(at: storageURL) else {
+//            buildHash = nil
+//            return
+//        }
+//        buildHash = try getSHA256(forFile: storageURL)
     }
-        
+    
     @MainActor
     public static func isValidExtension(fileURL: URL) -> Bool {
         guard fileURL.isFileURL else { return false }
@@ -247,20 +337,14 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     }
 }
 
-fileprivate func getSHA256(forFile url: URL) throws -> SHA256.Digest {
-    let handle = try FileHandle(forReadingFrom: url)
-    var hasher = SHA256()
-    while autoreleasepool(invoking: {
-        let nextChunk = handle.readData(ofLength: SHA256.blockByteCount)
-        guard !nextChunk.isEmpty else { return false }
-        hasher.update(data: nextChunk)
-        return true
-    }) { }
-    let digest = hasher.finalize()
-    return digest
-
-    // Here's how to convert to string form
-    //return digest.map { String(format: "%02hhx", $0) }.joined()
+extension Bundle {
+    var appVersionLong: String    { getInfo("CFBundleShortVersionString") }
+    var appBuild: String          { getInfo("CFBundleVersion") }
+    //var appVersionShort: String { getInfo("CFBundleShortVersion") }
+    
+    private func getInfo(_ str: String) -> String {
+        infoDictionary?[str] as? String ?? "UNKNOWN-VERSION"
+    }
 }
 
 fileprivate let scriptFileExtensions = [

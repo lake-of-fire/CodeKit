@@ -19,30 +19,35 @@ struct CodePackageView: View {
                     Text("This branch is up to date with \(repository.remote):\(repository.branch)")
                 }
             }
-            LabeledContent("Build Status") {
-                if package.buildRequested {
-                    ProgressView() {
-                        Text("Building…")
-                    }
-                }
-            }
             Toggle("Installed", isOn: $package.isEnabled)
-            
             
             ForEach(package.codeExtensions.where { !$0.isDeleted }) { ext in
                 Section {
                     LabeledContent("Extension", value: ext.name)
+                    if ext.buildRequested {
+                        if ext.isBuilding {
+                            LabeledContent("Build Status") {
+                                HStack(spacing: 10) {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text("Building…")
+                                }
+                            }
+                        } else {
+                            LabeledContent("Build Status", value: "Waiting to build…")
+                        }
+                        LabeledContent("Latest Build Available", value: ext.latestBuildHashAvailable ?? "None")
+                    } else {
+                        if ext.desiredBuildHash == ext.latestBuildHashAvailable {
+                            LabeledContent("Build Status") {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                            }
+                        }
+                    }
                 }
             }
         }
-//        .onChange(of: repo.repositoryURL) { newURL in
-//            if URL(string: newURL) == nil {
-//                #warning("fixme implement this")
-////                $repo.isEnabled.wrappedValue = false
-//            } else {
-//                try? await repo.gitStatus()
-//            }
-//        }
         .formStyle(.grouped)
 #if os(iOS)
         .toolbarTitleMenu {
@@ -69,10 +74,14 @@ struct CodePackageCommands: View {
         } label: { Label("Open in Finder", systemImage: "folder") }
 #endif
         Button {
-            safeWrite(package) { _, repo in
-                package.buildRequested = true
+            safeWrite(package) { _, package in
+                for codeExtension in package.codeExtensions.where({ !$0.isDeleted }) {
+                    codeExtension.buildRequested = true
+                }
             }
-        } label: { Label("Build", systemImage: "arrow.clockwise") }
-            .keyboardShortcut("b")
+        } label: {
+            Label("Build", systemImage: "arrow.clockwise")
+        }
+        .keyboardShortcut("b")
     }
 }

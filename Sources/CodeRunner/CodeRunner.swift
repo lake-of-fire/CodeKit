@@ -15,8 +15,8 @@ public struct CodeRunner: View {
             .task {
                 try? await run()
             }
-            .onChange(of: codeExtension.buildHash) { buildHash in
-                guard buildHash != nil else {
+            .onChange(of: codeExtension.latestBuildHashAvailable) { latestBuildHashAvailable in
+                guard latestBuildHashAvailable != nil else {
                     return
                 }
                 Task { @MainActor in try? await run() }
@@ -29,7 +29,7 @@ public struct CodeRunner: View {
     
     @MainActor
     func run() async throws {
-        let (data, url) = try await codeExtension.loadBuildResult()
+        let (data, url) = try await codeExtension.loadLatestAvailableBuildResult()
         codeCoreViewModel.load(
             htmlData: data,
             baseURL: url)

@@ -33,7 +33,9 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
                             guard let self = self else { return }
                             try await loadRepository()
                             safeWrite(package) { _, package in
-                                package.buildRequested = true
+                                for ext in package.codeExtensions.where({ !$0.isDeleted }) {
+                                    ext.buildRequested = true
+                                }
                             }
                         }
                     }
@@ -81,7 +83,6 @@ public class CodePackage: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
     
 //    @Persisted var packageJSONDirectory: String? = nil
     @Persisted public var isEnabled = true
-    @Persisted public var buildRequested = false
     
     @Persisted(originProperty: "packages") public var packageCollection: LinkingObjects<PackageCollection>
     @Persisted(originProperty: "package") public var codeExtensions: LinkingObjects<CodeExtension>
@@ -174,16 +175,14 @@ public extension CodePackageRepository {
     private func loadRepository() async throws {
         let extensionNames = try await extensionNamesFromFiles()
         
-        guard let package = package.isFrozen ? package.thaw() : package, let realm = package.realm, let workspaceStorage = workspaceStorage, let repositoryURL = repositoryURL?.absoluteString else { return }
+        guard let package = package.isFrozen ? package.thaw() : package, let realm = package.realm, let repositoryURL = repositoryURL?.absoluteString else { return }
         let allExisting = realm.objects(CodeExtension.self).where { $0.repositoryURL == repositoryURL && !$0.isDeleted }
         for ext in allExisting {
             guard extensionNames.contains(ext.name) else {
                 try! realm.write {
                     ext.isDeleted = true
                 }
-                if let buildResultStorageURL = ext.buildResultStorageURL {
-                    try? await workspaceStorage.removeItem(at: buildResultStorageURL)
-                }
+                try await ext.removeAllExtensionBuildsFromStorage()
                 return
             }
             

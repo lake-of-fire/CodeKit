@@ -13,13 +13,13 @@ public struct CodeCI: View {
             .frame(maxWidth: 0.00001, maxHeight: 0.00001)
             .allowsHitTesting(false)
         
-        ForEach(packages) { package in
-//            if let workspaceStorage = repo.workspaceStorage {
-            CodeCIRepository(package: package) { //}, workspaceStorage: workspaceStorage) {
-                try? await ciActor.buildIfNeeded(package: package)
-            }
+//        ForEach(packages) { package in
+////            if let workspaceStorage = repo.workspaceStorage {
+//            CodeCIRepository(package: package) { //}, workspaceStorage: workspaceStorage) {
+//                try? await ciActor.buildIfNeeded(package: package)
 //            }
-        }
+////            }
+//        }
 //        .environmentObject(codeCoreViewModel)
     }
     
@@ -27,28 +27,28 @@ public struct CodeCI: View {
         self.ciActor = ciActor
     }
 }
-
-struct CodeCIRepository: View {
-    @ObservedRealmObject var package: CodePackage
-//    @ObservedObject var workspaceStorage: WorkspaceStorage
-    let buildIfNeeded: () async throws -> Void
-    
-    @EnvironmentObject private var codeCoreViewModel: CodeCoreViewModel
-    
-    var body: some View {
-        // Must be the only view for task etc. to be called properly
-        // (undocumented/unverified, may only apply to onAppear)
-        EmptyView()
-            .task {
-                try? await buildIfNeeded()
-            }
-            .onChange(of: package.buildRequested) { buildRequested in
-                if buildRequested {
-                    Task { try? await buildIfNeeded() }
-                }
-            }
-            .onChange(of: package.isEnabled) { _ in
-                Task { try? await buildIfNeeded() }
-            }
-    }
-}
+//
+//struct CodeCIRepository: View {
+//    @ObservedRealmObject var package: CodePackage
+////    @ObservedObject var workspaceStorage: WorkspaceStorage
+//    let buildIfNeeded: () async throws -> Void
+//
+//    @EnvironmentObject private var codeCoreViewModel: CodeCoreViewModel
+//
+//    var body: some View {
+//        // Must be the only view for task etc. to be called properly
+//        // (undocumented/unverified, may only apply to onAppear)
+//        EmptyView()
+//            .task {
+//                try? await buildIfNeeded()
+//            }
+//            .onChange(of: package.buildRequested) { buildRequested in
+//                if buildRequested {
+//                    Task { try? await buildIfNeeded() }
+//                }
+//            }
+//            .onChange(of: package.isEnabled) { _ in
+//                Task { try? await buildIfNeeded() }
+//            }
+//    }
+//}

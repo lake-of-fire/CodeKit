@@ -12,8 +12,8 @@ import SwiftUtilities
 import CodeCore
 
 
-struct MaybePackageRepositoryView: View {
-    var repo: PackageRepository?
+struct MaybeCodePackageView: View {
+    var package: CodePackage?
 
     var body: some View {
         // Workaround for a known issue where `NavigationSplitView` and
@@ -21,9 +21,9 @@ struct MaybePackageRepositoryView: View {
         // For more information, see the iOS 16 Release Notes and
         // macOS 13 Release Notes. (91311311)"
         ZStack {
-            if let repo = repo {
-                PackageRepositoryView(repo: repo)
-                    .navigationTitle(repo.name)
+            if let package = package {
+                CodePackageView(package: package, repository: package.repository())
+                    .navigationTitle(package.name)
             } else {
                 Text("Choose or add a repository")
                     .navigationTitle("")
@@ -37,11 +37,11 @@ struct MaybePackageRepositoryView: View {
 }
 
 struct CodeLibraryExportButton: View {
-    @ObservedResults(RepositoryCollection.self, where: { !$0.isDeleted }) private var repoCollections
+    @ObservedResults(PackageCollection.self, where: { !$0.isDeleted }) private var repoCollections
     
     @EnvironmentObject private var codeActor: CodeActor
     
-    @State private var repositoryCollectionOPMLs = [(String, URL)]()
+    @State private var packageCollectionOPMLs = [(String, URL)]()
     @State private var isMenuPresented = false
 
     @ScaledMetric(relativeTo: .body) private var width = 290
@@ -52,7 +52,7 @@ struct CodeLibraryExportButton: View {
         } label: { Label("Export", systemImage: "square.and.arrow.up") }
             .popover(isPresented: $isMenuPresented) {
                 VStack {
-                    ForEach(repositoryCollectionOPMLs, id: \.1) { pack in
+                    ForEach(packageCollectionOPMLs, id: \.1) { pack in
                         let (name, url) = pack
                         ShareLink("Share \(name)", item: url, message: Text(""), preview: SharePreview("OPML File", image: Image(systemName: "doc"))) // {
 //                            Text("Share \(name)")
@@ -67,9 +67,9 @@ struct CodeLibraryExportButton: View {
                 .frame(idealWidth: width)
                 .padding()
                 .task  {
-                    let opmls = try? await codeActor.generateRepositoryCollectionOPMLs()
+                    let opmls = try? await codeActor.generatePackageCollectionOPMLs()
                     Task { @MainActor in
-                        repositoryCollectionOPMLs = opmls ?? []
+                        packageCollectionOPMLs = opmls ?? []
                     }
                 }
         }
@@ -77,11 +77,11 @@ struct CodeLibraryExportButton: View {
 }
 
 public struct CodeLibraryView: View {
-    @ObservedResults(RepositoryCollection.self, where: { !$0.isDeleted }) private var repoCollections
-    @ObservedResults(PackageRepository.self, where: { !$0.isDeleted && $0.repositoryCollection.count > 0 }) private var collectionRepos
-    @ObservedResults(PackageRepository.self, where: { !$0.isDeleted && $0.repositoryCollection.count == 0 }) private var orphanRepos
+    @ObservedResults(PackageCollection.self, where: { !$0.isDeleted }) private var packageCollections
+    @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.packageCollection.count > 0 }) private var collectionRepos
+    @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.packageCollection.count == 0 }) private var orphanPackages
     
-    @State private var selectedRepo: PackageRepository?
+    @State private var selectedPackage: CodePackage?
     @State private var columnVisibility = NavigationSplitViewVisibility.doubleColumn
     
     @State private var isCollectionNameAlertPresented = false
@@ -92,24 +92,24 @@ public struct CodeLibraryView: View {
     
     public var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility, sidebar: {
-            List(selection: $selectedRepo) {
-                ForEach(repoCollections) { collection in
+            List(selection: $selectedPackage) {
+                ForEach(packageCollections) { collection in
                     Section(collection.name) {
-                        ForEach(collection.repositories) { repo in
-                            NavigationLink(repo.name, value: repo)
+                        ForEach(collection.packages) { package in
+                            NavigationLink(package.name, value: package)
                         }
                     }
                     .headerProminence(.increased)
                 }
                 Section {
-                    ForEach(orphanRepos) { repo in
-                        NavigationLink(repo.name, value: repo)
+                    ForEach(orphanPackages) { package in
+                        NavigationLink(package.name, value: package)
                     }
                 }
             }
             .navigationTitle("Extensions")
-            .toolbar {
-                ToolbarItem(placement: .automatic) {
+            .safeAreaInset(edge: .bottom) {
+                HStack {
                     Menu {
                         Button("New Extension Collection…") {
                             isCollectionNameAlertPresented.toggle()
@@ -117,35 +117,46 @@ public struct CodeLibraryView: View {
                         Button("Add Extension Repository…") {
                             isExtensionURLAlertPresented.toggle()
                         }
-                    } label: { Label("Add", systemImage: "plus") }
+                    } label: {
+                        Label("Add", systemImage: "plus")
+                            .foregroundStyle(.secondary, .secondary)
+                            .imageScale(.large)
+                    }
+                        .menuIndicator(.hidden)
                         .alert("Enter new extension collection name", isPresented: $isCollectionNameAlertPresented) {
                             TextField("Enter extension collection name", text: $newExtensionCollectionName)
                             Button("Add Collection") {
-                                let collection = RepositoryCollection()
+                                let collection = PackageCollection()
                                 collection.name = newExtensionCollectionName
-                                $repoCollections.append(collection)
+                                $packageCollections.append(collection)
+                            }
+                            Button("Cancel", role: .cancel) {
+                                isCollectionNameAlertPresented = false
                             }
                         }
-                        .alert("Enter extension repository URL", isPresented: $isExtensionURLAlertPresented) {
+                        .alert("Enter Extension Repository URL", isPresented: $isExtensionURLAlertPresented) {
                             TextField("Enter extension repository URL", text: $addExtensionURL)
-                            Button("Add repository") {
-                                let repo = PackageRepository()
-                                repo.repositoryURL = addExtensionURL
-                                $orphanRepos.append(repo)
+                            Button("Add Repository") {
+                                let package = CodePackage()
+                                package.repositoryURL = addExtensionURL
+                                $orphanPackages.append(package)
+                            }
+                            Button("Cancel", role: .cancel) {
+                                isExtensionURLAlertPresented = false
                             }
                         }
+//                    Button {
+//
+//                    } label: { Label("Import", systemImage: "square.and.arrow.down") }
+//                    CodeLibraryExportButton()
+                    Spacer()
                 }
-                ToolbarItem(placement: .automatic) {
-                    HStack {
-                        Button {
-                            
-                        } label: { Label("Import", systemImage: "square.and.arrow.down") }
-                        CodeLibraryExportButton()
-                    }
-                }
+                .buttonStyle(.borderless)
+                .labelStyle(.iconOnly)
+                .padding()
             }
         }, detail: {
-            MaybePackageRepositoryView(repo: selectedRepo)
+            MaybeCodePackageView(package: selectedPackage)
         })
 //        .navigationSplitViewStyle(.balanced)
 //        .environmentObject(viewModel)

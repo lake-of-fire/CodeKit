@@ -5,37 +5,17 @@ import BigSyncKit
 import RealmSwiftGaps
 import SwiftGit2
 
-public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifiable, GitRepositoryProtocol {
-    @Persisted(primaryKey: true) public var id = UUID()
-    @Persisted public var repositoryURL = ""
-//    @Persisted public var name = ""
-//    @Persisted public var version = ""
-//    @Persisted public var packageDescription = ""
-//    @Persisted public var repositoryType: String? = nil
-//    @Persisted var repositoryDirectory: String? = nil
+public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
+    public let package: CodePackage
     
-//    @Persisted var packageJSONDirectory: String? = nil
-    @Persisted public var isEnabled = true
-    @Persisted public var buildRequested = false
-    
-    @Persisted(originProperty: "repositories") public var repositoryCollection: LinkingObjects<RepositoryCollection>
-    @Persisted(originProperty: "repository") public var codeExtensions: LinkingObjects<CodeExtension>
-    
-    // Git UI states
-    @MainActor @Published public var gitTracks: [URL: Diff.Status] = [:]
-    @MainActor @Published public var indexedResources: [URL: Diff.Status] = [:]
-    @MainActor @Published public var workingResources: [URL: Diff.Status] = [:]
-    @MainActor @Published public var branch: String = ""
-    @MainActor @Published public var remote: String = ""
-    @MainActor @Published public var commitMessage: String = ""
-    @MainActor @Published public var isSyncing: Bool = false
-    @MainActor @Published public var aheadBehind: (Int, Int)? = nil
-    
-    @Persisted public var modifiedAt = Date()
-    @Persisted public var isDeleted = false
-    public var needsSyncToServer: Bool { false }
-    
-    var cachedRootDirectory: URL? = nil
+    @Published public var gitTracks: [URL: Diff.Status] = [:]
+    @Published public var indexedResources: [URL: Diff.Status] = [:]
+    @Published public var workingResources: [URL: Diff.Status] = [:]
+    @Published public var branch: String = ""
+    @Published public var remote: String = ""
+    @Published public var commitMessage: String = ""
+    @Published public var isSyncing: Bool = false
+    @Published public var aheadBehind: (Int, Int)? = nil
     
     @MainActor public lazy var workspaceStorage: WorkspaceStorage? = {
         let workspaceStorage = WorkspaceStorage(url: directoryURL)
@@ -49,7 +29,13 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
                     let dir = directoryURL
                     await workspaceStorage.updateDirectory(url: dir) //.standardizedFileURL)
                     workspaceStorage.onDirectoryChange { url in
-                        Task { [weak self] in try await self?.loadRepository() }
+                        Task { [weak self] in
+                            guard let self = self else { return }
+                            try await loadRepository()
+                            safeWrite(package) { _, package in
+                                package.buildRequested = true
+                            }
+                        }
                     }
                     try await loadRepository()
                 }
@@ -58,25 +44,56 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
         return workspaceStorage
     }()
     
-    public override init() {
-        super.init()
+    public var name: String {
+        return package.name
     }
     
-    public var url: URL? {
-        return URL(string: repositoryURL)
-    }
-        
-    public var name: String {
-        return url?.deletingPathExtension().lastPathComponent ?? ""
+    public var repositoryURL: URL? {
+        return URL(string: package.repositoryURL)
     }
     
     public var directoryURL: URL {
-        return getRootDirectory().appending(component: "Extensions").appending(component: name + "-" + id.uuidString.suffix(6), directoryHint: .isDirectory)
+        return package.directoryURL
     }
     
     @MainActor var isWorkspaceInitialized: Bool {
         guard let workspaceStorage = workspaceStorage else { return false }
         return workspaceStorage.currentDirectory.url == directoryURL.absoluteString && gitTracks.count > 0 || !branch.isEmpty
+    }
+
+    public init(package: CodePackage) {
+        self.package = package.isFrozen ? package : package.freeze()
+        
+        Task { @MainActor [weak self] in
+            self?.workspaceStorage
+        }
+    }
+}
+
+public class CodePackage: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
+    @Persisted(primaryKey: true) public var id = UUID()
+    @Persisted public var repositoryURL = ""
+//    @Persisted public var name = ""
+//    @Persisted public var version = ""
+//    @Persisted public var packageDescription = ""
+//    @Persisted public var repositoryType: String? = nil
+//    @Persisted var repositoryDirectory: String? = nil
+    
+//    @Persisted var packageJSONDirectory: String? = nil
+    @Persisted public var isEnabled = true
+    @Persisted public var buildRequested = false
+    
+    @Persisted(originProperty: "repositories") public var packageCollection: LinkingObjects<PackageCollection>
+    @Persisted(originProperty: "repository") public var codeExtensions: LinkingObjects<CodeExtension>
+    
+    @Persisted public var modifiedAt = Date()
+    @Persisted public var isDeleted = false
+    public var needsSyncToServer: Bool { false }
+       
+    private var cachedRootDirectory: URL? = nil
+
+    public override init() {
+        super.init()
     }
     
     enum CodingKeys: CodingKey {
@@ -87,17 +104,31 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
         case isDeleted
     }
     
+    public func repository() -> CodePackageRepository {
+        return CodePackageRepository(package: self)
+    }
+    
+    public var name: String {
+        return URL(string: repositoryURL)?.deletingPathExtension().lastPathComponent ?? ""
+    }
+    
+    public var directoryURL: URL {
+        return getRootDirectory().appending(component: "Extensions").appending(component: name + "-" + id.uuidString.suffix(6), directoryHint: .isDirectory)
+    }
+}
+
+public extension CodePackage {
     func getRootDirectory() -> URL {
         if let cachedRootDirectory = cachedRootDirectory {
             return cachedRootDirectory
         }
         // We want ./private prefix because all other files have it
         //    var dir = URL.documentsDirectory
-        #if os(iOS)
+#if os(iOS)
         let documentsPathURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)?.appending(component: "Documents", directoryHint: .isDirectory) ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
-        #else
-        let documentsPathURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)?.appending(component: "Documents", directoryHint: .isDirectory) ?? Optional(URL.homeDirectory)
-        #endif
+#else
+        let documentsPathURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)?.appending(component: "Documents", directoryHint: .isDirectory) ?? Optional(URL.documentsDirectory)
+#endif
         if let documentsPathURL = documentsPathURL {
             if (!FileManager.default.fileExists(atPath: documentsPathURL.path)) {
                 do {
@@ -132,9 +163,9 @@ public class PackageRepository: Object, UnownedSyncableObject, ObjectKeyIdentifi
         }
     }
 }
-
-public extension PackageRepository {
-    enum PackageRepositoryError: Error {
+    
+public extension CodePackageRepository {
+    enum CodePackageError: Error {
         case repositoryLoadingFailed
         case gitRepositoryInitializationError
     }
@@ -143,7 +174,7 @@ public extension PackageRepository {
     private func loadRepository() async throws {
         let extensionNames = try await extensionNamesFromFiles()
         
-        guard let realm = (realm?.isFrozen ?? false) ? realm?.thaw() : realm, let workspaceStorage = workspaceStorage else { return }
+        guard let package = package.isFrozen ? package.thaw() : package, let realm = package.realm, let workspaceStorage = workspaceStorage, let repositoryURL = repositoryURL?.absoluteString else { return }
         let allExisting = realm.objects(CodeExtension.self).where { $0.repositoryURL == repositoryURL && !$0.isDeleted }
         for ext in allExisting {
             guard extensionNames.contains(ext.name) else {
@@ -156,10 +187,9 @@ public extension PackageRepository {
                 return
             }
             
-            if ext.repository != self {
-                try! realm.write {
-                    let repo = isFrozen ? thaw() : self
-                    ext.repository = repo
+            if ext.package != package {
+                safeWrite(ext) { _, ext in
+                    ext.package = package
                 }
             }
         }
@@ -170,7 +200,7 @@ public extension PackageRepository {
             try! realm.write {
                 for name in newNames {
                     realm.create(CodeExtension.self, value: [
-                        "repositoryURL": self.repositoryURL,
+                        "repositoryURL": repositoryURL,
                         "name": name,
                         "repository": self,
                     ] as [String: Any], update: .modified)
@@ -184,7 +214,7 @@ public extension PackageRepository {
         try await gitStatus()
         
         guard let workspaceStorage = workspaceStorage, isWorkspaceInitialized, let currentDirectory = URL(string: workspaceStorage.currentDirectory.url) else {
-            throw PackageRepositoryError.repositoryLoadingFailed
+            throw CodePackageError.repositoryLoadingFailed
         }
         
         var urls = [URL]()
@@ -221,7 +251,7 @@ public extension PackageRepository {
     @MainActor
     private func createAndUpdateDirectoryIfNeeded(completionHandler: @escaping (Error?) -> Void) {
         guard !name.isEmpty else {
-            completionHandler(PackageRepositoryError.gitRepositoryInitializationError)
+            completionHandler(nil)
             return
         }
         let dir = directoryURL
@@ -243,13 +273,9 @@ public extension PackageRepository {
     
     @MainActor
     func cloneOrPullIfNeeded(completionHandler: @escaping (Error?) -> Void) {
-        guard let repositoryURL = URL(string: repositoryURL) else {
-            completionHandler(PackageRepositoryError.repositoryLoadingFailed)
-            return
-        }
         createAndUpdateDirectoryIfNeeded { error in
             Task { @MainActor [weak self] in
-                guard let self = self, error == nil, let workspaceStorage = workspaceStorage else {
+                guard let self = self, error == nil, let workspaceStorage = workspaceStorage, let repositoryURL = repositoryURL else {
                     print(error?.localizedDescription ?? "")
                     completionHandler(error)
                     return
@@ -268,7 +294,7 @@ public extension PackageRepository {
                             to: directoryURL,
                             progress: nil) { error in
                                 print(error)
-                                completionHandler(PackageRepositoryError.gitRepositoryInitializationError)
+                                completionHandler(CodePackageError.gitRepositoryInitializationError)
                             } completionHandler: {
                                 Task { @MainActor [weak self] in
                                     try await self?.gitStatus()
@@ -292,7 +318,7 @@ public extension PackageRepository {
             }) {
                 Task { @MainActor [weak self] in
                     guard let self = self else {
-                        continuation.resume(throwing: PackageRepositoryError.repositoryLoadingFailed)
+                        continuation.resume(throwing: CodePackageError.repositoryLoadingFailed)
                         return
                     }
                     try await gitStatus()

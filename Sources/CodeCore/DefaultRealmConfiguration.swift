@@ -13,8 +13,8 @@ public enum DefaultRealmConfiguration {
             return (totalBytes > targetBytes) && (Double(usedBytes) / Double(totalBytes)) < 0.6
         }
         config.objectTypes = [
-            PackageRepository.self,
-            RepositoryCollection.self,
+            CodePackage.self,
+            PackageCollection.self,
             CodeExtension.self,
         ]
         return config

@@ -6,7 +6,7 @@ import RealmSwiftGaps
 import SwiftGit2
 import CryptoKit
 
-public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable, GitRepositoryProtocol {
+public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
     /// Do not prepend dot. Checks both dot-prepended and as-is automatically and in that order.
     public static var extensionsPathComponents = [String]()
     
@@ -14,7 +14,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     @Persisted(indexed: true) public var repositoryURL = ""
     
     @Persisted public var name = ""
-    @Persisted public var repository: PackageRepository?
+    @Persisted public var package: CodePackage?
     
     @Persisted public var modifiedAt = Date()
     @Persisted public var isDeleted = false
@@ -22,42 +22,42 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     
     @MainActor @Published public var buildHash: SHA256.Digest? = nil
     
-    // Git UI states
-    @MainActor @Published public var gitTracks: [URL: Diff.Status] = [:]
-    @MainActor @Published public var indexedResources: [URL: Diff.Status] = [:]
-    @MainActor @Published public var workingResources: [URL: Diff.Status] = [:]
-    @MainActor @Published public var branch: String = ""
-    @MainActor @Published public var remote: String = ""
-    @MainActor @Published public var commitMessage: String = ""
-    @MainActor @Published public var isSyncing: Bool = false
-    @MainActor @Published public var aheadBehind: (Int, Int)? = nil
-    @MainActor private var cachedWorkspaceStorage: WorkspaceStorage? = nil
+//    // Git UI states
+//    @MainActor @Published public var gitTracks: [URL: Diff.Status] = [:]
+//    @MainActor @Published public var indexedResources: [URL: Diff.Status] = [:]
+//    @MainActor @Published public var workingResources: [URL: Diff.Status] = [:]
+//    @MainActor @Published public var branch: String = ""
+//    @MainActor @Published public var remote: String = ""
+//    @MainActor @Published public var commitMessage: String = ""
+//    @MainActor @Published public var isSyncing: Bool = false
+//    @MainActor @Published public var aheadBehind: (Int, Int)? = nil
+//    @MainActor private var cachedWorkspaceStorage: WorkspaceStorage? = nil
     
-    @MainActor public var workspaceStorage: WorkspaceStorage? {
-        get {
-            guard !name.isEmpty && !repositoryURL.isEmpty else { return nil }
-            if let cachedWorkspaceStorage = cachedWorkspaceStorage {
-                return cachedWorkspaceStorage
-            }
-//            guard let repo = repository, repo.isWorkspaceInitialized, let directoryURL = directoryURL else {
-            guard let directoryURL = directoryURL else {
-                return nil
-            }
-            let workspaceStorage = WorkspaceStorage(url: directoryURL)
-            workspaceStorage.onDirectoryChange { url in
-//                Task { [weak self] in try await self?.loadFromWorkspace() }
-            }
-//            Task { [weak self] in try await self?.loadFromWorkspace() }
-            cachedWorkspaceStorage = workspaceStorage
-            return workspaceStorage
-        }
-    }
+//    @MainActor public var workspaceStorage: WorkspaceStorage? {
+//        get {
+//            guard !name.isEmpty && !repositoryURL.isEmpty else { return nil }
+//            if let cachedWorkspaceStorage = cachedWorkspaceStorage {
+//                return cachedWorkspaceStorage
+//            }
+////            guard let repo = repository, repo.isWorkspaceInitialized, let directoryURL = directoryURL else {
+//            guard let directoryURL = directoryURL else {
+//                return nil
+//            }
+//            let workspaceStorage = WorkspaceStorage(url: directoryURL)
+//            workspaceStorage.onDirectoryChange { url in
+////                Task { [weak self] in try await self?.loadFromWorkspace() }
+//            }
+////            Task { [weak self] in try await self?.loadFromWorkspace() }
+//            cachedWorkspaceStorage = workspaceStorage
+//            return workspaceStorage
+//        }
+//    }
     
     private var cancellables = Set<AnyCancellable>()
     
     public var directoryURL: URL? {
-        guard let repo = repository else { return nil }
-        var baseURL = repo.directoryURL
+        guard let package = package else { return nil }
+        var baseURL = package.directoryURL
         for component in Self.extensionsPathComponents {
             baseURL.append(component: component, directoryHint: .isDirectory)
         }
@@ -65,8 +65,8 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     }
     
     var buildResultPageURL: URL? {
-        guard let repo = repository, !name.isEmpty else { return nil }
-        return URL(string: "codekit://codekit/extensions/")?.appending(component: "\(name)-\(repo.id.uuidString.prefix(6))")
+        guard let package = package, !name.isEmpty else { return nil }
+        return URL(string: "codekit://codekit/extensions/")?.appending(component: "\(name)-\(package.id.uuidString.prefix(6))")
     }
     
     public var buildDirectoryURL: URL? {
@@ -151,22 +151,22 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
         name.publisher
             .sink { _ in
                 Task { @MainActor [weak self] in
-                    self?.cachedWorkspaceStorage = nil
+//                    self?.cachedWorkspaceStorage = nil
                     try? await self?.refreshBuildHash()
                 }
             }
             .store(in: &cancellables)
     }
     
-    @MainActor
-    var isWorkspaceInitialized: Bool {
-        guard let repo = repository else { return false }
-        return (repo.gitTracks.count > 0 || !repo.branch.isEmpty) && !name.isEmpty && cachedWorkspaceStorage != nil
-    }
+//    @MainActor
+//    var isWorkspaceInitialized: Bool {
+//        guard let repo = repository else { return false }
+//        return (repo.gitTracks.count > 0 || !repo.branch.isEmpty) && !name.isEmpty && cachedWorkspaceStorage != nil
+//    }
     
     @MainActor
     func createBuildDirectoryIfNeeded() async throws -> URL {
-        guard let buildDirectoryURL = buildDirectoryURL, let workspaceStorage = workspaceStorage else {
+        guard let buildDirectoryURL = buildDirectoryURL, let workspaceStorage = package?.repository().workspaceStorage else {
             throw CodeExtensionError.unknownError
         }
         if try await !workspaceStorage.fileExists(at: buildDirectoryURL) {
@@ -177,7 +177,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     
     @MainActor
     public func readSources() async throws -> CodeExtension.ExtensionPackage {
-        guard let directoryURL = directoryURL, let workspaceStorage = workspaceStorage else {
+        guard let directoryURL = directoryURL, let workspaceStorage = package?.repository().workspaceStorage else {
             throw CodeExtensionError.unknownError
         }
         let candidateURLs = try await workspaceStorage.contentsOfDirectory(at: directoryURL)
@@ -203,7 +203,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     @MainActor
     public func store(buildResultHTML: String) async throws -> URL {
         let buildDirectoryURL = try await createBuildDirectoryIfNeeded()
-        guard !name.isEmpty, let workspaceStorage = workspaceStorage, let resultData = buildResultHTML.data(using: .utf8), let storageURL = buildResultStorageURL else {
+        guard !name.isEmpty, let workspaceStorage = package?.repository().workspaceStorage, let resultData = buildResultHTML.data(using: .utf8), let storageURL = buildResultStorageURL else {
             throw CodeExtensionError.unknownError
         }
         try await workspaceStorage.write(at: storageURL, content: resultData, atomically: true, overwrite: true)
@@ -213,7 +213,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     
     @MainActor
     public func loadBuildResult() async throws -> (Data, URL) {
-        guard let workspaceStorage = workspaceStorage, let buildResultStorageURL = buildResultStorageURL, let buildResultPageURL = buildResultPageURL else {
+        guard let workspaceStorage = package?.repository().workspaceStorage, let buildResultStorageURL = buildResultStorageURL, let buildResultPageURL = buildResultPageURL else {
             throw CodeExtensionError.unknownError
         }
         let resultData = try await workspaceStorage.contents(at: buildResultStorageURL)
@@ -223,7 +223,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     private func refreshBuildHash() async throws {
         let buildDirectoryURL = try await createBuildDirectoryIfNeeded()
         let storageURL = buildDirectoryURL.appending(component: name + ".html")
-        guard let workspaceStorage = workspaceStorage, try await workspaceStorage.fileExists(at: storageURL) else {
+        guard let workspaceStorage = package?.repository().workspaceStorage, try await workspaceStorage.fileExists(at: storageURL) else {
             buildHash = nil
             return
         }
@@ -241,7 +241,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
         case id
         case repositoryURL
         case name
-        case repository
+//        case package
         case modifiedAt
         case isDeleted
     }

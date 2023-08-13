@@ -16,13 +16,14 @@ public actor CodeCIActor: ObservableObject {
         }
     }
     
-    private var repos: Results<PackageRepository> {
+    private var packages: Results<CodePackage> {
         get async throws {
-            try await realm.objects(PackageRepository.self).where({ !$0.isDeleted && $0.isEnabled })
+            try await realm.objects(CodePackage.self).where({ !$0.isDeleted && $0.isEnabled })
         }
     }
 //    @MainActor @Published private var activeRepos:
     
+    @MainActor @Published var repositories = [CodePackageRepository]()
     
     private var cancellables = Set<AnyCancellable>()
     @MainActor private var buildTask: Task<(), Error>?
@@ -43,8 +44,8 @@ public actor CodeCIActor: ObservableObject {
         }
     }
     
-    func wireRepos() async {
-        try? await realm.objects(PackageRepository.self).where({ !$0.isDeleted && $0.isEnabled })
+    private func wireRepos() async {
+        try? await packages
 //        try? await repos
             .changesetPublisher
             .receive(on: DispatchQueue.main)
@@ -54,13 +55,17 @@ public actor CodeCIActor: ObservableObject {
                     let ref = ThreadSafeReference(to: results)
                     Task { @MainActor [weak self] in
                         guard let self = self, let results = try? await realm.resolve(ref) else { return }
-                        buildIfNeeded(repos: Array(results), forceBuild: true)
+                        let packages = Array(results)
+                        refreshRepositories(packages: packages)
+                        buildIfNeeded(packages: packages, forceBuild: true)
                     }
                 case .update(let results, let deletions, let insertions, let modifications):
                     let ref = ThreadSafeReference(to: results)
                     Task { @MainActor [weak self] in
                         guard let self = self, let results = try? await realm.resolve(ref) else { return }
-                        buildIfNeeded(repos: Set(insertions + modifications).map { results[$0] })
+                        let packages = Array(results)
+                        refreshRepositories(packages: packages)
+                        buildIfNeeded(packages: Set(insertions + modifications).map { results[$0] })
                     }
                 case .error(let error):
                     print(error)
@@ -70,19 +75,26 @@ public actor CodeCIActor: ObservableObject {
     }
    
     @MainActor
-    func buildIfNeeded(repos: [PackageRepository], forceBuild: Bool = false) {
+    private func refreshRepositories(packages: [CodePackage]) {
+        // TODO: Only refresh/remove initial/added/modified/removed ones from wireRepos
+        repositories = packages.map { $0.repository() }
+    }
+    
+    @MainActor
+    func buildIfNeeded(packages: [CodePackage], forceBuild: Bool = false) {
         buildTask?.cancel()
         buildTask = Task { @MainActor [weak self] in
-            for repo in repos {
-                try? await self?.buildIfNeeded(repo: repo, forceBuild: forceBuild)
+            for package in packages {
+                try? await self?.buildIfNeeded(package: package, forceBuild: forceBuild)
             }
         }
     }
     
     @MainActor
-    func buildIfNeeded(repo: PackageRepository, forceBuild: Bool = false) async throws {
+    func buildIfNeeded(package: CodePackage, forceBuild: Bool = false) async throws {
         return try await withCheckedThrowingContinuation { continuation in
-            let ref = ThreadSafeReference(to: repo)
+            let ref = ThreadSafeReference(to: package)
+            let repo = package.repository()
             repo.cloneOrPullIfNeeded { [weak self] error in
                 if let error = error {
                     print(error)
@@ -98,14 +110,14 @@ public actor CodeCIActor: ObservableObject {
                     }
                     
                     do {
-                        guard let self = self, let repo = try await realm.resolve(ref) else {
+                        guard let self = self, let package = try await realm.resolve(ref) else {
                             continuation.resume(throwing: CodeCIError.unknownError)
                             return
                         }
 
-                        if repo.buildRequested {
-                            try! repo.realm?.write {
-                                repo.buildRequested = false
+                        if package.buildRequested {
+                            safeWrite(package) { _, package in
+                                package.buildRequested = false
                             }
                         } else if !forceBuild {
                             continuation.resume(returning: ())
@@ -114,7 +126,7 @@ public actor CodeCIActor: ObservableObject {
                         
                         let names = try await repo.extensionNamesFromFiles()
                         for extensionName in names {
-                            guard let codeExtension = repo.codeExtensions.where({ $0.name == extensionName && !$0.isDeleted }).first else {
+                            guard let codeExtension = package.codeExtensions.where({ $0.name == extensionName && !$0.isDeleted }).first else {
                                 print("Warning: Couldn't find CodeExtension matching \(repo.name) \(extensionName)")
                                 continue
                             }

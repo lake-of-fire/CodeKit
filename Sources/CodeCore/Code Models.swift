@@ -25,11 +25,11 @@ public actor CodeActor: ObservableObject {
         git_libgit2_shutdown()
     }
     
-    public func generateRepositoryCollectionOPMLs() async throws -> [(String, URL)] {
+    public func generatePackageCollectionOPMLs() async throws -> [(String, URL)] {
         let realm = try await self.realm
         var opmls = [OPML]()
         var names = [String]()
-        for collection in Array(realm.objects(RepositoryCollection.self).where({ !$0.isDeleted })) {
+        for collection in Array(realm.objects(PackageCollection.self).where({ !$0.isDeleted })) {
             try Task.checkCancellation()
             let opml = try await collection.generateOPML()
             opmls.append(opml)
@@ -63,10 +63,10 @@ public actor CodeActor: ObservableObject {
     }
 }
 
-public class RepositoryCollection: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
+public class PackageCollection: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
     @Persisted(primaryKey: true) public var id = UUID()
     @Persisted public var name = ""
-    @Persisted public var repositories = RealmSwift.MutableSet<PackageRepository>()
+    @Persisted public var packages = RealmSwift.MutableSet<CodePackage>()
     
     @Persisted public var last = Date()
     
@@ -83,14 +83,14 @@ public class RepositoryCollection: Object, UnownedSyncableObject, ObjectKeyIdent
         let task = Task.detached { [collection] in
             try Task.checkCancellation()
             let entries = OPMLEntry(text: collection.name, attributes: [
-                Attribute(name: "type", value: "CodeKit.RepositoryCollection"),
+                Attribute(name: "type", value: "CodeKit.PackageCollection"),
                 Attribute(name: "id", value: collection.id.uuidString),
-            ], children: collection.repositories.map({ repo in
-                return OPMLEntry(text: repo.name, attributes: [
-                    Attribute(name: "type", value: "CodeKit.PackageRepository"),
-                    Attribute(name: "url", value: repo.repositoryURL ?? ""),
-                    Attribute(name: "id", value: repo.id.uuidString),
-                    Attribute(name: "isEnabled", value: repo.isEnabled ? "true" : "false"),
+            ], children: collection.packages.map({ package in
+                return OPMLEntry(text: package.name, attributes: [
+                    Attribute(name: "type", value: "CodeKit.CodePackage"),
+                    Attribute(name: "url", value: package.repositoryURL ?? ""),
+                    Attribute(name: "id", value: package.id.uuidString),
+                    Attribute(name: "isEnabled", value: package.isEnabled ? "true" : "false"),
                 ])
             }))
             let opml = OPML(

@@ -171,7 +171,7 @@ public struct CodeLibraryConfiguration {
         return (importedCategories, importedFeeds, importedScripts)
     }
     
-    static func applyAttributes(opml: OPML, opmlEntry: OPMLEntry, download: Downloadable?, repo: PackageRepository) {
+    static func applyAttributes(opml: OPML, opmlEntry: OPMLEntry, download: Downloadable?, repo: CodePackage) {
         repo.name = opmlEntry.text
         
         repo.isDeleted = false

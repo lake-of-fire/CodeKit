@@ -114,7 +114,7 @@ public class CodePackage: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
     }
     
     public var directoryURL: URL {
-        return getRootDirectory().appending(component: "Extensions").appending(component: name + "-" + id.uuidString.suffix(6), directoryHint: .isDirectory)
+        return getRootDirectory().appending(component: "CodeKit").appending(component: name + "-" + id.uuidString.suffix(6), directoryHint: .isDirectory)
     }
 }
 

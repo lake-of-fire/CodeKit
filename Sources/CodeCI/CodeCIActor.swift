@@ -75,7 +75,7 @@ public actor CodeCIActor: ObservableObject {
 //                        buildIfNeeded(packages: Set(insertions + modifications).map { results[$0] })
                     }
                 case .error(let error):
-                    print(error)
+                    print("Error: \(error)")
                 }
             }
             .store(in: &cancellables)
@@ -95,7 +95,7 @@ public actor CodeCIActor: ObservableObject {
                         try await self?.requestBuildsIfNeeded()
                     }
                 case .error(let error):
-                    print(error)
+                    print("Error: \(error)")
                 }
             }
             .store(in: &cancellables)
@@ -110,20 +110,24 @@ public actor CodeCIActor: ObservableObject {
                     let ref = ThreadSafeReference(to: results)
                     Task { @MainActor [weak self] in
                         guard let self = self, let results = try? await realm.resolve(ref) else { return }
-                        for codeExtension in results {
-                            try await build(codeExtension: codeExtension)
+                        for codeExtension in Array(results) {
+                            if codeExtension.buildRequested {
+                                try await build(codeExtension: codeExtension)
+                            }
                         }
                     }
                 case .update(let results, let deletions, let insertions, let modifications):
                     let ref = ThreadSafeReference(to: results)
                     Task { @MainActor [weak self] in
-//                        guard let self = self, let results = try? await realm.resolve(ref) else { return }
-//                        for codeExtension in results {
-//                            try await build(codeExtension: codeExtension)
-//                        }
+                        guard let self = self, let results = try? await realm.resolve(ref) else { return }
+                        for codeExtension in Array(results) {
+                            if codeExtension.buildRequested {
+                                try await build(codeExtension: codeExtension)
+                            }
+                        }
                     }
                 case .error(let error):
-                    print(error)
+                    print("Error: \(error)")
                 }
             }
             .store(in: &cancellables)
@@ -161,7 +165,7 @@ public actor CodeCIActor: ObservableObject {
             
             repo.cloneOrPullIfNeeded { [weak self] error in
                 if let error = error {
-                    print(error)
+                    print("Error: \(error)")
                     continuation.resume(throwing: error)
                     return
                 }
@@ -195,7 +199,7 @@ public actor CodeCIActor: ObservableObject {
                         }
                         continuation.resume(returning: ())
                     } catch {
-                        print(error)
+                        print("Error: \(error)")
                         continuation.resume(throwing: error)
                     }
                 }

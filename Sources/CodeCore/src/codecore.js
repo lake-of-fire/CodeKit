@@ -7,6 +7,8 @@ let playgroundPromise = createPlayground('#container', {
     loading: 'eager',
     //lite: true, // <-- This breaks builds
     config: {
+        editor: "codemirror",
+        tabSize: 4,
         markup: { language: "html", content: "" },
         style: { language: "css", content: "" },
         script: { language: "js", content: "" },

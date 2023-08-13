@@ -187,7 +187,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
         for path in contents {
             let fileName = path.deletingPathExtension().lastPathComponent
             if path.isFileURL, path.lastPathComponent.hasSuffix(".html"), let lastIndex = fileName.lastIndex(of: "-"), String(fileName[..<lastIndex]) == name {
-                let existingBuildHash = String(fileName[lastIndex...])
+                let existingBuildHash = String(fileName[fileName.index(after: lastIndex)...])
                 if existingBuildHash != excludingBuildHash {
                     try await workspaceStorage.removeItem(at: path)
                 }

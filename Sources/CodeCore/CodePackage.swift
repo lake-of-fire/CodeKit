@@ -83,8 +83,8 @@ public class CodePackage: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
     @Persisted public var isEnabled = true
     @Persisted public var buildRequested = false
     
-    @Persisted(originProperty: "repositories") public var packageCollection: LinkingObjects<PackageCollection>
-    @Persisted(originProperty: "repository") public var codeExtensions: LinkingObjects<CodeExtension>
+    @Persisted(originProperty: "packages") public var packageCollection: LinkingObjects<PackageCollection>
+    @Persisted(originProperty: "package") public var codeExtensions: LinkingObjects<CodeExtension>
     
     @Persisted public var modifiedAt = Date()
     @Persisted public var isDeleted = false

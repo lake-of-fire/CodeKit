@@ -9,5 +9,4 @@ DerivedData/
 .netrc
 
 /Sources/CodeMirror/src/node_modules
-/Sources/CodeCore/src/build/
 node_modules/

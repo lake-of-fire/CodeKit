@@ -87,6 +87,8 @@ let package = Package(
             name: "CodeRunner",
             dependencies: [
                 .target(name: "CodeCore"),
+                .product(name: "Realm", package: "realm-swift"),
+                .product(name: "RealmSwift", package: "realm-swift"),
             ],
             resources: [
             ]),

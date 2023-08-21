@@ -4,8 +4,10 @@ import RealmSwift
 
 public struct CodeRunner: View {
     @ObservedRealmObject var codeExtension: CodeExtension
+    let syncedTypes: [Object.Type]?
     
     @StateObject private var codeCoreViewModel = CodeCoreViewModel()
+    @StateObject private var dbSync = DBSync()
     
     public var body: some View {
         CodeCoreView(codeCoreViewModel)
@@ -13,6 +15,16 @@ public struct CodeRunner: View {
             .frame(maxWidth: 0.0000001, maxHeight: 0.0000001)
             .allowsHitTesting(false)
             .task {
+                if let syncedTypes = syncedTypes, let asyncJavaScriptCaller = codeCoreViewModel.asyncJavaScriptCaller {
+                    guard let realm = codeExtension.realm else {
+                        print("No Realm found for CodeExtension in CodeRunner")
+                        return
+                    }
+                    await dbSync.initialize(
+                        realmConfiguration: realm.configuration,
+                        syncedTypes: syncedTypes,
+                        asyncJavaScriptCaller: asyncJavaScriptCaller)
+                }
                 try? await run()
             }
             .onChange(of: codeExtension.latestBuildHashAvailable) { latestBuildHashAvailable in
@@ -23,8 +35,9 @@ public struct CodeRunner: View {
             }
     }
     
-    public init(codeExtension: CodeExtension) {
+    public init(codeExtension: CodeExtension, syncedTypes: [Object.Type]? = nil) {
         self.codeExtension = codeExtension
+        self.syncedTypes = syncedTypes
     }
     
     @MainActor
@@ -33,5 +46,6 @@ public struct CodeRunner: View {
         codeCoreViewModel.load(
             htmlData: data,
             baseURL: url)
+        await dbSync.beginSyncIfNeeded()
     }
 }

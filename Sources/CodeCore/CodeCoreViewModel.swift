@@ -10,7 +10,7 @@ public class CodeCoreViewModel: ObservableObject {
 //    internal var executeJS: ((JavascriptFunction, JavascriptCallback?) -> Void)!
 //    internal var asyncJavaScriptCaller: ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?, ((Result<Any, any Error>) -> Void)?) async -> Void)? = nil
     internal var load: ((Data, String, String, URL) -> Void)? = nil
-    internal var asyncJavaScriptCaller: ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?)? = nil
+    public var asyncJavaScriptCaller: ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?)? = nil
 
 //    @Published public var  = false
 //    @Published public var darkMode = false

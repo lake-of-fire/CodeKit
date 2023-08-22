@@ -15,18 +15,18 @@ public struct CodeRunner: View {
             .frame(maxWidth: 0.0000001, maxHeight: 0.0000001)
             .allowsHitTesting(false)
             .task {
+                codeCoreViewModel.syncDocsToCanonical = dbSync.syncFrom(collectionName:changedDocs:)
+                try? await run()
                 if let syncedTypes = syncedTypes, let asyncJavaScriptCaller = codeCoreViewModel.asyncJavaScriptCaller {
                     guard let realm = codeExtension.realm else {
                         print("No Realm found for CodeExtension in CodeRunner")
                         return
                     }
-                    codeCoreViewModel.syncDocsToCanonical = dbSync.syncFrom(collectionName:changedDocs:)
                     await dbSync.initialize(
                         realmConfiguration: realm.configuration,
                         syncedTypes: syncedTypes,
                         asyncJavaScriptCaller: asyncJavaScriptCaller)
                 }
-                try? await run()
             }
             .onChange(of: codeExtension.latestBuildHashAvailable) { latestBuildHashAvailable in
                 guard latestBuildHashAvailable != nil else {

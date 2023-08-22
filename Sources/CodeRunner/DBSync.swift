@@ -119,6 +119,7 @@ public class DBSync: ObservableObject {
         
         let d = JSON(collections)
         print(String(data: d.data(options: .prettyPrinted), encoding: .utf8) ?? "")
+        try await Task.sleep(nanoseconds: 6_000_000_000)
         _ = try await asyncJavaScriptCaller?(
             "window.createCollectionsFromCanonical(collections)", ["collections": collections], nil, .page)
     }

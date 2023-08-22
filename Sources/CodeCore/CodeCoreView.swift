@@ -107,8 +107,7 @@ public class Coordinator: NSObject {
     ) {
         if pageLoaded {
             evaluateJavascript(function: function, callback: callback)
-        }
-        else {
+        } else {
             pendingFunctions.append((function, callback))
         }
     }

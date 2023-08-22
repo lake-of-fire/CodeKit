@@ -120,7 +120,7 @@ public class DBSync: ObservableObject {
         let d = JSON(collections)
         print(String(data: d.data(options: .prettyPrinted), encoding: .utf8) ?? "")
         print(Date())
-        try await Task.sleep(nanoseconds: 8_000_000_000)
+        try await Task.sleep(nanoseconds: 5_000_000_000)
         print(Date())
         print("### GONNA SHOW...")
         let ret = try await asyncJavaScriptCaller?(

@@ -120,8 +120,10 @@ public class DBSync: ObservableObject {
         let d = JSON(collections)
         print(String(data: d.data(options: .prettyPrinted), encoding: .utf8) ?? "")
         try await Task.sleep(nanoseconds: 6_000_000_000)
-        _ = try await asyncJavaScriptCaller?(
+        let ret = try await asyncJavaScriptCaller?(
             "window.createCollectionsFromCanonical(collections)", ["collections": collections], nil, .page)
+        print("### RESPONSE FROM WEBVIEW:")
+        print(ret)
     }
     
     private func objectSchema(_ realmSchema: ObjectSchema) -> [String: Any] {

@@ -4,7 +4,7 @@ import RealmSwift
 import Combine
 import WebKit
 
-public protocol SyncableObject: Object, RealmFetchable, Identifiable, Codable {
+public protocol DBSyncableObject: Object, RealmFetchable, Identifiable, Codable {
     var isDeleted: Bool { get set }
     var modifiedAt: Date { get set }
 }
@@ -106,10 +106,6 @@ public class DBSync: ObservableObject {
     }
     
     private func propertySchema(_ property: Property, realmSchema: ObjectSchema) -> [String: Any] {
-        guard let realmConfiguration = realmConfiguration else {
-            fatalError("No Realm configuration found for schema initialization.")
-        }
-        let realm = try! Realm(configuration: realmConfiguration)
         var schema = [String: Any]()
         if property.isArray {
             schema = [
@@ -134,15 +130,6 @@ public class DBSync: ObservableObject {
                     ],
                 ],
             ]
-        } else if property.type == .object {
-            guard let objectClassName = property.objectClassName, let realmSchema = realm.schema[objectClassName] else { fatalError("Unexpected issue during Realm schema serialization") }
-            schema = [
-                "type": "object",
-                "properties": objectSchema(realmSchema),
-            ]
-        } else if property.type == .objectId || property.type == .UUID {
-            schema = plainPropertySchema(property)
-            schema["maxLength"] = 36
         } else {
             schema = plainPropertySchema(property)
         }
@@ -156,9 +143,26 @@ public class DBSync: ObservableObject {
     }
     
     private func plainPropertySchema(_ property: Property) -> [String: Any] {
-        return [
+        guard let realmConfiguration = realmConfiguration else {
+            fatalError("No Realm configuration found for schema initialization.")
+        }
+        let realm = try! Realm(configuration: realmConfiguration)
+        
+        if property.type == .object {
+            guard let objectClassName = property.objectClassName, let realmSchema = realm.schema[objectClassName] else { fatalError("Unexpected issue during Realm schema serialization") }
+            return [
+                "type": "object",
+                "properties": objectSchema(realmSchema),
+            ]
+        }
+        
+        var schema: [String: Any] = [
             "type": Self.propertyType(property),
         ]
+        if property.type == .objectId || property.type == .UUID {
+            schema["maxLength"] = 36
+        }
+        return schema
     }
     
     private static func propertyType(_ property: Property) -> String {

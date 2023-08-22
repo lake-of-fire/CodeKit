@@ -12,6 +12,9 @@ let playgroundPromise = createPlayground('#container', {
         markup: { language: "html", content: "" },
         style: { language: "css", content: "" },
         script: { language: "js", content: "" },
+        customSettings: {
+            "defaultCDN": "skypack",
+        },
     },
     //params: {
     //},

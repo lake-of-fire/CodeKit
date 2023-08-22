@@ -124,7 +124,7 @@ public class DBSync: ObservableObject {
         print(Date())
         print("### GONNA SHOW...")
         let ret = try await asyncJavaScriptCaller?(
-            "window.createCollectionsFromCanonical(collections)", ["collections": collections], nil, .page)
+            "await window.createCollectionsFromCanonical(collections)", ["collections": collections], nil, .page)
         print("### RESPONSE FROM WEBVIEW:")
         print(ret)
     }

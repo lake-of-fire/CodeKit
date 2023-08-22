@@ -9,6 +9,27 @@ public protocol DBSyncableObject: Object, RealmFetchable, Identifiable, Codable 
     var modifiedAt: Date { get set }
 }
 
+fileprivate extension String {
+    func camelCaseToSnakeCase() -> String {
+        let acronymPattern = "([A-Z]+)([A-Z][a-z]|[0-9])"
+        let fullWordsPattern = "([a-z])([A-Z]|[0-9])"
+        let digitsFirstPattern = "([0-9])([A-Z])"
+        return self.processCamelCaseRegex(pattern: acronymPattern)?
+            .processCamelCaseRegex(pattern: fullWordsPattern)?
+            .processCamelCaseRegex(pattern:digitsFirstPattern)?.lowercased() ?? self.lowercased()
+    }
+    
+    private func processCamelCaseRegex(pattern: String) -> String? {
+        let regex = try? NSRegularExpression(pattern: pattern, options: [])
+        let range = NSRange(location: 0, length: count)
+        return regex?.stringByReplacingMatches(in: self, options: [], range: range, withTemplate: "$1_$2")
+    }
+}
+
+fileprivate func dbCollectionName(realmSchema: ObjectSchema) -> String {
+    return realmSchema.className.camelCaseToSnakeCase()
+}
+
 struct SyncCheckpoint {
     let modifiedAt: Double
     let id: UUID
@@ -84,17 +105,20 @@ public class DBSync: ObservableObject {
                 "title": "\(realmSchema.className) schema",
                 "version": 0,
                 "description": "",
-                "keyCompression": true,
+                "keyCompression": false,
                 "primaryKey": primaryKeyProperty.name,
                 "type": "object",
                 "properties": objectSchema(realmSchema),
                 "required": realmSchema.properties.compactMap { $0.isOptional ? nil : $0.name },
 //                "encrypted": [],
             ]
-            collections[realmSchema.className] = [
+            collections[dbCollectionName(realmSchema: realmSchema)] = [
                 "schema": schema,
             ]
         }
+        
+        let d = JSON(collections)
+        print(String(data: d.data(options: .prettyPrinted), encoding: .utf8) ?? "")
         _ = try await asyncJavaScriptCaller?(
             "window.createCollectionsFromCanonical(collections)", ["collections": collections], nil, .page)
     }
@@ -187,15 +211,18 @@ public class DBSync: ObservableObject {
         guard let realmConfiguration = realmConfiguration, asyncJavaScriptCaller != nil else {
             fatalError("No Realm configuration found.")
         }
+        let realm = try await Realm(configuration: realmConfiguration)
         
         for objectType in syncedTypes {
-            let rawCheckpoint = try await asyncJavaScriptCaller?("window[`${collectionName}LastCheckpoint`]", ["collectionName": objectType.className()], nil, .page) as? [String: Any]
+            guard let realmSchema = realm.schema[objectType.className()] else {
+                fatalError("No schema found for object type")
+            }
+            let rawCheckpoint = try await asyncJavaScriptCaller?("window[`${collectionName}LastCheckpoint`]", ["collectionName": dbCollectionName(realmSchema: realmSchema)], nil, .page) as? [String: Any]
             var checkpoint: SyncCheckpoint?
             if let rawCheckpoint = rawCheckpoint, let modifiedAt = rawCheckpoint["updatedAt"] as? Double, let id = rawCheckpoint["id"] as? String, let uuid = UUID(uuidString: id) {
                 checkpoint = SyncCheckpoint(modifiedAt: modifiedAt, id: uuid)
             }
             
-            let realm = try await Realm(configuration: realmConfiguration)
             var objects = realm.objects(objectType)
                 .sorted(by: [
                     SortDescriptor(keyPath: "modifiedAt", ascending: true),
@@ -223,7 +250,8 @@ public class DBSync: ObservableObject {
     
     @MainActor
     private func syncTo(objects: [Object]) async throws {
-        guard let collectionName = objects.first?.objectSchema.className else { return }
+        guard let realmSchema = objects.first?.objectSchema else { return }
+        let collectionName = dbCollectionName(realmSchema: realmSchema)
         _ = try await asyncJavaScriptCaller?("window.syncDocsFromCanonical(collectionName, changedDocs)", [
             "collectionName": collectionName,
             "changedDocs": objects,

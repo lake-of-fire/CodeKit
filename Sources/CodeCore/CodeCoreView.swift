@@ -38,6 +38,7 @@ public struct CodeCoreView: NativeView {
         let preferences = WKPreferences()
         let userController = WKUserContentController()
         userController.add(context.coordinator, name: ScriptMessageName.codeCoreIsReady)
+        userController.add(context.coordinator, name: ScriptMessageName.syncDocsToCanonical)
 
         let configuration = WKWebViewConfiguration()
         configuration.preferences = preferences
@@ -162,6 +163,16 @@ extension Coordinator: WKScriptMessageHandler {
         case ScriptMessageName.codeCoreIsReady:
             pageLoaded = true
             callPendingFunctions()
+        case ScriptMessageName.syncDocsToCanonical:
+            guard let syncDocsToCanonical = viewModel.syncDocsToCanonical else {
+                print("ERROR: no syncDocsToCanonical set on view model")
+                return
+            }
+            guard let result = message.body as? [String: Any], let collectionName = result["collectionName"] as? String, let changedDocs = result["changedDocs"] as? [String: Any] else {
+                print("ERROR: failed to decode syncDocsToCanonical message")
+                return
+            }
+            syncDocsToCanonical(collectionName, changedDocs)
         default:
             print("receive \(message.name) \(message.body)")
         }

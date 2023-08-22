@@ -20,6 +20,7 @@ public struct CodeRunner: View {
                         print("No Realm found for CodeExtension in CodeRunner")
                         return
                     }
+                    codeCoreViewModel.syncDocsToCanonical = dbSync.syncFrom(collectionName:changedDocs:)
                     await dbSync.initialize(
                         realmConfiguration: realm.configuration,
                         syncedTypes: syncedTypes,

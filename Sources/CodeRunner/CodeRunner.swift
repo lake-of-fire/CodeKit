@@ -47,6 +47,9 @@ public struct CodeRunner: View {
         codeCoreViewModel.load(
             htmlData: data,
             baseURL: url)
-        await dbSync.beginSyncIfNeeded()
+        
+        if syncedTypes != nil && codeCoreViewModel.asyncJavaScriptCaller != nil {
+            await dbSync.beginSyncIfNeeded()
+        }
     }
 }

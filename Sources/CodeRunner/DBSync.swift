@@ -9,6 +9,24 @@ public protocol DBSyncableObject: Object, RealmFetchable, Identifiable, Codable 
     var modifiedAt: Date { get set }
 }
 
+fileprivate extension DBSyncableObject {
+    static func dbCollectionName() -> String {
+        return Self.className().camelCaseToSnakeCase()
+    }
+}
+
+fileprivate extension ObjectSchema {
+    func dbCollectionName() -> String {
+        return className.camelCaseToSnakeCase()
+    }
+}
+//
+//fileprivate extension [any DBSyncableObject] {
+//    func encode(to jsonEncoder: JSONEncoder) throws -> Data {
+//        try jsonEncoder.encode(self)
+//    }
+//}
+
 fileprivate extension String {
     func camelCaseToSnakeCase() -> String {
         let acronymPattern = "([A-Z]+)([A-Z][a-z]|[0-9])"
@@ -26,10 +44,6 @@ fileprivate extension String {
     }
 }
 
-fileprivate func dbCollectionName(realmSchema: ObjectSchema) -> String {
-    return realmSchema.className.camelCaseToSnakeCase()
-}
-
 struct SyncCheckpoint {
     let modifiedAt: Double
     let id: UUID
@@ -37,7 +51,8 @@ struct SyncCheckpoint {
 
 public class DBSync: ObservableObject {
     private var realmConfiguration: Realm.Configuration? = nil
-    private var syncedTypes: [Object.Type] = []
+//    private var syncedTypes: [Object.Type] = []
+    private var syncedTypes: [any DBSyncableObject.Type] = []
     private var asyncJavaScriptCaller: ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?)? = nil
     
     private var subscriptions = Set<AnyCancellable>()
@@ -48,7 +63,7 @@ public class DBSync: ObservableObject {
     }
     
     @MainActor
-    public func initialize(realmConfiguration: Realm.Configuration, syncedTypes: [Object.Type], asyncJavaScriptCaller: @escaping ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?)) async {
+    public func initialize(realmConfiguration: Realm.Configuration, syncedTypes: [any DBSyncableObject.Type], asyncJavaScriptCaller: @escaping ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?)) async {
         self.realmConfiguration = realmConfiguration
         self.syncedTypes = syncedTypes
         self.asyncJavaScriptCaller = asyncJavaScriptCaller
@@ -112,7 +127,7 @@ public class DBSync: ObservableObject {
                 "required": realmSchema.properties.compactMap { $0.isOptional ? nil : $0.name },
 //                "encrypted": [],
             ]
-            collections[dbCollectionName(realmSchema: realmSchema)] = [
+            collections[objectType.dbCollectionName()] = [
                 "schema": schema,
             ]
         }
@@ -192,10 +207,10 @@ public class DBSync: ObservableObject {
         }
         let realm = try! Realm(configuration: realmConfiguration)
         
-        if property.type == .object || property.type == .objectId {
+        if property.type == .object {
             guard let objectClassName = property.objectClassName, let realmSchema = realm.schema[objectClassName] else { fatalError("Unexpected issue during Realm schema serialization") }
             return [
-                "ref": dbCollectionName(realmSchema: realmSchema),
+                "ref": realmSchema.dbCollectionName(),
                 "type": "string",
                 "properties": objectSchema(realmSchema),
             ]
@@ -235,10 +250,11 @@ public class DBSync: ObservableObject {
         let realm = try await Realm(configuration: realmConfiguration)
         
         for objectType in syncedTypes {
-            guard let realmSchema = realm.schema[objectType.className()] else {
-                fatalError("No schema found for object type")
-            }
-            let rawCheckpoint = try await asyncJavaScriptCaller?("window[`${collectionName}LastCheckpoint`]", ["collectionName": dbCollectionName(realmSchema: realmSchema)], nil, .page) as? [String: Any]
+//            guard let realmSchema = realm.schema[objectType.className()] else {
+//                fatalError("No schema found for object type")
+//            }
+            
+            let rawCheckpoint = try await asyncJavaScriptCaller?("window[`${collectionName}LastCheckpoint`]", ["collectionName": objectType.dbCollectionName()], nil, .page) as? [String: Any]
             var checkpoint: SyncCheckpoint?
             if let rawCheckpoint = rawCheckpoint, let modifiedAt = rawCheckpoint["updatedAt"] as? Double, let id = rawCheckpoint["id"] as? String, let uuid = UUID(uuidString: id) {
                 checkpoint = SyncCheckpoint(modifiedAt: modifiedAt, id: uuid)
@@ -255,31 +271,23 @@ public class DBSync: ObservableObject {
                     checkpoint.modifiedAt, checkpoint.modifiedAt, checkpoint.id)
             }
             
-            let batchSize = 20
-            var remaining = batchSize
-            var toSend: [Object] = []
             for obj in objects {
-                toSend.append(obj)
-                remaining -= 1
-                if remaining == 0 {
-                    try await syncTo(objects: toSend)
-                    remaining = batchSize
-                    toSend.removeAll(keepingCapacity: true)
-                }
-            }
-            if !toSend.isEmpty {
-                try await syncTo(objects: toSend)
+                guard let syncableObj = obj as? (any DBSyncableObject) else { continue }
+                    try await syncTo(object: syncableObj)
             }
         }
     }
     
     @MainActor
-    private func syncTo(objects: [Object]) async throws {
-        guard let realmSchema = objects.first?.objectSchema else { return }
-        let collectionName = dbCollectionName(realmSchema: realmSchema)
-        _ = try await asyncJavaScriptCaller?("window.syncDocsFromCanonical(collectionName, changedDocs)", [
+    private func syncTo(object: some DBSyncableObject) async throws {
+//        guard let objects = objects as? [any DBSyncableObject], let realmSchema = objects.first?.objectSchema else {
+        let collectionName = type(of: object).dbCollectionName()
+        let jsonDoc = try JSONEncoder().encode(object)
+//        let jsonDocs = try JSONEncoder().encode(objects)
+
+        _ = try await asyncJavaScriptCaller?("window.syncDocsFromCanonical(collectionName, [\(jsonDoc)])", [
             "collectionName": collectionName,
-            "changedDocs": objects,
+//            "changedDocs": objects,
         ], nil, .page)
     }
     

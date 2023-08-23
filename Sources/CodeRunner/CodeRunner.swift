@@ -4,7 +4,7 @@ import RealmSwift
 
 public struct CodeRunner: View {
     @ObservedRealmObject var codeExtension: CodeExtension
-    let syncedTypes: [Object.Type]?
+    let syncedTypes: [any DBSyncableObject.Type]?
     
     @StateObject private var codeCoreViewModel = CodeCoreViewModel()
     @StateObject private var dbSync = DBSync()
@@ -36,7 +36,7 @@ public struct CodeRunner: View {
             }
     }
     
-    public init(codeExtension: CodeExtension, syncedTypes: [Object.Type]? = nil) {
+    public init(codeExtension: CodeExtension, syncedTypes: [any DBSyncableObject.Type]? = nil) {
         self.codeExtension = codeExtension
         self.syncedTypes = syncedTypes
     }

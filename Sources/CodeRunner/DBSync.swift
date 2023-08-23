@@ -4,7 +4,7 @@ import RealmSwift
 import Combine
 import WebKit
 
-public protocol DBSyncableObject: Object, RealmFetchable, Identifiable, Codable {
+public protocol DBSyncableObject: Object, Identifiable, Codable {
     var isDeleted: Bool { get set }
     var modifiedAt: Date { get set }
 }
@@ -281,13 +281,32 @@ public class DBSync: ObservableObject {
     @MainActor
     private func syncTo(object: some DBSyncableObject) async throws {
 //        guard let objects = objects as? [any DBSyncableObject], let realmSchema = objects.first?.objectSchema else {
+//        do {
+//            let realm = try! Realm()
+//            let e = realm.objects(object.objectSchema.objectClass as! Object).first!
+//            print("first")
+//        let j = try JSONEncoder().encode(object)
+////            let j = try JSONEncoder().encode(e)
+//            print(j)
+//            print(String(data: j, encoding: .utf8))
+//            print("uhhh...")
+//        } catch {
+//            print("FAIL")
+//            print(error)
+//        }
+        
         let collectionName = type(of: object).dbCollectionName()
+//        print(object)
+//        let jsonDoc = try object.encode(to: JSONEncoder() as! Encoder)
         let jsonDoc = try JSONEncoder().encode(object)
-//        let jsonDocs = try JSONEncoder().encode(objects)
+        guard let jsonStr = String(data: jsonDoc, encoding: .utf8) else {
+            print("ERROR encoding \(object)")
+            return
+        }
         print("")
-print("window.syncDocsFromCanonical(collectionName, [\(jsonDoc)])")
+print("window.syncDocsFromCanonical(collectionName, [\(jsonStr)])")
         print("")
-        _ = try await asyncJavaScriptCaller?("window.syncDocsFromCanonical(collectionName, [\(jsonDoc)])", [
+        _ = try await asyncJavaScriptCaller?("window.syncDocsFromCanonical(collectionName, [\(jsonStr)])", [
             "collectionName": collectionName,
 //            "changedDocs": objects,
         ], nil, .page)

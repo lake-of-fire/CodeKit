@@ -271,7 +271,7 @@ public class DBSync: ObservableObject {
                     checkpoint.modifiedAt, checkpoint.modifiedAt, checkpoint.id)
             }
             
-            for obj in objects {
+            for obj in Array(objects) {
                 guard let syncableObj = obj as? (any DBSyncableObject) else { continue }
                     try await syncTo(object: syncableObj)
             }

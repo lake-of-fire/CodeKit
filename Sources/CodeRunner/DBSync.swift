@@ -137,27 +137,42 @@ public class DBSync: ObservableObject {
     private func propertySchema(_ property: Property, realmSchema: ObjectSchema) -> [String: Any] {
         var schema = [String: Any]()
         if property.isArray {
-            schema = [
-                "type": "array",
-                "items": plainPropertySchema(property),
-            ]
+            schema = ["type": "array"]
+            if property.type == .object, let objectClassName = property.objectClassName {
+                schema["items"] = ["type": "string"]
+                schema["ref"] = objectClassName
+            } else {
+                schema["items"] = plainPropertySchema(property)
+            }
         } else if property.isSet {
             schema = [
                 "type": "array",
                 "uniqueItems": true,
-                "items": plainPropertySchema(property),
             ]
+            if property.type == .object, let objectClassName = property.objectClassName {
+                schema["items"] = ["type": "string"]
+                schema["ref"] = objectClassName
+            } else {
+                schema["items"] = plainPropertySchema(property)
+            }
         } else if property.isMap {
+            var properties: [String: Any] = [
+                "key": [
+                    "type": "string",
+                    "maxLength": 36,
+                ] as [String: Any],
+            ]
+            if property.type == .object, let objectClassName = property.objectClassName {
+                properties["value"] = [
+                    "ref": objectClassName,
+                    "type": "string",
+                ]
+            } else {
+                properties["value"] = plainPropertySchema(property)
+            }
             schema = [
                 "type": "object",
-                "properties": [
-                    "key": [
-                        "type": "string",
-                    ],
-                    "value": [
-                        "type": Self.propertyType(property),
-                    ],
-                ],
+                "properties": properties,
             ]
         } else {
             schema = plainPropertySchema(property)
@@ -177,10 +192,11 @@ public class DBSync: ObservableObject {
         }
         let realm = try! Realm(configuration: realmConfiguration)
         
-        if property.type == .object {
+        if property.type == .object || property.type == .objectId {
             guard let objectClassName = property.objectClassName, let realmSchema = realm.schema[objectClassName] else { fatalError("Unexpected issue during Realm schema serialization") }
             return [
-                "type": "object",
+                "ref": dbCollectionName(realmSchema: realmSchema),
+                "type": "string",
                 "properties": objectSchema(realmSchema),
             ]
         }
@@ -188,7 +204,7 @@ public class DBSync: ObservableObject {
         var schema: [String: Any] = [
             "type": Self.propertyType(property),
         ]
-        if property.type == .objectId || property.type == .UUID {
+        if property.type == .UUID {
             schema["maxLength"] = 36
         }
         return schema

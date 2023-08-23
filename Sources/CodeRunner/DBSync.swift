@@ -284,7 +284,9 @@ public class DBSync: ObservableObject {
         let collectionName = type(of: object).dbCollectionName()
         let jsonDoc = try JSONEncoder().encode(object)
 //        let jsonDocs = try JSONEncoder().encode(objects)
-
+        print("")
+print("window.syncDocsFromCanonical(collectionName, [\(jsonDoc)])")
+        print("")
         _ = try await asyncJavaScriptCaller?("window.syncDocsFromCanonical(collectionName, [\(jsonDoc)])", [
             "collectionName": collectionName,
 //            "changedDocs": objects,

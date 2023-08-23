@@ -264,7 +264,11 @@ public class DBSync: ObservableObject {
                 if remaining == 0 {
                     try await syncTo(objects: toSend)
                     remaining = batchSize
+                    toSend.removeAll(keepingCapacity: true)
                 }
+            }
+            if !toSend.isEmpty {
+                try await syncTo(objects: toSend)
             }
         }
     }

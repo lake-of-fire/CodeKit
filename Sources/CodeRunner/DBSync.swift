@@ -1,10 +1,12 @@
 import SwiftUI
 import Realm
 import RealmSwift
+import RealmSwiftGaps
 import Combine
 import WebKit
 
 public protocol DBSyncableObject: Object, Identifiable, Codable {
+    var id: UUID { get set }
     var isDeleted: Bool { get set }
     var modifiedAt: Date { get set }
 }
@@ -13,6 +15,13 @@ fileprivate extension DBSyncableObject {
     static func dbCollectionName() -> String {
         return Self.className().camelCaseToSnakeCase()
     }
+}
+
+struct DBPendingRelationship: Hashable {
+    let relationshipName: String
+    let targetID: String
+    let entityType: String
+    let entityID: String
 }
 
 fileprivate extension ObjectSchema {
@@ -45,7 +54,7 @@ fileprivate extension String {
 }
 
 struct SyncCheckpoint {
-    let modifiedAt: Double
+    let modifiedAt: Date
     let id: UUID
 }
 
@@ -56,8 +65,17 @@ public class DBSync: ObservableObject {
     private var asyncJavaScriptCaller: ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?)? = nil
     
     private var subscriptions = Set<AnyCancellable>()
+    private var pendingRelationships = [DBPendingRelationship]()
     
     @Published public var isSynchronizing = false
+    
+        
+    lazy var dateFormatter: DateFormatter = {
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
+        return dateFormatter
+    }()
     
     public init() {
     }
@@ -68,9 +86,13 @@ public class DBSync: ObservableObject {
         self.syncedTypes = syncedTypes
         self.asyncJavaScriptCaller = asyncJavaScriptCaller
         
+        let realm = try! await Realm(configuration: realmConfiguration)
+        
+        #warning("TODO: setupChildrenRelationshipsLookup")
+        #warning("TODO: conflict res, merge policy == .custom")
+        
         try? await initializeRemoteSchema()
         
-        let realm = try! await Realm(configuration: realmConfiguration)
         for objectType in syncedTypes {
             realm.objects(objectType)
                 .changesetPublisher
@@ -256,7 +278,7 @@ public class DBSync: ObservableObject {
             
             let rawCheckpoint = try await asyncJavaScriptCaller?("window[`${collectionName}LastCheckpoint`]", ["collectionName": objectType.dbCollectionName()], nil, .page) as? [String: Any]
             var checkpoint: SyncCheckpoint?
-            if let rawCheckpoint = rawCheckpoint, let modifiedAt = rawCheckpoint["updatedAt"] as? Double, let id = rawCheckpoint["id"] as? String, let uuid = UUID(uuidString: id) {
+            if let rawCheckpoint = rawCheckpoint, let rawModifiedAt = rawCheckpoint["modifiedAt"] as? String, let modifiedAt = dateFormatter.date(from: rawModifiedAt), let id = rawCheckpoint["id"] as? String, let uuid = UUID(uuidString: id) {
                 checkpoint = SyncCheckpoint(modifiedAt: modifiedAt, id: uuid)
             }
             
@@ -280,40 +302,195 @@ public class DBSync: ObservableObject {
     
     @MainActor
     private func syncTo(object: some DBSyncableObject) async throws {
-//        guard let objects = objects as? [any DBSyncableObject], let realmSchema = objects.first?.objectSchema else {
-//        do {
-//            let realm = try! Realm()
-//            let e = realm.objects(object.objectSchema.objectClass as! Object).first!
-//            print("first")
-//        let j = try JSONEncoder().encode(object)
-////            let j = try JSONEncoder().encode(e)
-//            print(j)
-//            print(String(data: j, encoding: .utf8))
-//            print("uhhh...")
-//        } catch {
-//            print("FAIL")
-//            print(error)
-//        }
-        
         let collectionName = type(of: object).dbCollectionName()
-//        print(object)
-//        let jsonDoc = try object.encode(to: JSONEncoder() as! Encoder)
-        let jsonDoc = try JSONEncoder().encode(object)
+        let jsonEncoder = JSONEncoder()
+        jsonEncoder.dateEncodingStrategy = .iso8601
+        let jsonDoc = try jsonEncoder.encode(object)
         guard let jsonStr = String(data: jsonDoc, encoding: .utf8) else {
             print("ERROR encoding \(object)")
             return
         }
-        print("")
-print("window.syncDocsFromCanonical(collectionName, [\(jsonStr)])")
-        print("")
         _ = try await asyncJavaScriptCaller?("window.syncDocsFromCanonical(collectionName, [\(jsonStr)])", [
             "collectionName": collectionName,
-//            "changedDocs": objects,
         ], nil, .page)
     }
     
-    public func syncFrom(collectionName: String, changedDocs: [String: Any]) {
+    public func surrogateDocumentChanges(collectionName: String, changedDocs: [[String: Any]]) {
         print("syncfrom ")
         print(collectionName)
+        print(changedDocs)
+        guard let objectType: any DBSyncableObject.Type = syncedTypes.first(where: { $0.dbCollectionName() == collectionName }) else {
+            print("ERROR syncFrom received invalid collection name")
+            return
+        }
+        
+        safeWrite { realm in
+            for doc in changedDocs {
+                guard let rawUUID = doc["uuid"] as? String, let uuid = UUID(uuidString: rawUUID), let rawModifiedAt = doc["modifiedAt"] as? String, let modifiedAt = dateFormatter.date(from: rawModifiedAt) else {
+                    print("ERROR: Missing or malformed uuid and/or modifiedAt in changedDocs object")
+                    continue
+                }
+                if let matchingObj = realm.object(ofType: objectType, forPrimaryKey: uuid) as? any DBSyncableObject {
+                    if matchingObj.modifiedAt <= modifiedAt {
+                        applyChanges(in: doc, to: matchingObj)
+                    }
+                } else {
+                    let newObject = objectType.init()
+                    applyChanges(in: doc, to: newObject)
+                    realm.add(newObject)
+                }
+            }
+        }
+        applyPendingRelationships()
+    }
+    
+    private func applyChanges(in doc: [String: Any], to targetObj: any DBSyncableObject) {
+        for property in targetObj.objectSchema.properties {
+            let key = property.name
+            let value = doc[key]
+            
+            if property.isArray {
+                switch property.type {
+                case .int:
+                    guard let value = value as? [Int] else { continue }
+                    let new = RealmSwift.List<Int>()
+                    new.append(objectsIn: value)
+                    targetObj.setValue(new, forKey: key)
+                case .string:
+                    guard let value = value as? [String] else { continue }
+                    let new = RealmSwift.List<String>()
+                    new.append(objectsIn: value)
+                    targetObj.setValue(new, forKey: key)
+                case .bool:
+                    guard let value = value as? [Bool] else { continue }
+                    let new = RealmSwift.List<Bool>()
+                    new.append(objectsIn: value)
+                    targetObj.setValue(new, forKey: key)
+                case .float:
+                    guard let value = value as? [Float] else { continue }
+                    let new = RealmSwift.List<Float>()
+                    new.append(objectsIn: value)
+                    targetObj.setValue(new, forKey: key)
+                case .double:
+                    guard let value = value as? [Double] else { continue }
+                    let new = RealmSwift.List<Double>()
+                    new.append(objectsIn: value)
+                    targetObj.setValue(new, forKey: key)
+                case .date:
+                    guard let value = value as? [String] else { continue }
+                    let dates = value.compactMap { dateFormatter.date(from: $0) }
+                    let new = RealmSwift.List<Date>()
+                    new.append(objectsIn: dates)
+                    targetObj.setValue(new, forKey: key)
+                case .object:
+                    // Save relationship to be applied after all records have been downloaded and persisted
+                    // to ensure target of the relationship has already been created
+                    if let refs = value as? [String] {
+                        for ref in refs {
+                            savePendingRelationship(relationshipName: key, targetID: ref, entity: targetObj)
+                        }
+                    }
+                default:
+                    print("Unsupported property \(property)")
+                }
+            } else if property.isSet {
+                switch property.type {
+                case .int:
+                    guard let value = value as? [Int] else { continue }
+                    let new = RealmSwift.MutableSet<Int>()
+                    new.insert(objectsIn: value)
+                    targetObj.setValue(new, forKey: key)
+                case .string:
+                    guard let value = value as? [String] else { continue }
+                    let new = RealmSwift.MutableSet<String>()
+                    new.insert(objectsIn: value)
+                    targetObj.setValue(new, forKey: key)
+                case .bool:
+                    guard let value = value as? [Bool] else { continue }
+                    let new = RealmSwift.MutableSet<Bool>()
+                    new.insert(objectsIn: value)
+                    targetObj.setValue(new, forKey: key)
+                case .float:
+                    guard let value = value as? [Float] else { continue }
+                    let new = RealmSwift.MutableSet<Float>()
+                    new.insert(objectsIn: value)
+                    targetObj.setValue(new, forKey: key)
+                case .double:
+                    guard let value = value as? [Double] else { continue }
+                    let new = RealmSwift.MutableSet<Double>()
+                    new.insert(objectsIn: value)
+                    targetObj.setValue(new, forKey: key)
+                case .date:
+                    guard let value = value as? [String] else { continue }
+                    let dates = value.compactMap { dateFormatter.date(from: $0) }
+                    let new = RealmSwift.MutableSet<Date>()
+                    new.insert(objectsIn: dates)
+                    targetObj.setValue(new, forKey: key)
+                case .object:
+                    // Save relationship to be applied after all records have been downloaded and persisted
+                    // to ensure target of the relationship has already been created
+                    if let refs = value as? [String] {
+                        for ref in refs {
+                            savePendingRelationship(relationshipName: key, targetID: ref, entity: targetObj)
+                        }
+                    }
+                default:
+                    print("Unsupported property \(property)")
+                }
+            } else if property.isMap {
+                fatalError("Map types unsupported by DBSync")
+            } else if property.type == .object, let ref = value as? String {
+                savePendingRelationship(relationshipName: key, targetID: ref, entity: targetObj)
+            } else if property.type == .UUID, let rawUUID = value as? String, let uuid = UUID(uuidString: rawUUID) {
+                targetObj.setValue(uuid, forKey: key)
+            } else if property.type == .date, let rawDate = value as? String, let date = dateFormatter.date(from: rawDate) {
+                targetObj.setValue(date, forKey: key)
+            } else if value != nil || property.isOptional {
+                targetObj.setValue(value, forKey: key)
+            }
+        }
+    }
+    
+    func savePendingRelationship(relationshipName: String, targetID: String, entity: any DBSyncableObject) {
+        pendingRelationships.append(DBPendingRelationship(relationshipName: relationshipName, targetID: targetID, entityType: entity.className, entityID: entity.id.uuidString))
+    }
+    
+    func applyPendingRelationships() {
+        if pendingRelationships.isEmpty { return }
+        
+        safeWrite { realm in
+            var connectedRelationships = Set<DBPendingRelationship>()
+            for relationship in pendingRelationships {
+                guard let objectType = syncedTypes.first(where: { $0.className() == relationship.entityType }) else {
+                    print("Unsupported relationship entity type \(relationship.entityType)")
+                    continue
+                }
+                guard let entity = realm.object(ofType: objectType, forPrimaryKey: relationship.entityID) as? any DBSyncableObject else {
+                    print("Entity \(relationship.entityType) with ID \(relationship.entityID) not found for sync")
+                    continue
+                }
+                if entity.isDeleted { continue }
+                
+                var targetClassName: String?
+                for property in entity.objectSchema.properties {
+                    if property.name == relationship.relationshipName {
+                        targetClassName = property.objectClassName
+                        break
+                    }
+                }
+                guard let targetClassName = targetClassName, let targetObjectType = syncedTypes.first(where: { $0.className() == targetClassName }) else {
+                    print("Unsupported relationship target type \(relationship.entityType)")
+                    continue
+                }
+                guard let target = realm.object(ofType: targetObjectType, forPrimaryKey: relationship.targetID) as? any DBSyncableObject else {
+                    print("Target \(relationship.entityType) with ID \(relationship.entityID) not found for sync")
+                    continue
+                }
+                
+                entity.setValue(target, forKey: relationship.relationshipName)
+                connectedRelationships.insert(relationship)
+            }
+            pendingRelationships.removeAll(where: { connectedRelationships.contains($0) })
+        }
     }
 }

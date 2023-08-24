@@ -15,7 +15,7 @@ public struct CodeRunner: View {
             .frame(maxWidth: 0.0000001, maxHeight: 0.0000001)
             .allowsHitTesting(false)
             .task {
-                codeCoreViewModel.syncDocsToCanonical = dbSync.syncFrom(collectionName:changedDocs:)
+                codeCoreViewModel.surrogateDocumentChanges = dbSync.surrogateDocumentChanges(collectionName:changedDocs:)
                 try? await run()
                 if let syncedTypes = syncedTypes, let asyncJavaScriptCaller = codeCoreViewModel.asyncJavaScriptCaller {
                     guard let realm = codeExtension.realm else {

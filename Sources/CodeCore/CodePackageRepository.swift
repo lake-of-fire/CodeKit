@@ -12,7 +12,7 @@ public enum CodeError: Error {
 
 public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
     public let package: CodePackage
-    public let codeCoreViewModel: CodeCoreViewModel
+    public let codeCoreViewModel: CodeCoreViewModel?
     
     @Published public var gitTracks: [URL: Diff.Status] = [:]
     @Published public var indexedResources: [URL: Diff.Status] = [:]
@@ -71,7 +71,7 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
         return workspaceStorage.currentDirectory.url == directoryURL.absoluteString && gitTracks.count > 0 || !branch.isEmpty
     }
 
-    public init(package: CodePackage, codeCoreViewModel: CodeCoreViewModel) {
+    public init(package: CodePackage, codeCoreViewModel: CodeCoreViewModel?) {
         self.package = package.isFrozen ? package : package.freeze()
         self.codeCoreViewModel = codeCoreViewModel
         
@@ -456,6 +456,10 @@ public extension CodePackageRepository {
     
     @MainActor
     func build(codeExtension: CodeExtension) async throws {
+        guard let codeCoreViewModel = codeCoreViewModel else {
+            print("No codeCoreViewModel on CodePackageRepository")
+            return
+        }
         let sourcePackage = try await readSources(codeExtension: codeExtension)
         
         safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
@@ -491,6 +495,7 @@ public extension CodePackageRepository {
                 codeExtension.isBuilding = false
                 codeExtension.lastBuiltAt = Date()
             }
+            print(codeExtension)
         } catch {
             safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
                 codeExtension.isBuilding = false

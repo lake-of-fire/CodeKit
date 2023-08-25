@@ -23,34 +23,7 @@ struct CodePackageView: View {
             
             ForEach(package.codeExtensions.where { !$0.isDeleted }) { ext in
                 Section {
-                    LabeledContent("Extension", value: ext.name)
-                    if ext.buildRequested {
-                        if ext.isBuilding {
-                            LabeledContent("Build Status") {
-                                HStack(spacing: 10) {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                    Text("Building…")
-                                }
-                            }
-                        } else {
-                            LabeledContent("Build Status", value: "Waiting to build…")
-                        }
-                        LabeledContent("Latest Build Available", value: ext.latestBuildHashAvailable ?? "None")
-                    } else {
-                        if ext.desiredBuildHash == ext.latestBuildHashAvailable {
-                            LabeledContent("Build Status") {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                            }
-                        }
-                    }
-                    if let lastBuiltAt = ext.humanizedLastBuiltAt {
-                        LabeledContent("Build Timestamp", value: lastBuiltAt)
-                    }
-                    if let lastRunStartedAt = ext.humanizedLastRunStartedAt {
-                        LabeledContent("Last Run Timestamp", value: lastRunStartedAt)
-                    }
+                    CodeExtensionStatus(ext: ext)
                 }
             }
         }
@@ -66,6 +39,41 @@ struct CodePackageView: View {
             } label: { Label("Package", systemImage: "shippingbox") }
         }
 #endif
+    }
+}
+
+fileprivate struct CodeExtensionStatus: View {
+    @ObservedRealmObject var ext: CodeExtension
+    
+    var body: some View {
+        LabeledContent("Extension", value: ext.name)
+        if ext.buildRequested {
+            if ext.isBuilding {
+                LabeledContent("Build Status") {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Building…")
+                    }
+                }
+            } else {
+                LabeledContent("Build Status", value: "Waiting to build…")
+            }
+//            LabeledContent("Latest Build Available", value: ext.latestBuildHashAvailable ?? "None")
+        } else {
+            if ext.desiredBuildHash == ext.latestBuildHashAvailable {
+                LabeledContent("Build Status") {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                }
+            }
+        }
+        if let lastBuiltAt = ext.humanizedLastBuiltAt {
+            LabeledContent("Build Timestamp", value: lastBuiltAt)
+        }
+        if let lastRunStartedAt = ext.humanizedLastRunStartedAt {
+            LabeledContent("Last Run Timestamp", value: lastRunStartedAt)
+        }
     }
 }
 

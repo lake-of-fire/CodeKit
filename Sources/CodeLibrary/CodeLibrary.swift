@@ -14,7 +14,6 @@ import CodeCI
 
 struct MaybeCodePackageView: View {
     let package: CodePackage?
-    let codeCoreViewModel: CodeCoreViewModel
     
     @State private var repository: CodePackageRepository?
 
@@ -35,7 +34,7 @@ struct MaybeCodePackageView: View {
         .onChange(of: package) { package in
             Task { @MainActor in
                 guard let package = package else { return }
-                repository = CodePackageRepository(package: package, codeCoreViewModel: codeCoreViewModel)
+                repository = CodePackageRepository(package: package, codeCoreViewModel: nil)
             }
         }
     }
@@ -86,8 +85,6 @@ struct CodeLibraryExportButton: View {
 }
 
 public struct CodeLibraryView: View {
-    @StateObject private var ciActor = CodeCIActor(realmConfiguration: .defaultConfiguration, autoBuild: false)
-    
     @ObservedResults(PackageCollection.self, where: { !$0.isDeleted }) private var packageCollections
     @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.packageCollection.count > 0 }) private var collectionRepos
     @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.packageCollection.count == 0 }) private var orphanPackages
@@ -167,13 +164,11 @@ public struct CodeLibraryView: View {
                 .padding()
             }
         }, detail: {
-            MaybeCodePackageView(package: selectedPackage, codeCoreViewModel: ciActor.codeCoreViewModel)
+//            MaybeCodePackageView(package: selectedPackage, codeCoreViewModel: ciActor.codeCoreViewModel)
+            MaybeCodePackageView(package: selectedPackage)
         })
 //        .navigationSplitViewStyle(.balanced)
 //        .environmentObject(viewModel)
-        .background {
-            CodeCI(ciActor: ciActor)
-        }
     }
     
     public init() {

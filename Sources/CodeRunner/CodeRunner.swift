@@ -19,8 +19,9 @@ public struct CodeRunner: View {
             .allowsHitTesting(false)
             .task {
                 Task { @MainActor in
-                    guard let directoryURL = codeExtension.directoryURL else { return }
-                    workspaceStorage = WorkspaceStorage(url: directoryURL)
+                    guard let packageDir = codeExtension.package?.directoryURL, let directoryURL = codeExtension.directoryURL else { return }
+                    workspaceStorage = WorkspaceStorage(url: packageDir, isDirectoryMonitored: false)
+                    await workspaceStorage?.updateDirectory(url: directoryURL)
                 }
                 
                 codeCoreViewModel.surrogateDocumentChanges = dbSync.surrogateDocumentChanges(collectionName:changedDocs:)

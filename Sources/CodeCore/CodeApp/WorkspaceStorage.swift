@@ -9,11 +9,12 @@ public class WorkspaceStorage: ObservableObject {
     @Published public var editorIsBusy = false
 
     private var directoryMonitor = DirectoryMonitor()
+    private var isDirectoryMonitored = false
     var onDirectoryChangeAction: ((String) -> Void)? = nil
     private var directoryStorage: [String: [(FileItemRepresentable)]] = [:]
     private var fss: [String: FileSystemProvider] = [:]
     private var isConnecting = false
-
+    
     enum FSError: String, LocalizedError {
         case NotImplemented = "errors.fs.not_implemented"
         case SchemeNotRegistered = "errors.fs.scheme_not_registered"
@@ -41,13 +42,17 @@ public class WorkspaceStorage: ObservableObject {
         currentScheme != nil ? fss[currentScheme!] : nil
     }
 
-    public init(url: URL) {
+    public init(url: URL, isDirectoryMonitored: Bool = true) {
+        print("ws storage init \(url)")
+        self.isDirectoryMonitored = isDirectoryMonitored
         let localFS = LocalFileSystemProvider()
         localFS.gitServiceProvider = LocalGitServiceProvider(root: url)
 
+        print("ws storage init \(url) 2")
         self.fss["file"] = localFS
         self.currentDirectory = FileItemRepresentable(
             name: url.lastPathComponent, url: url.absoluteString, isDirectory: true)
+        print("ws storage init \(url) 3")
         self.requestDirectoryUpdateAt(id: url.absoluteString)
     }
 
@@ -74,7 +79,7 @@ public class WorkspaceStorage: ObservableObject {
 
     /// Reload the whole directory and invalidate all existing cache
     @MainActor
-    func updateDirectory(url: URL) async {
+    public func updateDirectory(url: URL) async {
         return await withCheckedContinuation { continuation in
             let urlStr = url.absoluteString
             if urlStr != currentDirectory.url {
@@ -107,23 +112,26 @@ public class WorkspaceStorage: ObservableObject {
     }
 
     func onDirectoryChange(_ action: @escaping ((String) -> Void)) {
+        print("onDirChange set \(action)")
         onDirectoryChangeAction = action
     }
 
     /// Reload a specific subdirectory
     func requestDirectoryUpdateAt(id: String, forceUpdate: Bool = false, completion: (() -> Void)? = nil) {
-        guard forceUpdate || !directoryStorage.keys.contains(id) else {
-            if let completion = completion { completion() }
-            return
-        }
-        if !directoryMonitor.keys.contains(id) && id.hasPrefix("file://") {
+        print("req \(id) \(isDirectoryMonitored) \(directoryMonitor.keys)")
+        if isDirectoryMonitored && !directoryMonitor.keys.contains(id) && id.hasPrefix("file://") {
+            print("monitor \(id)")
             directoryMonitor.monitorURL(url: id) { _ in
-                print("Directory monitor triggered for \(id) \(self.onDirectoryChangeAction)")
+                print("changed... \(id) \(self.onDirectoryChangeAction)")
                 self.onDirectoryChangeAction?(id)
                 self.requestDirectoryUpdateAt(id: id, forceUpdate: true)
             }
         }
-
+ 
+        guard forceUpdate || !directoryStorage.keys.contains(id) else {
+            if let completion = completion { completion() }
+            return
+        }
         loadURL(
             url: id,
             completionHandler: { items, error in

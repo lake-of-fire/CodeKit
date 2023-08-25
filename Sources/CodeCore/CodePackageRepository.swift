@@ -12,6 +12,7 @@ public enum CodeError: Error {
 
 public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
     public let package: CodePackage
+    /// Set if using this `CodePackageRepository` instance for triggering builds.
     public let codeCoreViewModel: CodeCoreViewModel?
     
     @Published public var gitTracks: [URL: Diff.Status] = [:]
@@ -24,34 +25,47 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
     @Published public var aheadBehind: (Int, Int)? = nil
     
     @MainActor public lazy var workspaceStorage: WorkspaceStorage? = {
-        let workspaceStorage = WorkspaceStorage(url: directoryURL)
-        Task { @MainActor in
-            createAndUpdateDirectoryIfNeeded { error in
-                Task { @MainActor [weak self] in
-                    guard let self = self, error == nil else {
-                        print(error?.localizedDescription ?? "")
-                        return
-                    }
-                    let dir = directoryURL
-                    await workspaceStorage.updateDirectory(url: dir) //.standardizedFileURL)
-                    print("## SET onDirChange for \(dir)")
-                    workspaceStorage.onDirectoryChange { url in
-                        Task { [weak self] in
-                            guard let self = self else { return }
-                            try await loadRepository()
-                            safeWrite(package, configuration: package.realm?.configuration) { _, package in
-                                for ext in package.codeExtensions.where({ !$0.isDeleted }) {
-                                    ext.buildRequested = true
+        let workspaceStorage = WorkspaceStorage(url: directoryURL, isDirectoryMonitored: true)
+        print("worksp for repo 1")
+        if codeCoreViewModel != nil {
+        print("worksp for repo 2")
+            Task { @MainActor in
+        print("worksp for repo 3")
+                createAndUpdateDirectoryIfNeeded { error in
+        print("worksp for repo 4")
+                    Task { @MainActor [weak self] in
+                        guard let self = self, error == nil else {
+                            print(error?.localizedDescription ?? "")
+                            return
+                        }
+        print("worksp for repo 5")
+                        let dir = directoryURL
+                        print(dir)
+                        await workspaceStorage.updateDirectory(url: dir) //.standardizedFileURL)
+                        print("## SET onDirChange for \(dir)")
+                        workspaceStorage.onDirectoryChange { url in
+                            print("## TRIG onDirChange for \(dir)")
+                            Task { [weak self] in
+                                guard let self = self else { return }
+                                try await loadRepository()
+                                safeWrite(package, configuration: package.realm?.configuration) { _, package in
+                                    for ext in package.codeExtensions.where({ !$0.isDeleted }) {
+                                        ext.buildRequested = true
+                                    }
                                 }
                             }
                         }
+                        try await loadRepository()
                     }
-                    try await loadRepository()
                 }
             }
         }
         return workspaceStorage
     }()
+    
+    deinit {
+        print("## DEINIT for \(directoryURL)")
+    }
     
     private var cancellables = Set<AnyCancellable>()
     
@@ -348,10 +362,12 @@ public extension CodePackageRepository {
                 case .initial(let results):
                     Task { @MainActor [weak self] in
                         try await self?.requestBuildsIfNeeded()
+                        self?.refreshCodeExtensionDirectoryMonitors()
                     }
                 case .update(let results, let deletions, let insertions, let modifications):
                     Task { @MainActor [weak self] in
                         try await self?.requestBuildsIfNeeded()
+                        self?.refreshCodeExtensionDirectoryMonitors()
                     }
                 case .error(let error):
                     print("Error: \(error)")
@@ -438,6 +454,17 @@ public extension CodePackageRepository {
                     }
                 }
             }
+        }
+    }
+    
+    @MainActor
+    func refreshCodeExtensionDirectoryMonitors() {
+        guard let workspaceStorage = workspaceStorage else { return }
+        for codeExtension in Array(package.codeExtensions) {
+            guard let directoryURL = codeExtension.directoryURL else { continue }
+            print("req for code ext \(codeExtension.name)")
+            print(directoryURL)
+            workspaceStorage.requestDirectoryUpdateAt(id: directoryURL.standardizedFileURL.absoluteString)
         }
     }
     

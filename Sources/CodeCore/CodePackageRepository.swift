@@ -15,7 +15,13 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
     /// Set if using this `CodePackageRepository` instance for triggering builds.
     public let codeCoreViewModel: CodeCoreViewModel?
     
+    @Published public var gitServiceIsBusy = false
+    @Published public var availableCheckoutDestination: [CheckoutDestination] = []
     @Published public var gitTracks: [URL: Diff.Status] = [:]
+    @Published public var remotes: [Remote] = []
+    @Published public var remoteBranches: [Branch] = []
+    @Published public var localBranches: [Branch] = []
+    @Published public var tags: [TagReference] = []
     @Published public var indexedResources: [URL: Diff.Status] = [:]
     @Published public var workingResources: [URL: Diff.Status] = [:]
     @Published public var branch: String = ""
@@ -205,7 +211,7 @@ public extension CodePackageRepository {
     
     @MainActor
     func listExtensionFiles() async throws -> [URL] {
-        try await gitStatus()
+        updateGitRepositoryStatus()
         
         guard let workspaceStorage = workspaceStorage, isWorkspaceInitialized, let currentDirectory = URL(string: workspaceStorage.currentDirectory.url) else {
             throw CodePackageError.repositoryLoadingFailed
@@ -276,27 +282,22 @@ public extension CodePackageRepository {
                 }
                 
                 workspaceStorage.gitServiceProvider?.loadDirectory(url: directoryURL.standardizedFileURL)
-                try? await gitStatus()
+                updateGitRepositoryStatus()
                     
                 do {
                     if isWorkspaceInitialized {
                         try await pull()
                         completionHandler(nil)
                     } else {
-                        workspaceStorage.gitServiceProvider?.clone(
+                        try await workspaceStorage.gitServiceProvider?.clone(
                             from: repositoryURL,
                             to: directoryURL,
-                            progress: nil) { error in
-                                print(error)
-                                completionHandler(CodePackageError.gitRepositoryInitializationError)
-                            } completionHandler: {
-                                Task { @MainActor [weak self] in
-                                    try await self?.gitStatus()
-                                    completionHandler(nil)
-                                }
-                            }
+                            progress: nil)
+                        updateGitRepositoryStatus()
+                        completionHandler(nil)
                     }
                 } catch {
+                    print(error)
                     completionHandler(error)
                 }
             }
@@ -305,33 +306,60 @@ public extension CodePackageRepository {
     
     @MainActor
     func pull() async throws {
-        return try await withCheckedThrowingContinuation { continuation in
-           workspaceStorage?.gitServiceProvider?.fetch(error: {
-                print($0.localizedDescription)
-                continuation.resume(throwing: $0)
-            }) {
-                Task { @MainActor [weak self] in
-                    guard let self = self else {
-                        continuation.resume(throwing: CodePackageError.repositoryLoadingFailed)
-                        return
-                    }
-                    try await gitStatus()
-                    
-                    workspaceStorage?.gitServiceProvider?.checkout(
-                        remoteBranchName: remote + "/" + branch,
-//                        localBranchName: branch,
-                        detached: false,
-                        error: {
-                            print($0.localizedDescription)
-                            continuation.resume(throwing: $0)
-                        }) {
-                            Task { @MainActor [weak self] in
-                                try await self?.gitStatus()
-                                continuation.resume(returning: ())
-                            }
-                        }
-                }
-            }
+        guard let serviceProvider = workspaceStorage?.gitServiceProvider else { throw CodeError.unknownError }
+        
+        guard let currentBranch = try await serviceProvider.head() as? Branch else {
+            throw NSError(descriptionKey: "Repository is in detached mode")
+        }
+        
+        let remotes = try await serviceProvider.remotes()
+        guard let origin = remotes.first(where: { $0.name == "origin" }) else {
+            throw NSError(descriptionKey: "Repository remote 'origin' not found")
+        }
+        
+        try await serviceProvider.pull(branch: currentBranch, remote: origin)
+        updateGitRepositoryStatus()
+//        return try await withCheckedThrowingContinuation { continuation in
+//           workspaceStorage?.gitServiceProvider?.fetch(error: {
+//                print($0.localizedDescription)
+//                continuation.resume(throwing: $0)
+//            }) {
+//                Task { @MainActor [weak self] in
+//                    guard let self = self else {
+//                        continuation.resume(throwing: CodePackageError.repositoryLoadingFailed)
+//                        return
+//                    }
+//                    try await gitStatus()
+//
+//                    workspaceStorage?.gitServiceProvider?.checkout(
+//                        remoteBranchName: remote + "/" + branch,
+////                        localBranchName: branch,
+//                        detached: false,
+//                        error: {
+//                            print($0.localizedDescription)
+//                            continuation.resume(throwing: $0)
+//                        }) {
+//                            Task { @MainActor [weak self] in
+//                                try await self?.gitStatus()
+//                                continuation.resume(returning: ())
+//                            }
+//                        }
+//                }
+//            }
+//        }
+    }
+    
+    func updateGitBranches() async throws {
+        guard let gitServiceProvider = await workspaceStorage?.gitServiceProvider else { return }
+        let remotes = try await gitServiceProvider.remotes()
+        let remoteBranches = try await gitServiceProvider.remoteBranches()
+        let localBranches = try await gitServiceProvider.localBranches()
+        let tags = try await gitServiceProvider.tags()
+        await MainActor.run {
+            self.remotes = remotes
+            self.remoteBranches = remoteBranches
+            self.localBranches = localBranches
+            self.tags = tags
         }
     }
 }

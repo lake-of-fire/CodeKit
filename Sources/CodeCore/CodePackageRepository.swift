@@ -26,25 +26,17 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
     
     @MainActor public lazy var workspaceStorage: WorkspaceStorage? = {
         let workspaceStorage = WorkspaceStorage(url: directoryURL, isDirectoryMonitored: true)
-        print("worksp for repo 1")
         if codeCoreViewModel != nil {
-        print("worksp for repo 2")
             Task { @MainActor in
-        print("worksp for repo 3")
                 createAndUpdateDirectoryIfNeeded { error in
-        print("worksp for repo 4")
                     Task { @MainActor [weak self] in
                         guard let self = self, error == nil else {
                             print(error?.localizedDescription ?? "")
                             return
                         }
-        print("worksp for repo 5")
                         let dir = directoryURL
-                        print(dir)
                         await workspaceStorage.updateDirectory(url: dir) //.standardizedFileURL)
-                        print("## SET onDirChange for \(dir)")
                         workspaceStorage.onDirectoryChange { url in
-                            print("## TRIG onDirChange for \(dir)")
                             Task { [weak self] in
                                 guard let self = self else { return }
                                 try await loadRepository()
@@ -62,10 +54,6 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
         }
         return workspaceStorage
     }()
-    
-    deinit {
-        print("## DEINIT for \(directoryURL)")
-    }
     
     private var cancellables = Set<AnyCancellable>()
     
@@ -462,8 +450,6 @@ public extension CodePackageRepository {
         guard let workspaceStorage = workspaceStorage else { return }
         for codeExtension in Array(package.codeExtensions) {
             guard let directoryURL = codeExtension.directoryURL else { continue }
-            print("req for code ext \(codeExtension.name)")
-            print(directoryURL)
             workspaceStorage.requestDirectoryUpdateAt(id: directoryURL.standardizedFileURL.absoluteString)
         }
     }

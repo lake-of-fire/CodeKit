@@ -43,16 +43,13 @@ public class WorkspaceStorage: ObservableObject {
     }
 
     public init(url: URL, isDirectoryMonitored: Bool = true) {
-        print("ws storage init \(url)")
         self.isDirectoryMonitored = isDirectoryMonitored
         let localFS = LocalFileSystemProvider()
         localFS.gitServiceProvider = LocalGitServiceProvider(root: url)
 
-        print("ws storage init \(url) 2")
         self.fss["file"] = localFS
         self.currentDirectory = FileItemRepresentable(
             name: url.lastPathComponent, url: url.absoluteString, isDirectory: true)
-        print("ws storage init \(url) 3")
         self.requestDirectoryUpdateAt(id: url.absoluteString)
     }
 
@@ -112,17 +109,13 @@ public class WorkspaceStorage: ObservableObject {
     }
 
     func onDirectoryChange(_ action: @escaping ((String) -> Void)) {
-        print("onDirChange set \(action)")
         onDirectoryChangeAction = action
     }
 
     /// Reload a specific subdirectory
     func requestDirectoryUpdateAt(id: String, forceUpdate: Bool = false, completion: (() -> Void)? = nil) {
-        print("req \(id) \(isDirectoryMonitored) \(directoryMonitor.keys)")
         if isDirectoryMonitored && !directoryMonitor.keys.contains(id) && id.hasPrefix("file://") {
-            print("monitor \(id)")
             directoryMonitor.monitorURL(url: id) { _ in
-                print("changed... \(id) \(self.onDirectoryChangeAction)")
                 self.onDirectoryChangeAction?(id)
                 self.requestDirectoryUpdateAt(id: id, forceUpdate: true)
             }

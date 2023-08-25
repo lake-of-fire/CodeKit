@@ -9,6 +9,7 @@ public protocol GitRepositoryProtocol: AnyObject {
     var gitTracks: [URL: Diff.Status] { get set }
     var indexedResources: [URL: Diff.Status] { get set }
     var workingResources: [URL: Diff.Status] { get set }
+    var statusDescription: String { get set }
     var branch: String { get set }
     var commitMessage: String { get set }
     var isSyncing: Bool { get set }
@@ -55,6 +56,7 @@ public extension GitRepositoryProtocol {
         @Sendable func clearUIState() {
             DispatchQueue.main.async {
                 self.aheadBehind = nil
+                self.statusDescription = ""
                 self.branch = ""
                 self.gitTracks = [:]
                 self.indexedResources = [:]
@@ -103,13 +105,23 @@ public extension GitRepositoryProtocol {
                     }
                     
                     if entries.first(where: { $0.status.contains(.workTreeModified) }) != nil {
-                        branchLabel += "*"
+//                        branchLabel += "*"
+                        self.statusDescription = "Uncommitted changes"
                     }
                     if entries.first(where: { $0.status.contains(.indexModified) }) != nil {
-                        branchLabel += "+"
+//                        branchLabel += "+"
+                        self.statusDescription = "Changes staged"
                     }
                     if entries.first(where: { $0.status.contains(.conflicted) }) != nil {
-                        branchLabel += "!"
+//                        branchLabel += "!"
+                        self.statusDescription = "Conflicts require merging"
+                    }
+                    if self.statusDescription.isEmpty, let aheadBehind = aheadBehind {
+                        if aheadBehind == (0, 0) {
+                            self.statusDescription = "Up to date"
+                        } else {
+                            self.statusDescription = "\(aheadBehind.1)↓ \(aheadBehind.0)↑"
+                        }
                     }
                     
                     self.branch = branchLabel

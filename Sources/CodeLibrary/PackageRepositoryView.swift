@@ -12,12 +12,8 @@ struct CodePackageView: View {
         Form {
             LabeledContent("Name", value: package.name)
             RealmTextField("Repository URL", object: package, objectValue: $package.repositoryURL)
-            if let aheadBehind = repository.aheadBehind {
-                if aheadBehind != (0, 0) {
-                    Text("\(aheadBehind.1)↓ \(aheadBehind.0)↑")
-                } else {
-                    Text("This branch is up to date with \(repository.remote):\(repository.branch)")
-                }
+            if !repository.statusDescription.isEmpty {
+                LabeledContent("Git Status", value: repository.statusDescription)
             }
             Toggle("Installed", isOn: $package.isEnabled)
             
@@ -39,6 +35,11 @@ struct CodePackageView: View {
             } label: { Label("Package", systemImage: "shippingbox") }
         }
 #endif
+        .onAppear {
+            Task { @MainActor in
+                repository.updateGitRepositoryStatus()
+            }
+        }
     }
 }
 

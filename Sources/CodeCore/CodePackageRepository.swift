@@ -24,8 +24,9 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
     @Published public var tags: [TagReference] = []
     @Published public var indexedResources: [URL: Diff.Status] = [:]
     @Published public var workingResources: [URL: Diff.Status] = [:]
+    @Published public var statusDescription: String = ""
     @Published public var branch: String = ""
-    @Published public var remote: String = ""
+//    @Published public var remote: String = ""
     @Published public var commitMessage: String = ""
     @Published public var isSyncing: Bool = false
     @Published public var aheadBehind: (Int, Int)? = nil
@@ -318,6 +319,7 @@ public extension CodePackageRepository {
         }
         
         try await serviceProvider.pull(branch: currentBranch, remote: origin)
+        
         updateGitRepositoryStatus()
 //        return try await withCheckedThrowingContinuation { continuation in
 //           workspaceStorage?.gitServiceProvider?.fetch(error: {

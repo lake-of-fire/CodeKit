@@ -45,6 +45,12 @@ struct CodePackageView: View {
                             }
                         }
                     }
+                    if let lastBuiltAt = ext.humanizedLastBuiltAt {
+                        LabeledContent("Build Timestamp", value: lastBuiltAt)
+                    }
+                    if let lastRunStartedAt = ext.humanizedLastRunStartedAt {
+                        LabeledContent("Last Run Timestamp", value: lastRunStartedAt)
+                    }
                 }
             }
         }

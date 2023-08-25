@@ -18,7 +18,7 @@ class DirectoryMonitor {
 
     func monitorURL(url: String, directoryDidUpdate: @escaping (Date) -> Void) {
         guard let url = URL(string: url), !monitors.keys.contains(url.absoluteString),
-            self.numberOfFilesMonitored < 100
+            self.numberOfFilesMonitored < 500
         else {
             return
         }

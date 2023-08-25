@@ -10,10 +10,13 @@ import SwiftUIWebView
 import RealmSwiftGaps
 import SwiftUtilities
 import CodeCore
-
+import CodeCI
 
 struct MaybeCodePackageView: View {
-    var package: CodePackage?
+    let package: CodePackage?
+    let codeCoreViewModel: CodeCoreViewModel
+    
+    @State private var repository: CodePackageRepository?
 
     var body: some View {
         // Workaround for a known issue where `NavigationSplitView` and
@@ -21,12 +24,18 @@ struct MaybeCodePackageView: View {
         // For more information, see the iOS 16 Release Notes and
         // macOS 13 Release Notes. (91311311)"
         ZStack {
-            if let package = package {
-                CodePackageView(package: package, repository: package.repository())
+            if let package = package, let repository = repository {
+                CodePackageView(package: package, repository: repository)
                     .navigationTitle(package.name)
             } else {
                 Text("Choose or add a repository")
                     .navigationTitle("")
+            }
+        }
+        .onChange(of: package) { package in
+            Task { @MainActor in
+                guard let package = package else { return }
+                repository = CodePackageRepository(package: package, codeCoreViewModel: codeCoreViewModel)
             }
         }
     }
@@ -77,6 +86,8 @@ struct CodeLibraryExportButton: View {
 }
 
 public struct CodeLibraryView: View {
+    @StateObject private var ciActor = CodeCIActor(realmConfiguration: .defaultConfiguration, autoBuild: false)
+    
     @ObservedResults(PackageCollection.self, where: { !$0.isDeleted }) private var packageCollections
     @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.packageCollection.count > 0 }) private var collectionRepos
     @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.packageCollection.count == 0 }) private var orphanPackages
@@ -156,10 +167,13 @@ public struct CodeLibraryView: View {
                 .padding()
             }
         }, detail: {
-            MaybeCodePackageView(package: selectedPackage)
+            MaybeCodePackageView(package: selectedPackage, codeCoreViewModel: ciActor.codeCoreViewModel)
         })
 //        .navigationSplitViewStyle(.balanced)
 //        .environmentObject(viewModel)
+        .background {
+            CodeCI(ciActor: ciActor)
+        }
     }
     
     public init() {

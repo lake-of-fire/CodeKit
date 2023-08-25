@@ -41,7 +41,7 @@ public class WorkspaceStorage: ObservableObject {
         currentScheme != nil ? fss[currentScheme!] : nil
     }
 
-    init(url: URL) {
+    public init(url: URL) {
         let localFS = LocalFileSystemProvider()
         localFS.gitServiceProvider = LocalGitServiceProvider(root: url)
 
@@ -117,7 +117,9 @@ public class WorkspaceStorage: ObservableObject {
             return
         }
         if !directoryMonitor.keys.contains(id) && id.hasPrefix("file://") {
+            print("DIRECTORY MONITOR: resub \(id) \(directoryMonitor.keys)")
             directoryMonitor.monitorURL(url: id) { _ in
+                print("DIRECTORY MONITOR: changed... \(id)")
                 self.onDirectoryChangeAction?(id)
                 self.requestDirectoryUpdateAt(id: id, forceUpdate: true)
             }
@@ -544,7 +546,7 @@ extension WorkspaceStorage {
         }
     }
 
-    func contents(at: URL) async throws -> Data {
+    public func contents(at: URL) async throws -> Data {
         return try await withCheckedThrowingContinuation { continuation in
             contents(at: at) { data, error in
                 if let error = error {

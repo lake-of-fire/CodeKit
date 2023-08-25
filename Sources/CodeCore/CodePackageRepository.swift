@@ -34,6 +34,7 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
                     }
                     let dir = directoryURL
                     await workspaceStorage.updateDirectory(url: dir) //.standardizedFileURL)
+                    print("## SET onDirChange for \(dir)")
                     workspaceStorage.onDirectoryChange { url in
                         Task { [weak self] in
                             guard let self = self else { return }
@@ -66,7 +67,8 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
         return package.directoryURL
     }
     
-    @MainActor var isWorkspaceInitialized: Bool {
+    @MainActor
+    public var isWorkspaceInitialized: Bool {
         guard let workspaceStorage = workspaceStorage else { return false }
         return workspaceStorage.currentDirectory.url == directoryURL.absoluteString && gitTracks.count > 0 || !branch.isEmpty
     }
@@ -76,8 +78,10 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
         self.codeCoreViewModel = codeCoreViewModel
         
         Task { @MainActor [weak self] in
-            _ = self?.workspaceStorage
-            self?.wireBuilds()
+            if codeCoreViewModel != nil {
+                _ = self?.workspaceStorage
+                self?.wireBuilds()
+            }
         }
     }
     
@@ -495,7 +499,6 @@ public extension CodePackageRepository {
                 codeExtension.isBuilding = false
                 codeExtension.lastBuiltAt = Date()
             }
-            print(codeExtension)
         } catch {
             safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
                 codeExtension.isBuilding = false

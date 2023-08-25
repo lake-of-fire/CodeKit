@@ -36,7 +36,7 @@ public struct CodeRunner: View {
                         asyncJavaScriptCaller: asyncJavaScriptCaller)
                 }
             }
-            .onChange(of: codeExtension.latestBuildHashAvailable) { latestBuildHashAvailable in
+            .onChange(of: codeExtension.lastBuiltAt) { latestBuildHashAvailable in
                 guard latestBuildHashAvailable != nil else {
                     return
                 }

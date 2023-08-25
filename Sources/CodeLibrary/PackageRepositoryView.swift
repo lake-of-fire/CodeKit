@@ -88,9 +88,15 @@ struct CodePackageCommands: View {
         } label: { Label("Open in Finder", systemImage: "folder") }
 #endif
         Button {
-            safeWrite(package) { _, package in
-                for codeExtension in package.codeExtensions.where({ !$0.isDeleted }) {
-                    codeExtension.buildRequested = true
+            Task { @MainActor in
+                if repository.isWorkspaceInitialized {
+                    try? await repository.pull()
+                }
+                
+                safeWrite(package) { _, package in
+                    for codeExtension in package.codeExtensions.where({ !$0.isDeleted }) {
+                        codeExtension.buildRequested = true
+                    }
                 }
             }
         } label: {

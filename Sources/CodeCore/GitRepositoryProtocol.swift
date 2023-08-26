@@ -106,11 +106,11 @@ public extension GitRepositoryProtocol {
                     
                     if entries.first(where: { $0.status.contains(.workTreeModified) }) != nil {
 //                        branchLabel += "*"
-                        self.statusDescription = "Uncommitted changes"
+                        self.statusDescription = "Changes not staged for commit"
                     }
                     if entries.first(where: { $0.status.contains(.indexModified) }) != nil {
 //                        branchLabel += "+"
-                        self.statusDescription = "Changes staged"
+                        self.statusDescription = "Changes staged for commit"
                     }
                     if entries.first(where: { $0.status.contains(.conflicted) }) != nil {
 //                        branchLabel += "!"

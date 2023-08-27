@@ -208,15 +208,16 @@ extension Coordinator: WKNavigationDelegate {
 }
 
 final class GenericFileURLSchemeHandler: NSObject, WKURLSchemeHandler {
-    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
+    enum CustomSchemeHandlerError: Error {
+        case notFound
+    }
     
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         guard let url = urlSchemeTask.request.url else { return }
-        let scheme = "code"
-        if url.absoluteString.hasPrefix("\(scheme)://"),
-           let path = url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+        if url.absoluteString.hasPrefix("code://code/codekit/"),
+           let path = url.pathComponents.dropFirst().joined(separator: "/").addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
            let baseURL = Bundle.module.url(forResource: "src", withExtension: nil) {
-            var fileUrl = baseURL.appending(path: path)
+            var fileUrl = baseURL.appending(path: "/" + path)
             if fileUrl.isDirectory {
                 fileUrl = fileUrl.appending(component: "index.html")
             }
@@ -230,8 +231,12 @@ final class GenericFileURLSchemeHandler: NSObject, WKURLSchemeHandler {
                 urlSchemeTask.didReceive(data)
                 urlSchemeTask.didFinish()
             }
+        
+            urlSchemeTask.didFailWithError(CustomSchemeHandlerError.notFound)
         }
     }
+    
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
     
     private func mimeType(ofFileAtUrl url: URL) -> String {
         return UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"

@@ -11,9 +11,13 @@ import UniformTypeIdentifiers
 @MainActor
 public struct CodeCoreView: NativeView {
     @ObservedObject public var viewModel: CodeCoreViewModel
+    let urlSchemeHandlers: [(WKURLSchemeHandler, String)]
+    let defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler]
 
-    public init(_ viewModel: CodeCoreViewModel) {
+    public init(_ viewModel: CodeCoreViewModel, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [], defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = []) {
         self.viewModel = viewModel
+        self.urlSchemeHandlers = urlSchemeHandlers
+        self.defaultURLSchemeHandlerExtensions = defaultURLSchemeHandlerExtensions
     }
 
     #if canImport(AppKit)
@@ -44,10 +48,10 @@ public struct CodeCoreView: NativeView {
         configuration.preferences = preferences
         configuration.userContentController = userController
         configuration.setURLSchemeHandler(context.coordinator.defaultURLSchemeHandler, forURLScheme: "code")
-        for (urlSchemeHandler, urlScheme) in context.coordinator.viewModel.urlSchemeHandlers {
+        for (urlSchemeHandler, urlScheme) in urlSchemeHandlers {
             configuration.setURLSchemeHandler(urlSchemeHandler, forURLScheme: urlScheme)
         }
-        context.coordinator.defaultURLSchemeHandler.defaultURLSchemeHandlerExtensions = context.coordinator.viewModel.defaultURLSchemeHandlerExtensions
+        context.coordinator.defaultURLSchemeHandler.defaultURLSchemeHandlerExtensions = defaultURLSchemeHandlerExtensions
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -63,12 +67,6 @@ public struct CodeCoreView: NativeView {
     }
 
     private func updateWebView(context: Context) {
-        for (urlSchemeHandler, urlScheme) in context.coordinator.viewModel.urlSchemeHandlers {
-            if context.coordinator.webView.configuration.urlSchemeHandler(forURLScheme: urlScheme) == nil {
-                context.coordinator.webView.configuration.setURLSchemeHandler(urlSchemeHandler, forURLScheme: urlScheme)
-            }
-        }
-        context.coordinator.defaultURLSchemeHandler.defaultURLSchemeHandlerExtensions = context.coordinator.viewModel.defaultURLSchemeHandlerExtensions
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -220,27 +218,34 @@ final class GenericFileURLSchemeHandler: NSObject, WKURLSchemeHandler {
     
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         guard let url = urlSchemeTask.request.url else { return }
-        if url.absoluteString.hasPrefix("code://code/codekit/") {
+        let baseURL = Bundle.module.url(forResource: "src", withExtension: nil)
+        var fileURL: URL?
+        if url.path == "/" {
+            fileURL = baseURL?.appending(path: "/codekit/index.html")
+        } else if url.absoluteString.hasPrefix("code://code/codekit/") {
             if let path = url.pathComponents.dropFirst(2).joined(separator: "/").addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
                let baseURL = Bundle.module.url(forResource: "src", withExtension: nil) {
-                var fileUrl = baseURL.appending(path: "/" + path)
-                if fileUrl.isDirectory {
-                    fileUrl = fileUrl.appending(component: "index.html")
+                fileURL = baseURL.appending(path: "/" + path)
+                if fileURL?.isDirectory ?? false {
+                    fileURL = fileURL?.appending(component: "index.html")
                 }
-                let mimeType = mimeType(ofFileAtUrl: fileUrl)
-                if let data = try? Data(contentsOf: fileUrl) {
-                    let response = HTTPURLResponse(
-                        url: url,
-                        mimeType: mimeType,
-                        expectedContentLength: data.count, textEncodingName: nil)
-                    urlSchemeTask.didReceive(response)
-                    urlSchemeTask.didReceive(data)
-                    urlSchemeTask.didFinish()
-                    return
-                }
-                
-                urlSchemeTask.didFailWithError(CustomSchemeHandlerError.notFound)
             }
+        }
+        if let fileURL = fileURL {
+            let mimeType = mimeType(ofFileAtUrl: fileURL)
+            if let data = try? Data(contentsOf: fileURL) {
+                let response = HTTPURLResponse(
+                    url: url,
+                    mimeType: mimeType,
+                    expectedContentLength: data.count, textEncodingName: nil)
+                urlSchemeTask.didReceive(response)
+                urlSchemeTask.didReceive(data)
+                urlSchemeTask.didFinish()
+                return
+            }
+            
+            urlSchemeTask.didFailWithError(CustomSchemeHandlerError.notFound)
+            return
         }
         
         for handler in defaultURLSchemeHandlerExtensions {

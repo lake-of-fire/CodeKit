@@ -1,5 +1,4 @@
 // Run `make build-codecore` to build.
-//import { createPlayground } from 'codekit:///livecodes';
 import { createPlayground } from 'livecodes';
 
 let playgroundPromise = createPlayground('#container', {

@@ -43,7 +43,7 @@ public struct CodeCoreView: NativeView {
         let configuration = WKWebViewConfiguration()
         configuration.preferences = preferences
         configuration.userContentController = userController
-        configuration.setURLSchemeHandler(GenericFileURLSchemeHandler(), forURLScheme: "codekit")
+        configuration.setURLSchemeHandler(GenericFileURLSchemeHandler(), forURLScheme: "code")
         for (urlSchemeHandler, urlScheme) in context.coordinator.viewModel.urlSchemeHandlers {
             configuration.setURLSchemeHandler(urlSchemeHandler, forURLScheme: urlScheme)
         }
@@ -212,7 +212,7 @@ final class GenericFileURLSchemeHandler: NSObject, WKURLSchemeHandler {
     
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         guard let url = urlSchemeTask.request.url else { return }
-        let scheme = "codekit"
+        let scheme = "code"
         if url.absoluteString.hasPrefix("\(scheme)://"),
            let path = url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
            let baseURL = Bundle.module.url(forResource: "src", withExtension: nil) {

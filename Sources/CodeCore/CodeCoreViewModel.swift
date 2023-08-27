@@ -3,6 +3,7 @@ import WebKit
 
 @MainActor
 public class CodeCoreViewModel: ObservableObject {
+    public var urlSchemeHandlers: [(WKURLSchemeHandler, String)]
     var onLoadSuccess: (() -> Void)?
     var onLoadFailed: ((Error) -> Void)?
 //    public var onContentChange: (() -> Void)?
@@ -18,10 +19,12 @@ public class CodeCoreViewModel: ObservableObject {
 //    @Published public var lineWrapping = false
 
     public init(
+        urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [],
         onLoadSuccess: (() -> Void)? = nil,
         onLoadFailed: ((Error) -> Void)? = nil
 //        onContentChange: (() -> Void)? = nil
     ) {
+        self.urlSchemeHandlers = urlSchemeHandlers
         self.onLoadSuccess = onLoadSuccess
         self.onLoadFailed = onLoadFailed
 //        self.onContentChange = onContentChange

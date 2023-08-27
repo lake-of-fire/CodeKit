@@ -2,10 +2,12 @@ import SwiftUI
 import CodeCore
 import RealmSwift
 import RealmSwiftGaps
+import WebKit
 
 public struct CodeRunner: View {
     @ObservedRealmObject var codeExtension: CodeExtension
     let syncedTypes: [any DBSyncableObject.Type]?
+    let urlSchemeHandlers: [(WKURLSchemeHandler, String)]
     
     @StateObject private var codeCoreViewModel = CodeCoreViewModel()
     @StateObject private var dbSync = DBSync()
@@ -24,6 +26,7 @@ public struct CodeRunner: View {
                     await workspaceStorage?.updateDirectory(url: directoryURL)
                 }
                 
+                codeCoreViewModel.urlSchemeHandlers = urlSchemeHandlers
                 codeCoreViewModel.surrogateDocumentChanges = dbSync.surrogateDocumentChanges(collectionName:changedDocs:)
                 try? await run()
                 if let syncedTypes = syncedTypes, let asyncJavaScriptCaller = codeCoreViewModel.asyncJavaScriptCaller {
@@ -45,9 +48,10 @@ public struct CodeRunner: View {
             }
     }
     
-    public init(codeExtension: CodeExtension, syncedTypes: [any DBSyncableObject.Type]? = nil) {
+    public init(codeExtension: CodeExtension, syncedTypes: [any DBSyncableObject.Type]? = nil, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = []) {
         self.codeExtension = codeExtension
         self.syncedTypes = syncedTypes
+        self.urlSchemeHandlers = urlSchemeHandlers
     }
     
     @MainActor

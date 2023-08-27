@@ -3,7 +3,7 @@
 import { createPlayground } from 'livecodes';
 
 let playgroundPromise = createPlayground('#container', {
-    appUrl: 'codekit://codekit/livecodes/',
+    appUrl: 'code://code/codekit/livecodes/',
     loading: 'eager',
     //lite: true, // <-- This breaks builds
     config: {

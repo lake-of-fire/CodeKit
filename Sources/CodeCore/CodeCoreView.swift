@@ -44,6 +44,9 @@ public struct CodeCoreView: NativeView {
         configuration.preferences = preferences
         configuration.userContentController = userController
         configuration.setURLSchemeHandler(GenericFileURLSchemeHandler(), forURLScheme: "codekit")
+        for (urlSchemeHandler, urlScheme) in context.coordinator.viewModel.urlSchemeHandlers {
+            configuration.setURLSchemeHandler(urlSchemeHandler, forURLScheme: urlScheme)
+        }
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -59,7 +62,11 @@ public struct CodeCoreView: NativeView {
     }
 
     private func updateWebView(context: Context) {
-//        context.coordinator.enqueueJavascript(
+        for (urlSchemeHandler, urlScheme) in context.coordinator.viewModel.urlSchemeHandlers {
+            if context.coordinator.webView.configuration.urlSchemeHandler(forURLScheme: urlScheme) == nil {
+                context.coordinator.webView.configuration.setURLSchemeHandler(urlSchemeHandler, forURLScheme: urlScheme)
+            }
+        }
     }
 
     public func makeCoordinator() -> Coordinator {

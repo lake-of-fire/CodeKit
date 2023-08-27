@@ -72,7 +72,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     
     public var buildResultPageURL: URL? {
         guard let package = package, !name.isEmpty else { return nil }
-        return URL(string: "codekit://codekit/extensions/")?.appending(component: "\(name)-\(package.id.uuidString.prefix(6))")
+        return URL(string: "code://code/codekit/extensions/")?.appending(component: "\(name)-\(package.id.uuidString.prefix(6))")
     }
     
     public var buildDirectoryURL: URL? {

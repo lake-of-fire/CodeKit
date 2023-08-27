@@ -8,6 +8,7 @@ public struct CodeRunner: View {
     @ObservedRealmObject var codeExtension: CodeExtension
     let syncedTypes: [any DBSyncableObject.Type]?
     let urlSchemeHandlers: [(WKURLSchemeHandler, String)]
+    let defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler]
     
     @StateObject private var codeCoreViewModel = CodeCoreViewModel()
     @StateObject private var dbSync = DBSync()
@@ -27,6 +28,7 @@ public struct CodeRunner: View {
                 }
                 
                 codeCoreViewModel.urlSchemeHandlers = urlSchemeHandlers
+                codeCoreViewModel.defaultURLSchemeHandlerExtensions = defaultURLSchemeHandlerExtensions
                 codeCoreViewModel.surrogateDocumentChanges = dbSync.surrogateDocumentChanges(collectionName:changedDocs:)
                 try? await run()
                 if let syncedTypes = syncedTypes, let asyncJavaScriptCaller = codeCoreViewModel.asyncJavaScriptCaller {
@@ -48,10 +50,11 @@ public struct CodeRunner: View {
             }
     }
     
-    public init(codeExtension: CodeExtension, syncedTypes: [any DBSyncableObject.Type]? = nil, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = []) {
+    public init(codeExtension: CodeExtension, syncedTypes: [any DBSyncableObject.Type]? = nil, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [], defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = []) {
         self.codeExtension = codeExtension
         self.syncedTypes = syncedTypes
         self.urlSchemeHandlers = urlSchemeHandlers
+        self.defaultURLSchemeHandlerExtensions = defaultURLSchemeHandlerExtensions
     }
     
     @MainActor

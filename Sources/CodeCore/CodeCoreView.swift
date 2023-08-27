@@ -43,10 +43,11 @@ public struct CodeCoreView: NativeView {
         let configuration = WKWebViewConfiguration()
         configuration.preferences = preferences
         configuration.userContentController = userController
-        configuration.setURLSchemeHandler(GenericFileURLSchemeHandler(), forURLScheme: "code")
+        configuration.setURLSchemeHandler(context.coordinator.defaultURLSchemeHandler, forURLScheme: "code")
         for (urlSchemeHandler, urlScheme) in context.coordinator.viewModel.urlSchemeHandlers {
             configuration.setURLSchemeHandler(urlSchemeHandler, forURLScheme: urlScheme)
         }
+        context.coordinator.defaultURLSchemeHandler.defaultURLSchemeHandlerExtensions = context.coordinator.viewModel.defaultURLSchemeHandlerExtensions
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -67,6 +68,7 @@ public struct CodeCoreView: NativeView {
                 context.coordinator.webView.configuration.setURLSchemeHandler(urlSchemeHandler, forURLScheme: urlScheme)
             }
         }
+        context.coordinator.defaultURLSchemeHandler.defaultURLSchemeHandlerExtensions = context.coordinator.viewModel.defaultURLSchemeHandlerExtensions
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -103,6 +105,8 @@ public class Coordinator: NSObject {
     private var pageLoaded = false
     private var pendingFunctions = [(JavascriptFunction, JavascriptCallback?)]()
 
+    var defaultURLSchemeHandler = GenericFileURLSchemeHandler()
+    
     init(parent: CodeCoreView, viewModel: CodeCoreViewModel) {
         self.parent = parent
         self.viewModel = viewModel
@@ -208,35 +212,47 @@ extension Coordinator: WKNavigationDelegate {
 }
 
 final class GenericFileURLSchemeHandler: NSObject, WKURLSchemeHandler {
+    var defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = []
+    
     enum CustomSchemeHandlerError: Error {
         case notFound
     }
     
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         guard let url = urlSchemeTask.request.url else { return }
-        if url.absoluteString.hasPrefix("code://code/codekit/"),
-           let path = url.pathComponents.dropFirst().joined(separator: "/").addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-           let baseURL = Bundle.module.url(forResource: "src", withExtension: nil) {
-            var fileUrl = baseURL.appending(path: "/" + path)
-            if fileUrl.isDirectory {
-                fileUrl = fileUrl.appending(component: "index.html")
+        if url.absoluteString.hasPrefix("code://code/codekit/") {
+            if let path = url.pathComponents.dropFirst(2).joined(separator: "/").addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+               let baseURL = Bundle.module.url(forResource: "src", withExtension: nil) {
+                var fileUrl = baseURL.appending(path: "/" + path)
+                if fileUrl.isDirectory {
+                    fileUrl = fileUrl.appending(component: "index.html")
+                }
+                let mimeType = mimeType(ofFileAtUrl: fileUrl)
+                if let data = try? Data(contentsOf: fileUrl) {
+                    let response = HTTPURLResponse(
+                        url: url,
+                        mimeType: mimeType,
+                        expectedContentLength: data.count, textEncodingName: nil)
+                    urlSchemeTask.didReceive(response)
+                    urlSchemeTask.didReceive(data)
+                    urlSchemeTask.didFinish()
+                    return
+                }
+                
+                urlSchemeTask.didFailWithError(CustomSchemeHandlerError.notFound)
             }
-            let mimeType = mimeType(ofFileAtUrl: fileUrl)
-            if let data = try? Data(contentsOf: fileUrl) {
-                let response = HTTPURLResponse(
-                    url: url,
-                    mimeType: mimeType,
-                    expectedContentLength: data.count, textEncodingName: nil)
-                urlSchemeTask.didReceive(response)
-                urlSchemeTask.didReceive(data)
-                urlSchemeTask.didFinish()
-            }
+        }
         
-            urlSchemeTask.didFailWithError(CustomSchemeHandlerError.notFound)
+        for handler in defaultURLSchemeHandlerExtensions {
+            handler.webView(webView, start: urlSchemeTask)
         }
     }
     
-    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
+        for handler in defaultURLSchemeHandlerExtensions {
+            handler.webView(webView, stop: urlSchemeTask)
+        }
+    }
     
     private func mimeType(ofFileAtUrl url: URL) -> String {
         return UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"

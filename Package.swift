@@ -57,6 +57,7 @@ let package = Package(
             name: "CodeLibrary",
             dependencies: [
                 .target(name: "CodeCore"),
+                .target(name: "CodeCI"),
                 .product(name: "OPML", package: "OPML"),
                 .product(name: "FilePicker", package: "FilePicker"),
                 .product(name: "Realm", package: "realm-swift"),

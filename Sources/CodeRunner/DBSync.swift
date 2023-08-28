@@ -278,7 +278,8 @@ public class DBSync: ObservableObject {
             
             let rawCheckpoint = try await asyncJavaScriptCaller?("window[`${collectionName}LastCheckpoint`]", ["collectionName": objectType.dbCollectionName()], nil, .page) as? [String: Any]
             var checkpoint: SyncCheckpoint?
-            if let rawCheckpoint = rawCheckpoint, let rawModifiedAt = rawCheckpoint["modifiedAt"] as? String, let modifiedAt = dateFormatter.date(from: rawModifiedAt), let id = rawCheckpoint["id"] as? String, let uuid = UUID(uuidString: id) {
+            if let rawCheckpoint = rawCheckpoint, let rawModifiedAt = rawCheckpoint["modifiedAt"] as? Int64, let id = rawCheckpoint["id"] as? String, let uuid = UUID(uuidString: id) {
+                let modifiedAt = Date().advanced(by: TimeInterval(integerLiteral: Int64(rawModifiedAt / 1000)))
                 checkpoint = SyncCheckpoint(modifiedAt: modifiedAt, id: uuid)
             }
             
@@ -326,10 +327,11 @@ public class DBSync: ObservableObject {
         
         safeWrite { realm in
             for doc in changedDocs {
-                guard let rawUUID = doc["uuid"] as? String, let uuid = UUID(uuidString: rawUUID), let rawModifiedAt = doc["modifiedAt"] as? String, let modifiedAt = dateFormatter.date(from: rawModifiedAt) else {
+                guard let rawUUID = doc["uuid"] as? String, let uuid = UUID(uuidString: rawUUID), let rawModifiedAt = doc["modifiedAt"] as? Int64 else {
                     print("ERROR: Missing or malformed uuid and/or modifiedAt in changedDocs object")
                     continue
                 }
+                let modifiedAt = Date().advanced(by: TimeInterval(integerLiteral: Int64(rawModifiedAt / 1000)))
                 if let matchingObj = realm.object(ofType: objectType, forPrimaryKey: uuid) as? any DBSyncableObject {
                     if matchingObj.modifiedAt <= modifiedAt {
                         applyChanges(in: doc, to: matchingObj)

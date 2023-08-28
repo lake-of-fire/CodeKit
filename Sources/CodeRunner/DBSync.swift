@@ -69,7 +69,6 @@ public class DBSync: ObservableObject {
     
     @Published public var isSynchronizing = false
     
-        
     lazy var dateFormatter: DateFormatter = {
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")

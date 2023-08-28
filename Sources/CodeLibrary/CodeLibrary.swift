@@ -127,7 +127,8 @@ public struct CodeLibraryView: View {
                         }
                     } label: {
                         Label("Add", systemImage: "plus")
-                            .foregroundStyle(.secondary, .secondary)
+//                            .foregroundStyle(.secondary, .secondary)
+                            .foregroundStyle(.gray, .gray)
                             .imageScale(.large)
                     }
                         .menuIndicator(.hidden)

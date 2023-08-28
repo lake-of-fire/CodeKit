@@ -42,26 +42,20 @@ public extension GitRepositoryProtocol {
     }
     
     @MainActor
-    func updateGitRepositoryStatus() {
-        DispatchQueue.main.async {
-            self.gitServiceIsBusy = true
-        }
+    func updateGitRepositoryStatus() async {
+        self.gitServiceIsBusy = true
         
         @Sendable func onFinish() {
-            DispatchQueue.main.async {
-                self.gitServiceIsBusy = false
-            }
+            self.gitServiceIsBusy = false
         }
         
         @Sendable func clearUIState() {
-            DispatchQueue.main.async {
                 self.aheadBehind = nil
                 self.statusDescription = ""
                 self.branch = ""
                 self.gitTracks = [:]
                 self.indexedResources = [:]
                 self.workingResources = [:]
-            }
         }
         
         guard let gitServiceProvider = workspaceStorage?.gitServiceProvider else {
@@ -70,7 +64,7 @@ public extension GitRepositoryProtocol {
             return
         }
         
-        Task {
+        await Task {
             defer {
                 onFinish()
             }
@@ -129,9 +123,9 @@ public extension GitRepositoryProtocol {
             } catch {
                 clearUIState()
             }
-        }
+        }.value
         
-        Task {
+        try? await Task {
             let references: [ReferenceType] =
             (try await gitServiceProvider.tags())
             + (try await gitServiceProvider.remoteBranches())
@@ -141,7 +135,7 @@ public extension GitRepositoryProtocol {
                     CheckoutDestination(reference: $0)
                 }
             }
-        }
+        }.value
     }
     
     @MainActor

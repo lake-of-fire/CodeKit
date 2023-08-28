@@ -212,7 +212,7 @@ public extension CodePackageRepository {
     
     @MainActor
     func listExtensionFiles() async throws -> [URL] {
-        updateGitRepositoryStatus()
+        await updateGitRepositoryStatus()
         
         guard let workspaceStorage = workspaceStorage, isWorkspaceInitialized, let currentDirectory = URL(string: workspaceStorage.currentDirectory.url) else {
             throw CodePackageError.repositoryLoadingFailed
@@ -283,7 +283,8 @@ public extension CodePackageRepository {
                 }
                 
                 workspaceStorage.gitServiceProvider?.loadDirectory(url: directoryURL.standardizedFileURL)
-                updateGitRepositoryStatus()
+                
+                await updateGitRepositoryStatus()
                     
                 do {
                     if isWorkspaceInitialized {
@@ -294,7 +295,7 @@ public extension CodePackageRepository {
                             from: repositoryURL,
                             to: directoryURL,
                             progress: nil)
-                        updateGitRepositoryStatus()
+                        await updateGitRepositoryStatus()
                         completionHandler(nil)
                     }
                 } catch {
@@ -308,19 +309,23 @@ public extension CodePackageRepository {
     @MainActor
     func pull() async throws {
         guard let serviceProvider = workspaceStorage?.gitServiceProvider else { throw CodeError.unknownError }
-        
-        guard let currentBranch = try await serviceProvider.head() as? Branch else {
+        let head = try await serviceProvider.head()
+        guard let localBranch = head as? Branch else {
             throw NSError(descriptionKey: "Repository is in detached mode")
         }
-        
         let remotes = try await serviceProvider.remotes()
         guard let origin = remotes.first(where: { $0.name == "origin" }) else {
             throw NSError(descriptionKey: "Repository remote 'origin' not found")
         }
+        guard let remoteBranch = try await serviceProvider.remoteBranches().first(where: {
+            $0.name == origin.name + "/" + localBranch.name })
+        else {
+            throw NSError(descriptionKey: "Repository is in detached mode")
+        }
         
-        try await serviceProvider.pull(branch: currentBranch, remote: origin)
+        try await serviceProvider.pull(branch: remoteBranch, remote: origin)
         
-        updateGitRepositoryStatus()
+        await updateGitRepositoryStatus()
 //        return try await withCheckedThrowingContinuation { continuation in
 //           workspaceStorage?.gitServiceProvider?.fetch(error: {
 //                print($0.localizedDescription)

@@ -37,7 +37,7 @@ struct CodePackageView: View {
 #endif
         .onAppear {
             Task { @MainActor in
-                repository.updateGitRepositoryStatus()
+                await repository.updateGitRepositoryStatus()
             }
         }
     }

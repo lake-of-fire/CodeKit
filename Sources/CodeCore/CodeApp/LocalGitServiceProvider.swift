@@ -370,9 +370,10 @@ class LocalGitServiceProvider: GitServiceProvider {
             let repository = try self.checkedRepository()
 //            let credentials = try self.credentialsHelper.credentialsForRemote(remote: from)
             let credentials = Credentials.default
-            let signature = try self.checkedSignature()
+//            let signature = try self.checkedSignature()
             try repository.pull(
-                branch: branch, from: from, credentials: credentials, signature: signature)
+                branch: branch, from: from, credentials: credentials, signature: nil)
+//                branch: branch, from: from, credentials: credentials, signature: signature)
         }
     }
 

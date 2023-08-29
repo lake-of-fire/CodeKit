@@ -16,7 +16,10 @@ public struct CodeRunner: View {
     @State private var workspaceStorage: WorkspaceStorage?
     
     public var body: some View {
-        CodeCoreView(codeCoreViewModel, urlSchemeHandlers: urlSchemeHandlers, defaultURLSchemeHandlerExtensions: defaultURLSchemeHandlerExtensions)
+        CodeCoreView(
+            codeCoreViewModel,
+            urlSchemeHandlers: urlSchemeHandlers,
+            defaultURLSchemeHandlerExtensions: defaultURLSchemeHandlerExtensions)
             .opacity(0)
             .frame(maxWidth: 0.0000001, maxHeight: 0.0000001)
             .allowsHitTesting(false)

@@ -8,7 +8,9 @@ public struct CodeCI: View {
     @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.isEnabled }) private var packages
     
     public var body: some View {
-        CodeCoreView(ciActor.codeCoreViewModel)
+        CodeCoreView(
+            ciActor.codeCoreViewModel,
+            waitOnCodeCoreIsReadyMessage: true)
             .opacity(0)
             .frame(maxWidth: 0.00001, maxHeight: 0.00001)
             .allowsHitTesting(false)

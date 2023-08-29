@@ -11,11 +11,13 @@ import UniformTypeIdentifiers
 @MainActor
 public struct CodeCoreView: NativeView {
     @ObservedObject public var viewModel: CodeCoreViewModel
+    let waitOnCodeCoreIsReadyMessage: Bool
     let urlSchemeHandlers: [(WKURLSchemeHandler, String)]
     let defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler]
 
-    public init(_ viewModel: CodeCoreViewModel, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [], defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = []) {
+    public init(_ viewModel: CodeCoreViewModel, waitOnCodeCoreIsReadyMessage: Bool = false, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [], defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = []) {
         self.viewModel = viewModel
+        self.waitOnCodeCoreIsReadyMessage = waitOnCodeCoreIsReadyMessage
         self.urlSchemeHandlers = urlSchemeHandlers
         self.defaultURLSchemeHandlerExtensions = defaultURLSchemeHandlerExtensions
     }
@@ -70,7 +72,7 @@ public struct CodeCoreView: NativeView {
     }
 
     public func makeCoordinator() -> Coordinator {
-        let coordinator = Coordinator(parent: self, viewModel: viewModel)
+        let coordinator = Coordinator(parent: self, viewModel: viewModel, waitOnCodeCoreIsReadyMessage: waitOnCodeCoreIsReadyMessage)
         
         viewModel.load = { (data, mimeType, characterEncodingName, baseURL) in
             coordinator.webView.load(
@@ -99,15 +101,17 @@ public class Coordinator: NSObject {
     var parent: CodeCoreView
     var viewModel: CodeCoreViewModel
     var webView: WKWebView!
+    let waitOnCodeCoreIsReadyMessage: Bool
 
     private var pageLoaded = false
     private var pendingFunctions = [(JavascriptFunction, JavascriptCallback?)]()
 
     var defaultURLSchemeHandler = GenericFileURLSchemeHandler()
     
-    init(parent: CodeCoreView, viewModel: CodeCoreViewModel) {
+    init(parent: CodeCoreView, viewModel: CodeCoreViewModel, waitOnCodeCoreIsReadyMessage: Bool) {
         self.parent = parent
         self.viewModel = viewModel
+        self.waitOnCodeCoreIsReadyMessage = waitOnCodeCoreIsReadyMessage
     }
 
     internal func enqueueJavascript(
@@ -197,11 +201,10 @@ extension Coordinator: WKNavigationDelegate {
     }
     
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        if pageLoaded {
+        if !waitOnCodeCoreIsReadyMessage || pageLoaded {
+            pageLoaded = true
             callPendingFunctions()
             Task { @MainActor in await parent.viewModel.onLoadSuccess?() }
-        } else {
-            pageLoaded = true
         }
     }
 

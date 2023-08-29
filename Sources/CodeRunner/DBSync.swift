@@ -280,7 +280,7 @@ public class DBSync: ObservableObject {
             let rawCheckpoint = try await asyncJavaScriptCaller?("window[`${collectionName}LastCheckpoint`]", ["collectionName": objectType.dbCollectionName()], nil, .page) as? [String: Any]
             var checkpoint: SyncCheckpoint?
             if let rawCheckpoint = rawCheckpoint, let rawModifiedAt = rawCheckpoint["modifiedAt"] as? Int64, let id = rawCheckpoint["id"] as? String, let uuid = UUID(uuidString: id) {
-                let modifiedAt = Date().advanced(by: TimeInterval(integerLiteral: Int64(rawModifiedAt / 1000)))
+                let modifiedAt = Date(timeIntervalSince1970: Double(rawModifiedAt) / 1000.0)
                 checkpoint = SyncCheckpoint(modifiedAt: modifiedAt, id: uuid)
             }
             
@@ -306,7 +306,10 @@ public class DBSync: ObservableObject {
     private func syncTo(object: some DBSyncableObject) async throws {
         let collectionName = type(of: object).dbCollectionName()
         let jsonEncoder = JSONEncoder()
-        jsonEncoder.dateEncodingStrategy = .iso8601
+        jsonEncoder.dateEncodingStrategy = .custom { date, encoder in
+            var container = encoder.singleValueContainer()
+            try container.encode(Int64(1000 * date.timeIntervalSince1970))
+        }
         let jsonDoc = try jsonEncoder.encode(object)
         guard let jsonStr = String(data: jsonDoc, encoding: .utf8) else {
             print("ERROR encoding \(object)")
@@ -328,7 +331,7 @@ public class DBSync: ObservableObject {
         
         safeWrite { realm in
             for doc in changedDocs {
-                guard let rawUUID = doc["uuid"] as? String, let uuid = UUID(uuidString: rawUUID), let rawModifiedAt = doc["modifiedAt"] as? Int64 else {
+                guard let rawUUID = doc["id"] as? String, let uuid = UUID(uuidString: rawUUID), let rawModifiedAt = doc["modifiedAt"] as? Int64 else {
                     print("ERROR: Missing or malformed uuid and/or modifiedAt in changedDocs object")
                     continue
                 }
@@ -445,8 +448,13 @@ public class DBSync: ObservableObject {
             } else if property.type == .object, let ref = value as? String {
                 savePendingRelationship(relationshipName: key, targetID: ref, entity: targetObj)
             } else if property.type == .UUID, let rawUUID = value as? String, let uuid = UUID(uuidString: rawUUID) {
+                if targetObj.objectSchema.primaryKeyProperty?.name == key, targetObj.realm != nil {
+                    // Don't re-apply primary keys
+                    continue
+                }
                 targetObj.setValue(uuid, forKey: key)
-            } else if property.type == .date, let rawDate = value as? String, let date = dateFormatter.date(from: rawDate) {
+            } else if property.type == .date, let rawDate = value as? Int64 {
+                let date = Date(timeIntervalSince1970: Double(rawDate) / 1000.0)
                 targetObj.setValue(date, forKey: key)
             } else if value != nil || property.isOptional {
                 targetObj.setValue(value, forKey: key)
@@ -455,7 +463,7 @@ public class DBSync: ObservableObject {
     }
     
     func savePendingRelationship(relationshipName: String, targetID: String, entity: any DBSyncableObject) {
-        pendingRelationships.append(DBPendingRelationship(relationshipName: relationshipName, targetID: targetID, entityType: entity.className, entityID: entity.id.uuidString))
+        pendingRelationships.append(DBPendingRelationship(relationshipName: relationshipName, targetID: targetID, entityType: entity.objectSchema.className, entityID: entity.id.uuidString))
     }
     
     func applyPendingRelationships() {
@@ -468,7 +476,7 @@ public class DBSync: ObservableObject {
                     print("Unsupported relationship entity type \(relationship.entityType)")
                     continue
                 }
-                guard let entity = realm.object(ofType: objectType, forPrimaryKey: relationship.entityID) as? any DBSyncableObject else {
+                guard let entityID = UUID(uuidString: relationship.entityID), let entity = realm.object(ofType: objectType, forPrimaryKey: entityID) as? any DBSyncableObject else {
                     print("Entity \(relationship.entityType) with ID \(relationship.entityID) not found for sync")
                     continue
                 }
@@ -485,7 +493,7 @@ public class DBSync: ObservableObject {
                     print("Unsupported relationship target type \(relationship.entityType)")
                     continue
                 }
-                guard let target = realm.object(ofType: targetObjectType, forPrimaryKey: relationship.targetID) as? any DBSyncableObject else {
+                guard let targetID = UUID(uuidString: relationship.targetID), let target = realm.object(ofType: targetObjectType, forPrimaryKey: targetID) as? any DBSyncableObject else {
                     print("Target \(relationship.entityType) with ID \(relationship.entityID) not found for sync")
                     continue
                 }

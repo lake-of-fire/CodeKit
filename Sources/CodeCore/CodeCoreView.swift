@@ -169,8 +169,12 @@ extension Coordinator: WKScriptMessageHandler {
     ) {
         switch message.name {
         case ScriptMessageName.codeCoreIsReady:
-            pageLoaded = true
-            callPendingFunctions()
+            if pageLoaded {
+                callPendingFunctions()
+                Task { @MainActor in await parent.viewModel.onLoadSuccess?() }
+            } else {
+                pageLoaded = true
+            }
         case ScriptMessageName.surrogateDocumentChanges:
             guard let surrogateDocumentChanges = viewModel.surrogateDocumentChanges else {
                 print("ERROR: no surrogateDocumentChanges set on view model")
@@ -188,8 +192,17 @@ extension Coordinator: WKScriptMessageHandler {
 }
 
 extension Coordinator: WKNavigationDelegate {
+    public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        pageLoaded = false
+    }
+    
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        parent.viewModel.onLoadSuccess?()
+        if pageLoaded {
+            callPendingFunctions()
+            Task { @MainActor in await parent.viewModel.onLoadSuccess?() }
+        } else {
+            pageLoaded = true
+        }
     }
 
     public func webView(
@@ -197,6 +210,7 @@ extension Coordinator: WKNavigationDelegate {
         didFail navigation: WKNavigation!,
         withError error: Error
     ) {
+        pageLoaded = false
         parent.viewModel.onLoadFailed?(error)
     }
 
@@ -205,6 +219,7 @@ extension Coordinator: WKNavigationDelegate {
         didFailProvisionalNavigation navigation: WKNavigation!,
         withError error: Error
     ) {
+        pageLoaded = false
         parent.viewModel.onLoadFailed?(error)
     }
 }

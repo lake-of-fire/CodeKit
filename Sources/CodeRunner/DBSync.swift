@@ -76,8 +76,7 @@ public class DBSync: ObservableObject {
         return dateFormatter
     }()
     
-    public init() {
-    }
+    public init() { }
     
     @MainActor
     public func initialize(realmConfiguration: Realm.Configuration, syncedTypes: [any DBSyncableObject.Type], asyncJavaScriptCaller: @escaping ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?)) async {
@@ -92,6 +91,9 @@ public class DBSync: ObservableObject {
         
         try? await initializeRemoteSchema()
         
+        for subscription in subscriptions {
+            subscription.cancel()
+        }
         for objectType in syncedTypes {
             realm.objects(objectType)
                 .changesetPublisher
@@ -154,7 +156,7 @@ public class DBSync: ObservableObject {
         }
         
         let d = JSON(collections)
-        print(String(data: d.data(options: .prettyPrinted), encoding: .utf8) ?? "")
+//        print(String(data: d.data(options: .prettyPrinted), encoding: .utf8) ?? "")
         do {
             _ = try await asyncJavaScriptCaller?(
                 "return await window.createCollectionsFromCanonical(collections)", ["collections": collections], nil, .page)

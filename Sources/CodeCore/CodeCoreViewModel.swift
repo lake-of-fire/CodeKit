@@ -3,8 +3,8 @@ import WebKit
 
 @MainActor
 public class CodeCoreViewModel: ObservableObject {
-    var onLoadSuccess: (() -> Void)?
-    var onLoadFailed: ((Error) -> Void)?
+    public var onLoadSuccess: (() async -> Void)?
+    public var onLoadFailed: ((Error) -> Void)?
 //    public var onContentChange: (() -> Void)?
 
 //    internal var executeJS: ((JavascriptFunction, JavascriptCallback?) -> Void)!
@@ -18,7 +18,7 @@ public class CodeCoreViewModel: ObservableObject {
 //    @Published public var lineWrapping = false
 
     public init(
-        onLoadSuccess: (() -> Void)? = nil,
+        onLoadSuccess: (() async -> Void)? = nil,
         onLoadFailed: ((Error) -> Void)? = nil
 //        onContentChange: (() -> Void)? = nil
     ) {

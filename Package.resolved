@@ -39,7 +39,7 @@
     {
       "identity" : "fileprovider",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/amosavian/FileProvider.git",
+      "location" : "https://github.com/thebaselab/FileProvider.git",
       "state" : {
         "branch" : "master",
         "revision" : "abf68a62541a4193c8d106367ddb3648e8ab693f"

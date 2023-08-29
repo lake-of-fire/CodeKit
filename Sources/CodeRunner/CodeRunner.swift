@@ -29,16 +29,6 @@ public struct CodeRunner: View {
                 
                 codeCoreViewModel.surrogateDocumentChanges = dbSync.surrogateDocumentChanges(collectionName:changedDocs:)
                 try? await run()
-                if let syncedTypes = syncedTypes, let asyncJavaScriptCaller = codeCoreViewModel.asyncJavaScriptCaller {
-                    guard let realm = codeExtension.realm else {
-                        print("No Realm found for CodeExtension in CodeRunner")
-                        return
-                    }
-                    await dbSync.initialize(
-                        realmConfiguration: realm.configuration,
-                        syncedTypes: syncedTypes,
-                        asyncJavaScriptCaller: asyncJavaScriptCaller)
-                }
             }
             .onChange(of: codeExtension.lastBuiltAt) { latestBuildHashAvailable in
                 guard latestBuildHashAvailable != nil else {
@@ -58,17 +48,33 @@ public struct CodeRunner: View {
     @MainActor
     func run() async throws {
         let (data, url) = try await loadLatestAvailableBuildResult()
+        codeCoreViewModel.onLoadSuccess = {
+            safeWrite(codeExtension) { _, codeExtension in
+                codeExtension.lastRunStartedAt = Date()
+            }
+            
+    //        if try await codeCoreViewModel.callAsyncJavaScript("window.livecodes") == nil {
+    //            print("Error initializing JS")
+    //        }
+            
+            if let syncedTypes = syncedTypes, let asyncJavaScriptCaller = codeCoreViewModel.asyncJavaScriptCaller {
+                guard let realm = codeExtension.realm else {
+                    print("No Realm found for CodeExtension in CodeRunner")
+                    return
+                }
+                await dbSync.initialize(
+                    realmConfiguration: realm.configuration,
+                    syncedTypes: syncedTypes,
+                    asyncJavaScriptCaller: asyncJavaScriptCaller)
+            }
+
+            if syncedTypes != nil && codeCoreViewModel.asyncJavaScriptCaller != nil {
+                await dbSync.beginSyncIfNeeded()
+            }
+        }
         codeCoreViewModel.load(
             htmlData: data,
             baseURL: url)
-        
-        safeWrite(codeExtension) { _, codeExtension in
-            codeExtension.lastRunStartedAt = Date()
-        }
-        
-        if syncedTypes != nil && codeCoreViewModel.asyncJavaScriptCaller != nil {
-            await dbSync.beginSyncIfNeeded()
-        }
     }
     
     @MainActor

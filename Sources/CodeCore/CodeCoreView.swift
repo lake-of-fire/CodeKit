@@ -45,6 +45,7 @@ public struct CodeCoreView: NativeView {
         let userController = WKUserContentController()
         userController.add(context.coordinator, name: ScriptMessageName.codeCoreIsReady)
         userController.add(context.coordinator, name: ScriptMessageName.surrogateDocumentChanges)
+        userController.add(context.coordinator, name: ScriptMessageName.consoleMessage)
 
         let configuration = WKWebViewConfiguration()
         configuration.preferences = preferences
@@ -189,6 +190,8 @@ extension Coordinator: WKScriptMessageHandler {
                 return
             }
             surrogateDocumentChanges(collectionName, changedDocs)
+        case ScriptMessageName.consoleMessage:
+            print("CONSOLE: \(message.body)")
         default:
             print("received unhandled \(message.name) \(message.body)")
         }

@@ -296,6 +296,10 @@ public class DBSync: ObservableObject {
             }
             
             for chunk in Array(objects).chunked(into: 100) {
+                guard let objects = chunk as? [any DBSyncableObject] else {
+                    print("ERROR Couldn't cast chunk to DBSyncableObject")
+                    continue
+                }
                 try await syncTo(objects: chunk)
             }
         }

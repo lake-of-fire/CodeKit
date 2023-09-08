@@ -323,7 +323,7 @@ public class DBSync: ObservableObject {
     private func syncTo(objects: [any DBSyncableObject]) async throws {
         var jsonStr = "["
         for object in objects {
-            guard let objJson = jsonDictionaryFor(object: object) else {
+            guard let objJson = try await jsonDictionaryFor(object: object) else {
                 print("ERROR serializing \(object)")
                 continue
             }

@@ -295,9 +295,8 @@ public class DBSync: ObservableObject {
                     checkpoint.modifiedAt, checkpoint.modifiedAt, checkpoint.id)
             }
             
-            for obj in Array(objects) {
-                guard let syncableObj = obj as? (any DBSyncableObject) else { continue }
-                    try await syncTo(object: syncableObj)
+            for chunk in Array(objects).chunked(into: 100) {
+                try await syncTo(object: chunk)
             }
         }
     }
@@ -512,6 +511,14 @@ public class DBSync: ObservableObject {
                 connectedRelationships.insert(relationship)
             }
             pendingRelationships.removeAll(where: { connectedRelationships.contains($0) })
+        }
+    }
+}
+
+fileprivate extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0 ..< Swift.min($0 + size, count)])
         }
     }
 }

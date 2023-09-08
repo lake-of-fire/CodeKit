@@ -1,10 +1,10 @@
 // Run `make build-codecore` to build.
 import { createPlayground } from 'livecodes';
 
-let playgroundPromise = createPlayground('#container', {
+let playgroundPromise = createPlayground({
     appUrl: 'code://code/codekit/livecodes/',
     loading: 'eager',
-    //lite: true, // <-- This breaks builds
+    view: 'headless',
     config: {
         editor: "codemirror",
         tabSize: 4,

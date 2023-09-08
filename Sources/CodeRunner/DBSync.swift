@@ -155,7 +155,7 @@ public class DBSync: ObservableObject {
             ]
         }
         
-        let d = JSON(collections)
+//        let d = JSON(collections)
 //        print(String(data: d.data(options: .prettyPrinted), encoding: .utf8) ?? "")
         do {
             _ = try await asyncJavaScriptCaller?(
@@ -302,9 +302,7 @@ public class DBSync: ObservableObject {
         }
     }
     
-    @MainActor
-    private func syncTo(object: some DBSyncableObject) async throws {
-        let collectionName = type(of: object).dbCollectionName()
+    private func jsonDictionaryFor(object: some DBSyncableObject) async throws {
         let jsonEncoder = JSONEncoder()
         jsonEncoder.dateEncodingStrategy = .custom { date, encoder in
             var container = encoder.singleValueContainer()
@@ -315,7 +313,19 @@ public class DBSync: ObservableObject {
             print("ERROR encoding \(object)")
             return
         }
-        _ = try await asyncJavaScriptCaller?("window.syncDocsFromCanonical(collectionName, [\(jsonStr)])", [
+        return jsonStr
+    }
+    
+    @MainActor
+    private func syncTo(objects: [any DBSyncableObject]) async throws {
+        var jsonStr = "["
+        for object in objects {
+            jsonStr += jsonDictionaryFor(object: object) + ","
+        }
+        jsonStr += "]"
+        
+        let collectionName = type(of: object).dbCollectionName()
+        _ = try await asyncJavaScriptCaller?("window.syncDocsFromCanonical(collectionName, \(jsonStr))", [
             "collectionName": collectionName,
         ], nil, .page)
     }

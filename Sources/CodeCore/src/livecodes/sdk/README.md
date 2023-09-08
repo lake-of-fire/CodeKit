@@ -102,6 +102,7 @@ Add this code to your page:
 - [Dev Tools](https://livecodes.io/docs/features/tools-pane) ([console](https://livecodes.io/docs/features/console), [compiled code viewer](https://livecodes.io/docs/features/compiled-code), [test runner](https://livecodes.io/docs/features/tests))
 - [Code formatting](https://livecodes.io/docs/features/code-format)
 - [Intellisense](https://livecodes.io/docs/features/intellisense)
+- [AI Code Assistant 🪄](https://livecodes.io/docs/features/ai)
 - [Lite mode](https://livecodes.io/docs/features/lite)
 - [Read-only mode](https://livecodes.io/docs/features/read-only)
 - [Broadcast](https://livecodes.io/docs/features/broadcast)
@@ -110,7 +111,7 @@ Add this code to your page:
 - [Client-side!](https://livecodes.io/docs/why#client-side)
 - Very [configurable](https://livecodes.io/docs/configuration/)
 - Developer-friendly build-free environment
-- Powerful [SDK](https://livecodes.io/docs/sdk/) (available for [JavaScript, TypeScript](https://livecodes.io/docs/sdk/js-ts), [React](https://livecodes.io/docs/sdk/react) and [Vue](https://livecodes.io/docs/sdk/vue))
+- Powerful [SDK](https://livecodes.io/docs/sdk/) (available for [vanilla JavaScript, TypeScript](https://livecodes.io/docs/sdk/js-ts), [React](https://livecodes.io/docs/sdk/react), [Vue](https://livecodes.io/docs/sdk/vue) and [Svelte](https://livecodes.io/docs/sdk/svelte))
 - Comprehensive [Documentations](https://livecodes.io/docs/)
 - Focused on [privacy and security](https://livecodes.io/docs/features/security)
 - Free and [Open-Source](https://livecodes.io/docs/license)

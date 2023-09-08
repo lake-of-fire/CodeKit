@@ -300,7 +300,7 @@ public class DBSync: ObservableObject {
                     print("ERROR Couldn't cast chunk to DBSyncableObject")
                     continue
                 }
-                try await syncTo(objects: chunk)
+                try await syncTo(objects: objects)
             }
         }
     }

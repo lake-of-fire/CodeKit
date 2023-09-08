@@ -301,7 +301,7 @@ public class DBSync: ObservableObject {
         }
     }
     
-    private func jsonDictionaryFor(object: some DBSyncableObject) async throws {
+    private func jsonDictionaryFor(object: some DBSyncableObject) async throws -> String? {
         let jsonEncoder = JSONEncoder()
         jsonEncoder.dateEncodingStrategy = .custom { date, encoder in
             var container = encoder.singleValueContainer()
@@ -310,7 +310,7 @@ public class DBSync: ObservableObject {
         let jsonDoc = try jsonEncoder.encode(object)
         guard let jsonStr = String(data: jsonDoc, encoding: .utf8) else {
             print("ERROR encoding \(object)")
-            return
+            return nil
         }
         return jsonStr
     }
@@ -319,7 +319,11 @@ public class DBSync: ObservableObject {
     private func syncTo(objects: [any DBSyncableObject]) async throws {
         var jsonStr = "["
         for object in objects {
-            jsonStr += jsonDictionaryFor(object: object) + ","
+            guard let objJson = jsonDictionaryFor(object: object) else {
+                print("ERROR serializing \(object)")
+                continue
+            }
+            jsonStr += objJson + ","
         }
         jsonStr += "]"
         

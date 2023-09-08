@@ -296,7 +296,7 @@ public class DBSync: ObservableObject {
             }
             
             for chunk in Array(objects).chunked(into: 100) {
-                try await syncTo(object: chunk)
+                try await syncTo(objects: chunk)
             }
         }
     }

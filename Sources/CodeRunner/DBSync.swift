@@ -331,10 +331,12 @@ public class DBSync: ObservableObject {
         }
         jsonStr += "]"
         
-        let collectionName = type(of: object).dbCollectionName()
-        _ = try await asyncJavaScriptCaller?("window.syncDocsFromCanonical(collectionName, \(jsonStr))", [
-            "collectionName": collectionName,
-        ], nil, .page)
+        if let firstObject = objects.first {
+            let collectionName = type(of: firstObject).dbCollectionName()
+            _ = try await asyncJavaScriptCaller?("window.syncDocsFromCanonical(collectionName, \(jsonStr))", [
+                "collectionName": collectionName,
+            ], nil, .page)
+        }
     }
     
     public func surrogateDocumentChanges(collectionName: String, changedDocs: [[String: Any]]) {

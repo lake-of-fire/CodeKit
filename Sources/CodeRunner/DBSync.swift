@@ -340,9 +340,6 @@ public class DBSync: ObservableObject {
     }
     
     public func surrogateDocumentChanges(collectionName: String, changedDocs: [[String: Any]]) {
-        print("syncfrom ")
-        print(collectionName)
-        print(changedDocs)
         guard let objectType: any DBSyncableObject.Type = syncedTypes.first(where: { $0.dbCollectionName() == collectionName }) else {
             print("ERROR syncFrom received invalid collection name")
             return

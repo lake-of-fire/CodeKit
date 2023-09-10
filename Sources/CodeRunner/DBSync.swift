@@ -1,4 +1,5 @@
 import SwiftUI
+import CodeCore
 import Realm
 import RealmSwift
 import RealmSwiftGaps
@@ -62,7 +63,10 @@ public class DBSync: ObservableObject {
     private var realmConfiguration: Realm.Configuration? = nil
 //    private var syncedTypes: [Object.Type] = []
     private var syncedTypes: [any DBSyncableObject.Type] = []
+    private var syncFromSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]?
+    private var syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]?
     private var asyncJavaScriptCaller: ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?)? = nil
+    private var codeExtension: CodeExtension? = nil
     
     private var subscriptions = Set<AnyCancellable>()
     private var pendingRelationships = [DBPendingRelationship]()
@@ -79,10 +83,13 @@ public class DBSync: ObservableObject {
     public init() { }
     
     @MainActor
-    public func initialize(realmConfiguration: Realm.Configuration, syncedTypes: [any DBSyncableObject.Type], asyncJavaScriptCaller: @escaping ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?)) async {
+    public func initialize(realmConfiguration: Realm.Configuration, syncedTypes: [any DBSyncableObject.Type], syncFromSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, asyncJavaScriptCaller: @escaping ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?), codeExtension: CodeExtension) async {
         self.realmConfiguration = realmConfiguration
         self.syncedTypes = syncedTypes
+        self.syncFromSurrogateMap = syncFromSurrogateMap
+        self.syncToSurrogateMap = syncToSurrogateMap
         self.asyncJavaScriptCaller = asyncJavaScriptCaller
+        self.codeExtension = codeExtension
         
         let realm = try! await Realm(configuration: realmConfiguration)
         
@@ -296,9 +303,15 @@ public class DBSync: ObservableObject {
             }
             
             for chunk in Array(objects).chunked(into: 100) {
-                guard let objects = chunk as? [any DBSyncableObject] else {
+                guard var objects = chunk as? [any DBSyncableObject] else {
                     print("ERROR Couldn't cast chunk to DBSyncableObject")
                     continue
+                }
+                let surrogateMaps = syncToSurrogateMap?.filter { $0.0 == objectType }.map { $0.1 } ?? []
+                for surrogateMap in surrogateMaps {
+                    objects = objects.compactMap { object in
+                        return surrogateMap(object, codeExtension)
+                    }
                 }
                 try await syncTo(objects: objects)
             }

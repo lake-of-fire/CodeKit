@@ -7,6 +7,8 @@ import WebKit
 public struct CodeRunner: View {
     @ObservedRealmObject var codeExtension: CodeExtension
     let syncedTypes: [any DBSyncableObject.Type]?
+    let syncFromSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]?
+    let syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]?
     let urlSchemeHandlers: [(WKURLSchemeHandler, String)]
     let defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler]
     
@@ -41,9 +43,11 @@ public struct CodeRunner: View {
             }
     }
     
-    public init(codeExtension: CodeExtension, syncedTypes: [any DBSyncableObject.Type]? = nil, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [], defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = []) {
+    public init(codeExtension: CodeExtension, syncedTypes: [any DBSyncableObject.Type]? = nil, syncFromSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [], defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = []) {
         self.codeExtension = codeExtension
         self.syncedTypes = syncedTypes
+        self.syncFromSurrogateMap = syncFromSurrogateMap
+        self.syncToSurrogateMap = syncToSurrogateMap
         self.urlSchemeHandlers = urlSchemeHandlers
         self.defaultURLSchemeHandlerExtensions = defaultURLSchemeHandlerExtensions
     }
@@ -68,7 +72,10 @@ public struct CodeRunner: View {
                 await dbSync.initialize(
                     realmConfiguration: realm.configuration,
                     syncedTypes: syncedTypes,
-                    asyncJavaScriptCaller: asyncJavaScriptCaller)
+                    syncFromSurrogateMap: syncFromSurrogateMap,
+                    syncToSurrogateMap: syncToSurrogateMap,
+                    asyncJavaScriptCaller: asyncJavaScriptCaller,
+                    codeExtension: codeExtension)
             }
 
             if syncedTypes != nil && codeCoreViewModel.asyncJavaScriptCaller != nil {

@@ -7,7 +7,7 @@ import WebKit
 public struct CodeRunner: View {
     @ObservedRealmObject var codeExtension: CodeExtension
     let syncedTypes: [any DBSyncableObject.Type]?
-    let syncFromSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]?
+    let syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]?
     let syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]?
     let urlSchemeHandlers: [(WKURLSchemeHandler, String)]
     let defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler]
@@ -43,7 +43,7 @@ public struct CodeRunner: View {
             }
     }
     
-    public init(codeExtension: CodeExtension, syncedTypes: [any DBSyncableObject.Type]? = nil, syncFromSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [], defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = []) {
+    public init(codeExtension: CodeExtension, syncedTypes: [any DBSyncableObject.Type]? = nil, syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [], defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = []) {
         self.codeExtension = codeExtension
         self.syncedTypes = syncedTypes
         self.syncFromSurrogateMap = syncFromSurrogateMap

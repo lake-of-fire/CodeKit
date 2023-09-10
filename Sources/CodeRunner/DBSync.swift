@@ -63,7 +63,7 @@ public class DBSync: ObservableObject {
     private var realmConfiguration: Realm.Configuration? = nil
 //    private var syncedTypes: [Object.Type] = []
     private var syncedTypes: [any DBSyncableObject.Type] = []
-    private var syncFromSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]?
+    private var syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]?
     private var syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]?
     private var asyncJavaScriptCaller: ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?)? = nil
     private var codeExtension: CodeExtension? = nil
@@ -83,7 +83,7 @@ public class DBSync: ObservableObject {
     public init() { }
     
     @MainActor
-    public func initialize(realmConfiguration: Realm.Configuration, syncedTypes: [any DBSyncableObject.Type], syncFromSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, asyncJavaScriptCaller: @escaping ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?), codeExtension: CodeExtension) async {
+    public func initialize(realmConfiguration: Realm.Configuration, syncedTypes: [any DBSyncableObject.Type], syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, asyncJavaScriptCaller: @escaping ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?), codeExtension: CodeExtension) async {
         self.realmConfiguration = realmConfiguration
         self.syncedTypes = syncedTypes
         self.syncFromSurrogateMap = syncFromSurrogateMap
@@ -274,8 +274,8 @@ public class DBSync: ObservableObject {
     
     @MainActor
     private func syncTo() async throws {
-        guard let realmConfiguration = realmConfiguration, asyncJavaScriptCaller != nil else {
-            fatalError("No Realm configuration found.")
+        guard let realmConfiguration = realmConfiguration, asyncJavaScriptCaller != nil, let codeExtension = codeExtension else {
+            fatalError("Incomplete configuration.")
         }
         let realm = try await Realm(configuration: realmConfiguration)
         
@@ -353,10 +353,16 @@ public class DBSync: ObservableObject {
     }
     
     public func surrogateDocumentChanges(collectionName: String, changedDocs: [[String: Any]]) {
+        var changedDocs = changedDocs
         guard let objectType: any DBSyncableObject.Type = syncedTypes.first(where: { $0.dbCollectionName() == collectionName }) else {
             print("ERROR syncFrom received invalid collection name")
             return
         }
+        guard let codeExtension = codeExtension else {
+            fatalError("Incomplete configuration.")
+        }
+        
+        let surrogateMaps = syncFromSurrogateMap?.filter { $0.0 == objectType }.map { $0.1 } ?? []
         
         safeWrite { realm in
             for doc in changedDocs {
@@ -365,13 +371,25 @@ public class DBSync: ObservableObject {
                     continue
                 }
                 let modifiedAt = Date().advanced(by: TimeInterval(integerLiteral: Int64(rawModifiedAt / 1000)))
-                if let matchingObj = realm.object(ofType: objectType, forPrimaryKey: uuid) as? any DBSyncableObject {
+                
+                let matchingObj = realm.object(ofType: objectType, forPrimaryKey: uuid) as? any DBSyncableObject
+                
+                var surrogateDoc = Optional(doc)
+                for surrogateMap in surrogateMaps {
+                    surrogateDoc = surrogateMap(doc, matchingObj, codeExtension)
+                    if surrogateDoc == nil {
+                        break
+                    }
+                }
+                guard let surrogateDoc = surrogateDoc else { continue }
+                
+                if let matchingObj = matchingObj {
                     if matchingObj.modifiedAt <= modifiedAt {
-                        applyChanges(in: doc, to: matchingObj)
+                        applyChanges(in: surrogateDoc, to: matchingObj)
                     }
                 } else {
                     let newObject = objectType.init()
-                    applyChanges(in: doc, to: newObject)
+                    applyChanges(in: surrogateDoc, to: newObject)
                     realm.add(newObject)
                 }
             }

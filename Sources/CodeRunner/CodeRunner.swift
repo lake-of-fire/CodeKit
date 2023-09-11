@@ -6,6 +6,7 @@ import WebKit
 
 public struct CodeRunner: View {
     @ObservedRealmObject var codeExtension: CodeExtension
+    let beforeRun: (() async -> Void)?
     let syncedTypes: [any DBSyncableObject.Type]?
     let syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]?
     let syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]?
@@ -43,8 +44,9 @@ public struct CodeRunner: View {
             }
     }
     
-    public init(codeExtension: CodeExtension, syncedTypes: [any DBSyncableObject.Type]? = nil, syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [], defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = []) {
+    public init(codeExtension: CodeExtension, beforeRun: (() async -> Void)? = nil, syncedTypes: [any DBSyncableObject.Type]? = nil, syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [], defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = []) {
         self.codeExtension = codeExtension
+        self.beforeRun = beforeRun
         self.syncedTypes = syncedTypes
         self.syncFromSurrogateMap = syncFromSurrogateMap
         self.syncToSurrogateMap = syncToSurrogateMap
@@ -82,6 +84,7 @@ public struct CodeRunner: View {
                 await dbSync.beginSyncIfNeeded()
             }
         }
+        await beforeRun?()
         codeCoreViewModel.load(
             htmlData: data,
             baseURL: url)

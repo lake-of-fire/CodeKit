@@ -7,7 +7,8 @@ import Combine
 import WebKit
 
 public protocol DBSyncableObject: Object, Identifiable, Codable {
-    var id: UUID { get set }
+    associatedtype IDType
+    var id: IDType { get set }
     var isDeleted: Bool { get set }
     var modifiedAt: Date { get set }
 }
@@ -15,6 +16,17 @@ public protocol DBSyncableObject: Object, Identifiable, Codable {
 fileprivate extension DBSyncableObject {
     static func dbCollectionName() -> String {
         return Self.className().camelCaseToSnakeCase()
+    }
+}
+
+public extension DBSyncableObject {
+    var idString: String {
+        if let uuid = id as? UUID {
+            return uuid.uuidString
+        } else if let id = id as? String {
+            return id
+        }
+        fatalError("Invalid ID format.")
     }
 }
 
@@ -56,7 +68,7 @@ fileprivate extension String {
 
 struct SyncCheckpoint {
     let modifiedAt: Date
-    let id: UUID
+    let id: String
 }
 
 public class DBSync: ObservableObject {
@@ -286,9 +298,9 @@ public class DBSync: ObservableObject {
             
             let rawCheckpoint = try await asyncJavaScriptCaller?("window[`${collectionName}LastCheckpoint`]", ["collectionName": objectType.dbCollectionName()], nil, .page) as? [String: Any]
             var checkpoint: SyncCheckpoint?
-            if let rawCheckpoint = rawCheckpoint, let rawModifiedAt = rawCheckpoint["modifiedAt"] as? Int64, let id = rawCheckpoint["id"] as? String, let uuid = UUID(uuidString: id) {
+            if let rawCheckpoint = rawCheckpoint, let rawModifiedAt = rawCheckpoint["modifiedAt"] as? Int64, let id = rawCheckpoint["id"] as? String {
                 let modifiedAt = Date(timeIntervalSince1970: Double(rawModifiedAt) / 1000.0)
-                checkpoint = SyncCheckpoint(modifiedAt: modifiedAt, id: uuid)
+                checkpoint = SyncCheckpoint(modifiedAt: modifiedAt, id: id)
             }
             
             var objects = realm.objects(objectType)
@@ -510,7 +522,7 @@ public class DBSync: ObservableObject {
     }
     
     func savePendingRelationship(relationshipName: String, targetID: String, entity: any DBSyncableObject) {
-        pendingRelationships.append(DBPendingRelationship(relationshipName: relationshipName, targetID: targetID, entityType: entity.objectSchema.className, entityID: entity.id.uuidString))
+        pendingRelationships.append(DBPendingRelationship(relationshipName: relationshipName, targetID: targetID, entityType: entity.objectSchema.className, entityID: entity.idString))
     }
     
     func applyPendingRelationships() {

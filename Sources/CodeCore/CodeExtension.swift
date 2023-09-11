@@ -9,7 +9,11 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     /// Do not prepend dot. Checks both dot-prepended and as-is automatically and in that order.
     public static var extensionsPathComponents = [String]()
     
-    @Persisted(primaryKey: true) public var id = UUID()
+    @Persisted(primaryKey: true) public var id = ""
+    public var compoundKey: String {
+        return "[" + repositoryURL + "][" + name + "]"
+    }
+    
     @Persisted(indexed: true) public var repositoryURL = ""
     
     @Persisted public var name = ""

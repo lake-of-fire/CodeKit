@@ -79,14 +79,11 @@ public struct CodeRunner: View {
                     syncFromSurrogateMap: syncFromSurrogateMap,
                     syncToSurrogateMap: syncToSurrogateMap,
                     asyncJavaScriptCaller: asyncJavaScriptCaller,
-                    codeExtension: codeExtension)
-            }
-
-            if syncedTypes != nil && codeCoreViewModel.asyncJavaScriptCaller != nil {
-                await dbSync.beginSyncIfNeeded()
+                    codeExtension: codeExtension) {
+                        await beforeRun?()
+                    }
             }
         }
-        await beforeRun?()
         codeCoreViewModel.load(
             htmlData: data,
             baseURL: url)

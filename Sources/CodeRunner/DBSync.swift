@@ -95,7 +95,7 @@ public class DBSync: ObservableObject {
     public init() { }
     
     @MainActor
-    public func initialize(realmConfiguration: Realm.Configuration, syncedTypes: [any DBSyncableObject.Type], syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, asyncJavaScriptCaller: @escaping ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?), codeExtension: CodeExtension) async {
+    public func initialize(realmConfiguration: Realm.Configuration, syncedTypes: [any DBSyncableObject.Type], syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, asyncJavaScriptCaller: @escaping ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?), codeExtension: CodeExtension, beforeFinalizing: (() async -> Void)? = nil) async {
         self.realmConfiguration = realmConfiguration
         self.syncedTypes = syncedTypes
         self.syncFromSurrogateMap = syncFromSurrogateMap
@@ -116,36 +116,43 @@ public class DBSync: ObservableObject {
         for objectType in syncedTypes {
             realm.objects(objectType)
                 .changesetPublisher
-                .delay(for: .milliseconds(50), scheduler: DispatchQueue.main)
+                .delay(for: .milliseconds(20), scheduler: DispatchQueue.main)
                 .debounce(for: .milliseconds(150), scheduler: DispatchQueue.main)
                 .receive(on: DispatchQueue.main)
                 .sink { changes in
                     switch changes {
                     case .initial(_):
-                        Task.detached { [weak self] in await self?.beginSyncIfNeeded() }
+                        break
                     case .update(_, deletions: _, insertions: _, modifications: _):
-                        Task.detached { [weak self] in await self?.beginSyncIfNeeded() }
+                        Task { [weak self] in await self?.syncIfNeeded() }
                     case .error(let error):
                         print(error.localizedDescription)
                     }
                 }
                 .store(in: &subscriptions)
         }
+        
+        await syncIfNeeded()
+        await beforeFinalizing?()
+        do {
+            _ = try await asyncJavaScriptCaller("finishedSyncingDocsFromCanonical()", nil, nil, nil)
+        } catch {
+            print("ERROR Finishing sync: \(error)")
+        }
     }
     
-    public func beginSyncIfNeeded() async {
-        Task { @MainActor in
-            guard !isSynchronizing else { return }
-            isSynchronizing = true
-            
-            do {
-                try await syncTo()
-            } catch (let error) {
-                print("Sync to server error \(error)")
-            }
-            
-            isSynchronizing = false
+    @MainActor
+    public func syncIfNeeded() async {
+        guard !isSynchronizing else { return }
+        isSynchronizing = true
+        
+        do {
+            try await syncTo()
+        } catch (let error) {
+            print("Sync to server error \(error)")
         }
+        
+        isSynchronizing = false
     }
     
     @MainActor
@@ -318,7 +325,7 @@ public class DBSync: ObservableObject {
             }
             
             if let objects = objects {
-                for chunk in Array(objects).chunked(into: 100) {
+                for chunk in Array(objects).chunked(into: 400) {
                     guard var objects = chunk as? [any DBSyncableObject] else {
                         print("ERROR Couldn't cast chunk to DBSyncableObject")
                         continue

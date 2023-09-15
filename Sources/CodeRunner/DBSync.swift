@@ -231,6 +231,9 @@ public class DBSync: ObservableObject {
                 "type": "object",
                 "properties": properties,
             ]
+//        } else if property.type == .object, let objectClassName = property.objectClassName {
+//            schema["type"] = "string"
+//            schema["ref"] = objectClassName
         } else {
             schema = plainPropertySchema(property)
         }
@@ -254,7 +257,7 @@ public class DBSync: ObservableObject {
             return [
                 "ref": realmSchema.dbCollectionName(),
                 "type": "string",
-                "properties": objectSchema(realmSchema),
+//                "properties": objectSchema(realmSchema),
             ]
         }
         
@@ -303,33 +306,36 @@ public class DBSync: ObservableObject {
                 checkpoint = SyncCheckpoint(modifiedAt: modifiedAt, id: id)
             }
             
-            var objects = realm.objects(objectType)
+            @ThreadSafe var objects = realm.objects(objectType)
                 .sorted(by: [
                     SortDescriptor(keyPath: "modifiedAt", ascending: true),
                     SortDescriptor(keyPath: "id", ascending: true),
                 ])
             if let checkpoint = checkpoint {
-                objects = objects.filter(
+                objects = objects?.filter(
                     "modifiedAt >= %@ && (modifiedAt > %@ || id > %@)",
                     checkpoint.modifiedAt, checkpoint.modifiedAt, checkpoint.id)
             }
             
-            for chunk in Array(objects).chunked(into: 100) {
-                guard var objects = chunk as? [any DBSyncableObject] else {
-                    print("ERROR Couldn't cast chunk to DBSyncableObject")
-                    continue
-                }
-                let surrogateMaps = syncToSurrogateMap?.filter { $0.0 == objectType }.map { $0.1 } ?? []
-                for surrogateMap in surrogateMaps {
-                    objects = objects.compactMap { object in
-                        return surrogateMap(object, codeExtension)
+            if let objects = objects {
+                for chunk in Array(objects).chunked(into: 100) {
+                    guard var objects = chunk as? [any DBSyncableObject] else {
+                        print("ERROR Couldn't cast chunk to DBSyncableObject")
+                        continue
                     }
+                    let surrogateMaps = syncToSurrogateMap?.filter { $0.0 == objectType }.map { $0.1 } ?? []
+                    for surrogateMap in surrogateMaps {
+                        objects = objects.compactMap { object in
+                            return surrogateMap(object, codeExtension)
+                        }
+                    }
+                    try await syncTo(objects: objects)
                 }
-                try await syncTo(objects: objects)
             }
         }
     }
     
+    @MainActor
     private func jsonDictionaryFor(object: some DBSyncableObject) async throws -> String? {
         let jsonEncoder = JSONEncoder()
         jsonEncoder.dateEncodingStrategy = .custom { date, encoder in
@@ -354,10 +360,12 @@ public class DBSync: ObservableObject {
             }
             jsonStr += objJson + ","
         }
+        jsonStr = String(jsonStr.dropLast(1))
         jsonStr += "]"
         
         if let firstObject = objects.first {
             let collectionName = type(of: firstObject).dbCollectionName()
+//            print("window.syncDocsFromCanonical('\(collectionName)', \(jsonStr))")
             _ = try await asyncJavaScriptCaller?("window.syncDocsFromCanonical(collectionName, \(jsonStr))", [
                 "collectionName": collectionName,
             ], nil, .page)

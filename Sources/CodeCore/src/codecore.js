@@ -6,8 +6,8 @@ let playgroundPromise = createPlayground({
     loading: 'eager',
     view: 'headless',
     config: {
-        editor: "codemirror",
-        tabSize: 4,
+        //editor: "codemirror",
+        //tabSize: 4,
         markup: { language: "html", content: "" },
         style: { language: "css", content: "" },
         script: { language: "js", content: "" },

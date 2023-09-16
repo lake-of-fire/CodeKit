@@ -11,7 +11,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     
     @Persisted(primaryKey: true) public var id = ""
     public var compoundKey: String {
-        return "[" + repositoryURL + "][" + name + "]"
+        return Self.makeCompoundKey(repositoryURL: repositoryURL, name: name)
     }
     
     @Persisted(indexed: true) public var repositoryURL = ""
@@ -32,6 +32,9 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     @Persisted public var isDeleted = false
     public var needsSyncToServer: Bool { false }
     
+    public static func makeCompoundKey(repositoryURL: String, name: String) -> String {
+        return "[" + repositoryURL + "][" + name + "]"
+    }
 //    // Git UI states
 //    @MainActor @Published public var gitTracks: [URL: Diff.Status] = [:]
 //    @MainActor @Published public var indexedResources: [URL: Diff.Status] = [:]

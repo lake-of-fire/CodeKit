@@ -201,6 +201,7 @@ public extension CodePackageRepository {
             try! realm.write {
                 for name in newNames {
                     realm.create(CodeExtension.self, value: [
+                        "id": CodeExtension.makeCompoundKey(repositoryURL: repositoryURL, name: name),
                         "repositoryURL": repositoryURL,
                         "name": name,
                         "repository": self,

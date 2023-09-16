@@ -135,7 +135,7 @@ public class DBSync: ObservableObject {
         await syncIfNeeded()
         await beforeFinalizing?()
         do {
-            _ = try await asyncJavaScriptCaller("finishedSyncingDocsFromCanonical()", nil, nil, nil)
+            _ = try await asyncJavaScriptCaller("await window.finishedSyncingDocsFromCanonical()", nil, nil, nil)
         } catch {
             print("ERROR Finishing sync: \(error)")
         }
@@ -550,10 +550,23 @@ public class DBSync: ObservableObject {
                     print("Unsupported relationship entity type \(relationship.entityType)")
                     continue
                 }
-                guard let entityID = UUID(uuidString: relationship.entityID), let entity = realm.object(ofType: objectType, forPrimaryKey: entityID) as? any DBSyncableObject else {
-                    print("Entity \(relationship.entityType) with ID \(relationship.entityID) not found for sync")
-                    continue
+                
+                var entity: (any DBSyncableObject)?
+                if let entityUUID = UUID(uuidString: relationship.entityID) {
+                    guard let matchedEntity = realm.object(ofType: objectType, forPrimaryKey: entityUUID) as? any DBSyncableObject else {
+                        print("Entity \(relationship.entityType) with ID \(relationship.entityID) not found for sync")
+                        continue
+                    }
+                    entity = matchedEntity
+                } else {
+                    guard let matchedEntity = realm.object(ofType: objectType, forPrimaryKey: relationship.entityID) as? any DBSyncableObject else {
+                        print("Entity \(relationship.entityType) with ID \(relationship.entityID) not found for sync")
+                        continue
+                    }
+                    entity = matchedEntity
                 }
+                guard let entity = entity else { continue }
+                
                 if entity.isDeleted { continue }
                 
                 var targetClassName: String?
@@ -564,15 +577,23 @@ public class DBSync: ObservableObject {
                     }
                 }
                 guard let targetClassName = targetClassName, let targetObjectType = syncedTypes.first(where: { $0.className() == targetClassName }) else {
-                    print("Unsupported relationship target type \(relationship.entityType)")
+                    print("Unsupported relationship target type \(relationship.entityType). syncedTypes configured: \(syncedTypes)")
                     continue
                 }
-                guard let targetID = UUID(uuidString: relationship.targetID), let target = realm.object(ofType: targetObjectType, forPrimaryKey: targetID) as? any DBSyncableObject else {
-                    print("Target \(relationship.entityType) with ID \(relationship.entityID) not found for sync")
-                    continue
+                if let targetUUID = UUID(uuidString: relationship.targetID) {
+                    guard let target = realm.object(ofType: targetObjectType, forPrimaryKey: targetUUID) as? any DBSyncableObject else {
+                        print("Target \(targetObjectType) with ID \(relationship.entityID) not found for sync")
+                        continue
+                    }
+                    entity.setValue(target, forKey: relationship.relationshipName)
+                } else {
+                    guard let target = realm.object(ofType: targetObjectType, forPrimaryKey: relationship.targetID) as? any DBSyncableObject else {
+                        print("Target \(targetObjectType) with ID \(relationship.entityID) not found for sync")
+                        continue
+                    }
+                    entity.setValue(target, forKey: relationship.relationshipName)
                 }
                 
-                entity.setValue(target, forKey: relationship.relationshipName)
                 connectedRelationships.insert(relationship)
             }
             pendingRelationships.removeAll(where: { connectedRelationships.contains($0) })

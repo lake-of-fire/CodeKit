@@ -116,6 +116,7 @@ public class DBSync: ObservableObject {
         for objectType in syncedTypes {
             realm.objects(objectType)
                 .changesetPublisher
+//                .print()
                 .delay(for: .milliseconds(20), scheduler: DispatchQueue.main)
                 .debounce(for: .milliseconds(150), scheduler: DispatchQueue.main)
                 .receive(on: DispatchQueue.main)

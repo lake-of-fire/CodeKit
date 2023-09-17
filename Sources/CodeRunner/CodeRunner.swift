@@ -58,6 +58,7 @@ public struct CodeRunner: View {
     func run() async throws {
         let (data, url) = try await loadLatestAvailableBuildResult()
         codeCoreViewModel.onLoadFailed = { error in
+            print(error)
         }
         codeCoreViewModel.onLoadSuccess = {
             safeWrite(codeExtension) { _, codeExtension in

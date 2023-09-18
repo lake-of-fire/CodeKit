@@ -150,7 +150,7 @@ public class DBSync: ObservableObject {
         do {
             try await syncTo()
         } catch (let error) {
-            print("Sync to server error \(error)")
+            print("Sync to surrogate DB error: \(error)")
         }
         
         isSynchronizing = false
@@ -337,7 +337,9 @@ public class DBSync: ObservableObject {
                             return surrogateMap(object, codeExtension)
                         }
                     }
-                    try await syncTo(objects: objects)
+                    if !objects.isEmpty {
+                        try await syncTo(objects: objects)
+                    }
                 }
             }
         }

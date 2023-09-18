@@ -142,6 +142,15 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
         case modifiedAt
         case isDeleted
     }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(repositoryURL, forKey: .repositoryURL)
+        try container.encode(name, forKey: .name)
+        try container.encode(modifiedAt, forKey: .modifiedAt)
+        try container.encode(isDeleted, forKey: .isDeleted)
+    }
 }
 
 extension Bundle {

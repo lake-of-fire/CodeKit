@@ -4,6 +4,7 @@ import RealmSwift
 import BigSyncKit
 import RealmSwiftGaps
 import SwiftGit2
+import OPML
 
 public class CodePackage: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
     @Persisted(primaryKey: true) public var id = UUID()
@@ -26,7 +27,7 @@ public class CodePackage: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
        
     private var cachedRootDirectory: URL? = nil
 
-    public override init() {
+    public override required init() {
         super.init()
     }
     
@@ -44,6 +45,55 @@ public class CodePackage: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
     
     public var directoryURL: URL {
         return getRootDirectory().appending(component: "CodeKit").appending(component: name + "-" + id.uuidString.suffix(6), directoryHint: .isDirectory)
+    }
+}
+
+public extension CodePackage {
+    func generateOPMLEntry() -> OPMLEntry {
+        return OPMLEntry(text: name, attributes: [
+            Attribute(name: "title", value: name),
+            Attribute(name: "type", value: "CodeKit.CodePackage"),
+            Attribute(name: "repositoryURL", value: repositoryURL),
+            Attribute(name: "id", value: id.uuidString),
+            Attribute(name: "isEnabled", value: isEnabled ? "true" : "false"),
+        ])
+    }
+    
+    func generateOPML() async throws -> OPML {
+        let package = freeze()
+        let task = Task.detached { [package] in
+            try Task.checkCancellation()
+            let entry = package.generateOPMLEntry()
+            let opml = OPML(
+                title: package.name,
+                dateModified: Date(),
+                entries: [entry])
+            try Task.checkCancellation()
+            return opml
+        }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+    
+    static func importOPML(entry: OPMLEntry) -> Self? {
+        guard entry.attributeStringValue("type") == "CodeKit.CodePackage" else { return nil }
+        var obj: Self?
+        safeWrite { realm in
+            if let uuid = entry.attributeUUIDValue("id"), let match = realm.object(ofType: Self.self, forPrimaryKey: uuid) {
+                obj = match
+            } else {
+                obj = Self()
+            }
+            guard let obj = obj else { return }
+            obj.id = entry.attributeUUIDValue("id") ?? obj.id
+            obj.repositoryURL = entry.attributeStringValue("repositoryURL") ?? obj.repositoryURL
+            obj.isEnabled = entry.attributeBoolValue("isEnabled") ?? obj.isEnabled
+            obj.modifiedAt = Date()
+        }
+        return obj
     }
 }
 

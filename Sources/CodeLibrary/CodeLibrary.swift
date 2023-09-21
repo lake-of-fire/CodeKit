@@ -16,7 +16,7 @@ struct MaybeCodePackageView: View {
     let package: CodePackage?
     
     @State private var repository: CodePackageRepository?
-
+    
     var body: some View {
         // Workaround for a known issue where `NavigationSplitView` and
         // `NavigationStack` fail to update when their contents are conditional.
@@ -84,13 +84,155 @@ struct CodeLibraryExportButton: View {
     }
 }
 
+public struct CodeLibraryDataButtons: View {
+    @ObservedResults(PackageCollection.self, where: { !$0.isDeleted }) private var packageCollections
+    @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.packageCollection.count == 0 }) private var orphanPackages
+    
+    @State private var isOPMLImportPresented = false
+    @State private var isOPMLExportPresented = false
+    @State private var opmlFile: OPMLFile?
+    
+    public var body: some View {
+        Menu {
+            Menu("Export Extensions…") {
+                ForEach(packageCollections) { packageCollection in
+                    Menu(packageCollection.name) {
+                        Button("Export Collection") {
+                            generateOPMLCollection(packageCollection: packageCollection)
+                        }
+                        Divider()
+                        ForEach(packageCollection.packages) { package in
+                            Button(package.name) {
+                                generateOPML(package: package)
+                            }
+                        }
+                    }
+                }
+                ForEach(orphanPackages) { package in
+                    Button(package.name) {
+                        generateOPML(package: package)
+                    }
+                }
+            }
+            Button("Import Extensions…") {
+                isOPMLImportPresented.toggle()
+            }
+        } label: {
+            Label("More Options", systemImage: "ellipsis.circle")
+                .foregroundStyle(.gray, .gray)
+                .imageScale(.large)
+        }
+        .menuIndicator(.hidden)
+        .fileExporter(isPresented: $isOPMLExportPresented, document: opmlFile, contentType: OPMLFile.readableContentTypes.first!, defaultFilename: opmlFile?.title) { _ in }
+        .fileImporter(isPresented: $isOPMLImportPresented, allowedContentTypes: OPMLFile.readableContentTypes, allowsMultipleSelection: false) { results in
+            switch results {
+            case .success(let fileurls):
+                CodeLibraryConfiguration.shared.importOPML(fileURLs: fileurls)
+            case .failure(let error):
+                print(error)
+            }
+        }
+    }
+    
+    public init() {
+    }
+    
+    func generateOPMLCollection(packageCollection: PackageCollection) {
+        Task { @MainActor in
+            opmlFile = try? await OPMLFile(opml: packageCollection.generateOPML())
+            print(opmlFile?.title)
+            isOPMLExportPresented = true
+        }
+    }
+    
+    func generateOPML(package: CodePackage) {
+        Task { @MainActor in
+            opmlFile = try? await OPMLFile(opml: package.generateOPML())
+            print(opmlFile?.title)
+            isOPMLExportPresented = true
+        }
+    }
+}
+
+struct CodeLibraryNavigationItemMenuButtons: View {
+    @ObservedRealmObject var package: CodePackage
+    let allowMenus: Bool
+    
+    @ObservedResults(PackageCollection.self, where: { !$0.isDeleted }) private var packageCollections
+    
+    @State private var isMovingPresented = false
+    @State private var isUserEditable = false
+    
+    var body: some View {
+        Group {
+            if isUserEditable {
+                if allowMenus {
+                    Menu {
+                        collectionMoveButtons
+                    } label: { Label("Move", systemImage: "folder") }
+                } else {
+                    Button {
+                        isMovingPresented.toggle()
+                    } label: { Label("Move", systemImage: "folder") }
+                        .alert("Move to Collection", isPresented: $isMovingPresented) {
+                            collectionMoveButtons
+                            Button("Cancel", role: .cancel) {
+                                isMovingPresented = false
+                            }
+                        }
+                }
+                Divider()
+                Button(role: .destructive) {
+                    safeWrite(package) { _, package in
+                        package.isDeleted = true
+                    }
+                } label: { Label("Delete", systemImage: "trash") }
+            }
+        }
+        .task {
+            refreshEditable()
+        }
+        .onChange(of: package.packageCollection.count) { _ in
+            refreshEditable()
+        }
+    }
+    
+    var collectionMoveButtons: some View {
+        ForEach(packageCollections) { packageCollection in
+            if !package.packageCollection.isEmpty {
+                Button("No Collection") {
+                    safeWrite(package) { _, package in
+                        for existing in package.packageCollection {
+                            existing.packages.remove(package)
+                        }
+                    }
+                }
+            }
+            if !package.packageCollection.contains(where: { $0.id == packageCollection.id }) {
+                Button(packageCollection.name) {
+                    safeWrite(package) { _, package in
+                        for existing in package.packageCollection {
+                            existing.packages.remove(package)
+                        }
+                        packageCollection.thaw()?.packages.insert(package)
+                    }
+                }
+            }
+        }
+    }
+
+    func refreshEditable() {
+        Task { @MainActor in
+            isUserEditable = package.packageCollection.allSatisfy({ $0.isUserEditable })
+        }
+    }
+    
+}
+
 public struct CodeLibraryView: View {
     @ObservedResults(PackageCollection.self, where: { !$0.isDeleted }) private var packageCollections
     @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.packageCollection.count > 0 }) private var collectionRepos
     @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.packageCollection.count == 0 }) private var orphanPackages
-    
-    @State private var selectedPackage: CodePackage?
-    @State private var columnVisibility = NavigationSplitViewVisibility.doubleColumn
     
     @State private var isCollectionNameAlertPresented = false
     @State private var newExtensionCollectionName = ""
@@ -98,20 +240,44 @@ public struct CodeLibraryView: View {
     @State private var isExtensionURLAlertPresented = false
     @State private var addExtensionURL = ""
     
+    @StateObject private var navigationModel = CodeLibraryNavigationModel()
+    @SceneStorage("navigation") private var navigationData: Data?
+    
+    func itemLink(package: CodePackage) -> some View {
+        return NavigationLink(package.name, value: package)
+            .swipeActions(edge: .trailing) {
+                CodeLibraryNavigationItemMenuButtons(package: package, allowMenus: false)
+            }
+            .contextMenu {
+                CodeLibraryNavigationItemMenuButtons(package: package, allowMenus: true)
+            }
+    }
+    
     public var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility, sidebar: {
-            List(selection: $selectedPackage) {
+        NavigationSplitView(columnVisibility: $navigationModel.columnVisibility, sidebar: {
+            List(selection: $navigationModel.selectedPackage) {
                 ForEach(packageCollections) { collection in
-                    Section(collection.name) {
+                    Section {
                         ForEach(collection.packages) { package in
-                            NavigationLink(package.name, value: package)
+                            itemLink(package: package)
                         }
+                    } header: {
+                        Label(collection.name, systemImage: "folder")
+                            .contextMenu {
+                                if collection.isUserEditable {
+                                    Button(role: .destructive) {
+                                        safeWrite(collection) { _, collection in
+                                            collection.isDeleted = true
+                                        }
+                                    } label: { Label("Delete", systemImage: "trash") }
+                                }
+                            }
                     }
                     .headerProminence(.increased)
                 }
                 Section {
                     ForEach(orphanPackages) { package in
-                        NavigationLink(package.name, value: package)
+                        itemLink(package: package)
                     }
                 }
             }
@@ -119,10 +285,10 @@ public struct CodeLibraryView: View {
             .safeAreaInset(edge: .bottom) {
                 HStack {
                     Menu {
-                        Button("New Extension Collection…") {
+                        Button("New Collection…") {
                             isCollectionNameAlertPresented.toggle()
                         }
-                        Button("Add Extension Repository…") {
+                        Button("Add Repository URL…") {
                             isExtensionURLAlertPresented.toggle()
                         }
                     } label: {
@@ -143,7 +309,7 @@ public struct CodeLibraryView: View {
                                 isCollectionNameAlertPresented = false
                             }
                         }
-                        .alert("Enter Extension Repository URL", isPresented: $isExtensionURLAlertPresented) {
+                        .alert("Enter extension repository URL", isPresented: $isExtensionURLAlertPresented) {
                             TextField("Enter extension repository URL", text: $addExtensionURL)
                             Button("Add Repository") {
                                 let package = CodePackage()
@@ -154,10 +320,7 @@ public struct CodeLibraryView: View {
                                 isExtensionURLAlertPresented = false
                             }
                         }
-//                    Button {
-//
-//                    } label: { Label("Import", systemImage: "square.and.arrow.down") }
-//                    CodeLibraryExportButton()
+                    CodeLibraryDataButtons()
                     Spacer()
                 }
                 .buttonStyle(.borderless)
@@ -165,11 +328,18 @@ public struct CodeLibraryView: View {
                 .padding()
             }
         }, detail: {
-//            MaybeCodePackageView(package: selectedPackage, codeCoreViewModel: ciActor.codeCoreViewModel)
-            MaybeCodePackageView(package: selectedPackage)
+            MaybeCodePackageView(package: navigationModel.selectedPackage)
         })
 //        .navigationSplitViewStyle(.balanced)
 //        .environmentObject(viewModel)
+        .task {
+            if let jsonData = navigationData {
+                navigationModel.jsonData = jsonData
+            }
+            for await _ in navigationModel.objectWillChangeSequence {
+                navigationData = navigationModel.jsonData
+            }
+        }
     }
     
     public init() {

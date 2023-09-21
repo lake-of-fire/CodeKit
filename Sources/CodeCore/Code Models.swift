@@ -16,7 +16,7 @@ public actor CodeActor: ObservableObject {
         }
     }
     
-    public init(realmConfiguration: Realm.Configuration) {
+    public init(realmConfiguration: Realm.Configuration = Realm.Configuration.defaultConfiguration) {
         configuration = realmConfiguration
         git_libgit2_init()
     }
@@ -68,9 +68,10 @@ public class PackageCollection: Object, UnownedSyncableObject, ObjectKeyIdentifi
     @Persisted public var name = ""
     @Persisted public var packages = RealmSwift.MutableSet<CodePackage>()
     
-    @Persisted public var last = Date()
+//    @Persisted public var last = Date()
     
     @Persisted public var modifiedAt = Date()
+    @Persisted public var isUserEditable = true
     @Persisted public var isDeleted = false
     public var needsSyncToServer: Bool { false }
     
@@ -78,22 +79,19 @@ public class PackageCollection: Object, UnownedSyncableObject, ObjectKeyIdentifi
         super.init()
     }
     
-    func generateOPML() async throws -> OPML {
+    public func generateOPML() async throws -> OPML {
         let collection = freeze()
         let task = Task.detached { [collection] in
             try Task.checkCancellation()
             let entries = OPMLEntry(text: collection.name, attributes: [
                 Attribute(name: "type", value: "CodeKit.PackageCollection"),
                 Attribute(name: "id", value: collection.id.uuidString),
-            ], children: collection.packages.map({ package in
-                return OPMLEntry(text: package.name, attributes: [
-                    Attribute(name: "type", value: "CodeKit.CodePackage"),
-                    Attribute(name: "url", value: package.repositoryURL ?? ""),
-                    Attribute(name: "id", value: package.id.uuidString),
-                    Attribute(name: "isEnabled", value: package.isEnabled ? "true" : "false"),
-                ])
+                Attribute(name: "title", value: collection.name),
+            ], children: collection.packages.where({ !$0.isDeleted }).map({ package in
+                return package.generateOPMLEntry()
             }))
             let opml = OPML(
+                title: collection.name,
                 dateModified: Date(),
                 entries: [entries])
             try Task.checkCancellation()
@@ -104,5 +102,30 @@ public class PackageCollection: Object, UnownedSyncableObject, ObjectKeyIdentifi
         } onCancel: {
             task.cancel()
         }
+    }
+    
+    public static func importOPML(entry: OPMLEntry) -> PackageCollection? {
+        guard entry.attributeStringValue("type") == "CodeKit.PackageCollection" else { return nil }
+        var obj: PackageCollection?
+        safeWrite { realm in
+            if let uuid = entry.attributeUUIDValue("id"), let match = realm.object(ofType: Self.self, forPrimaryKey: uuid) {
+                obj = match
+            } else {
+                obj = PackageCollection()
+            }
+            guard let obj = obj else { return }
+            obj.id = entry.attributeUUIDValue("id") ?? obj.id
+            obj.name = entry.title ?? entry.text
+            obj.modifiedAt = Date()
+            for entry in entry.children ?? [] {
+                if let package = CodePackage.importOPML(entry: entry) {
+                    obj.packages.insert(package)
+                }
+            }
+            for removeObj in obj.packages.where({ !$0.isDeleted && !$0.id.in((entry.children ?? []).compactMap({ $0.attributeUUIDValue("id") })) }) {
+                removeObj.isDeleted = true
+            }
+        }
+        return obj
     }
 }

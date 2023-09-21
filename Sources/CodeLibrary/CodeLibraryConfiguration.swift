@@ -9,7 +9,7 @@ import SwiftUIDownloads
 import RealmSwiftGaps
 import CodeCore
 
-public struct CodeLibraryConfiguration {
+public class CodeLibraryConfiguration: ObservableObject {
     public static var securityApplicationGroupIdentifier = ""
     public static var downloadstDirectoryName = "code-library-configuration"
     public static var opmlURLs = [URL]()
@@ -27,22 +27,56 @@ public struct CodeLibraryConfiguration {
     
     public static let shared = CodeLibraryConfiguration()
     
-    public init() {
-    }
+    var cancellables = Set<AnyCancellable>()
     
+    public init() {
+//        super.init()
+        // TODO: Optimize a lil by only importing changed downloads, not reapplying all downloads on any one changing. Tho it's nice to ensure DLs continuously correctly placed.
+        DownloadController.shared.$finishedDownloads
+            .removeDuplicates()
+            .sink(receiveValue: { [weak self] downloads in
+                Task.detached { [weak self] in
+                    for download in downloads.filter({ $0.url.lastPathComponent.hasSuffix(".opml") }) {
+                        do {
+                            let opml = try OPML(Data(contentsOf: download.localDestination))
+                            for entry in opml.entries {
+                                if let collection = try PackageCollection.importOPML(entry: entry) {
+                                    safeWrite(collection) { _, collection in
+                                        collection.isUserEditable = false
+                                    }
+                                } else {
+                                    CodePackage.importOPML(entry: entry)
+                                }
+                            }
+                        } catch {
+                            print("Failed to import OPML downloaded from \(download.url). Error: \(error.localizedDescription)")
+                        }
+                    }
+                }
+            })
+            .store(in: &cancellables)
+    }
+        
     public func importOPML(fileURLs: [URL]) {
         for fileURL in fileURLs {
             do {
-                try importOPML(fileURL: fileURL)
+                try Self.importOPML(fileURL: fileURL)
             } catch {
                 print("Failed to import OPML from local file \(fileURL.absoluteString). Error: \(error.localizedDescription)")
             }
         }
     }
     
-    public func importOPML(fileURL: URL, fromDownload download: Downloadable? = nil) throws {
+    public static func importOPML(fileURL: URL) throws {
         let text = try String(contentsOf: fileURL)
         let opml = try OPML(Data(text.utf8))
+        for entry in opml.entries {
+            if entry.attributeStringValue("type") == "CodeKit.PackageCollection" {
+                PackageCollection.importOPML(entry: entry)
+            } else if entry.attributeStringValue("type") == "CodeKit.CodePackage" {
+                _ = CodePackage.importOPML(entry: entry)
+            }
+        }
 //        var allImportedFeeds = OrderedSet<Feed>()
 //        for entry in opml.entries {
 //            let (importedCategories, importedFeeds, importedScripts) = importOPMLEntry(entry, opml: opml, download: download)
@@ -81,11 +115,7 @@ public struct CodeLibraryConfiguration {
 //            }
 //        }
     }
-    
-    public func importOPML(download: Downloadable) throws {
-//        try importOPML(fileURL: download.localDestination, fromDownload: download)
-    }
-    
+   
     /*
     func importOPMLEntry(_ opmlEntry: OPMLEntry, opml: OPML, download: Downloadable?, category: FeedCategory? = nil, importedCategories: OrderedSet<FeedCategory> = OrderedSet(), importedFeeds: OrderedSet<Feed> = OrderedSet(), importedScripts: OrderedSet<UserScript> = OrderedSet()) -> (OrderedSet<FeedCategory>, OrderedSet<Feed>, OrderedSet<UserScript>) {
         var category = category
@@ -236,15 +266,4 @@ public struct CodeLibraryConfiguration {
         return opml
     }
      */
-}
-
-extension OPMLEntry {
-    func attributeBoolValue(_ name: String) -> Bool? {
-        guard let value = attributes?.first(where: { $0.name == name })?.value else { return nil }
-        return value == "true"
-    }
-    
-    func attributeStringValue(_ name: String) -> String? {
-        return attributes?.first(where: { $0.name == name })?.value
-    }
 }

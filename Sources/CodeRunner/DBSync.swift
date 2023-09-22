@@ -606,7 +606,13 @@ public class DBSync: ObservableObject {
                         print("Target \(targetObjectType) with ID \(relationship.entityID) not found for sync")
                         continue
                     }
-                    entity.setValue(target, forKey: relationship.relationshipName)
+                    if let set = entity.value(forKey: relationship.relationshipName) as? MutableSet<Object> {
+                        set.insert(target)
+                    } else if let lst = entity.value(forKey: relationship.relationshipName) as? RealmSwift.List<Object> {
+                        lst.append(target)
+                    } else {
+                        entity.setValue(target, forKey: relationship.relationshipName)
+                    }
                 } else {
                     guard let target = realm.object(ofType: targetObjectType, forPrimaryKey: relationship.targetID) as? any DBSyncableObject else {
                         print("Target \(targetObjectType) with ID \(relationship.entityID) not found for sync")

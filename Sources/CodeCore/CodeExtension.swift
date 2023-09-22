@@ -68,6 +68,24 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     
     private var cancellables = Set<AnyCancellable>()
     
+    public var nameWithOwner: String {
+        guard let url = URL(string: repositoryURL) else { return "" }
+        if url.host == "github.com", url.pathComponents.count >= 3 {
+            let org = url.pathComponents[1]
+            let repo = url.pathComponents[2]
+            if repo.hasSuffix(".git"), org != repo {
+                return org + "/" + repo.dropLast(".git".count)
+            } else if org != repo {
+                return org + "/" + repo
+            }
+        }
+        var full = url.absoluteString
+        if full.hasPrefix("https://") {
+            full.removeFirst("https://".count)
+        }
+        return full
+    }
+    
     public var directoryURL: URL? {
         guard let package = package else { return nil }
         var baseURL = package.directoryURL

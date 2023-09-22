@@ -204,6 +204,7 @@ extension Coordinator: WKNavigationDelegate {
     }
     
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        print("DID FINISH navigation...")
         if !waitOnCodeCoreIsReadyMessage || pageLoaded {
             pageLoaded = true
             callPendingFunctions()

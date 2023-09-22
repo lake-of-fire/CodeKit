@@ -24,7 +24,7 @@ public class CodePackage: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
     @Persisted public var modifiedAt = Date()
     @Persisted public var isDeleted = false
     public var needsSyncToServer: Bool { false }
-       
+    
     private var cachedRootDirectory: URL? = nil
 
     public override required init() {

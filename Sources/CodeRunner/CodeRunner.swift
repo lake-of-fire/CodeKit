@@ -9,7 +9,7 @@ public struct CodeRunner: View {
     let beforeRun: (() async -> Void)?
     let syncedTypes: [any DBSyncableObject.Type]?
     let syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]?
-    let syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]?
+    let syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> ((any DBSyncableObject)?, [String: Any]?))]?
     let urlSchemeHandlers: [(WKURLSchemeHandler, String)]
     let defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler]
     
@@ -44,7 +44,7 @@ public struct CodeRunner: View {
             }
     }
     
-    public init(codeExtension: CodeExtension, beforeRun: (() async -> Void)? = nil, syncedTypes: [any DBSyncableObject.Type]? = nil, syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [], defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = []) {
+    public init(codeExtension: CodeExtension, beforeRun: (() async -> Void)? = nil, syncedTypes: [any DBSyncableObject.Type]? = nil, syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> ((any DBSyncableObject)?, [String: Any]?))]? = nil, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [], defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = []) {
         self.codeExtension = codeExtension
         self.beforeRun = beforeRun
         self.syncedTypes = syncedTypes

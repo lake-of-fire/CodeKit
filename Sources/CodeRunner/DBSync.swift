@@ -76,7 +76,7 @@ public class DBSync: ObservableObject {
 //    private var syncedTypes: [Object.Type] = []
     private var syncedTypes: [any DBSyncableObject.Type] = []
     private var syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]?
-    private var syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]?
+    private var syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> ((any DBSyncableObject)?, [String: Any]?))]?
     private var asyncJavaScriptCaller: ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?)? = nil
     private var codeExtension: CodeExtension? = nil
     
@@ -95,7 +95,7 @@ public class DBSync: ObservableObject {
     public init() { }
     
     @MainActor
-    public func initialize(realmConfiguration: Realm.Configuration, syncedTypes: [any DBSyncableObject.Type], syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> (any DBSyncableObject)?)]? = nil, asyncJavaScriptCaller: @escaping ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?), codeExtension: CodeExtension, beforeFinalizing: (() async -> Void)? = nil) async {
+    public func initialize(realmConfiguration: Realm.Configuration, syncedTypes: [any DBSyncableObject.Type], syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> ((any DBSyncableObject)?, [String: Any]?))]? = nil, asyncJavaScriptCaller: @escaping ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?), codeExtension: CodeExtension, beforeFinalizing: (() async -> Void)? = nil) async {
         self.realmConfiguration = realmConfiguration
         self.syncedTypes = syncedTypes
         self.syncFromSurrogateMap = syncFromSurrogateMap
@@ -332,13 +332,24 @@ public class DBSync: ObservableObject {
                         continue
                     }
                     let surrogateMaps = syncToSurrogateMap?.filter { $0.0 == objectType }.map { $0.1 } ?? []
+                    var overrides = [String: [String: Any]]()
                     for surrogateMap in surrogateMaps {
                         objects = objects.compactMap { object in
-                            return surrogateMap(object, codeExtension)
+                            let (newObject, newOverrides) = surrogateMap(object, codeExtension)
+                            
+                            if let newOverrides = newOverrides, !newOverrides.isEmpty {
+                                var toSet = overrides[object.className] ?? [String: Any]()
+                                for entry in newOverrides {
+                                    toSet[entry.key] = entry.value
+                                }
+                                overrides[object.className] = toSet
+                            }
+                            
+                            return newObject
                         }
                     }
                     if !objects.isEmpty {
-                        try await syncTo(objects: objects)
+                        try await syncTo(objects: objects, overrides: overrides)
                     }
                 }
             }
@@ -346,13 +357,20 @@ public class DBSync: ObservableObject {
     }
     
     @MainActor
-    private func jsonDictionaryFor(object: some DBSyncableObject) async throws -> String? {
+    private func jsonDictionaryFor(object: some DBSyncableObject, overrides: [String: Any]?) async throws -> String? {
         let jsonEncoder = JSONEncoder()
         jsonEncoder.dateEncodingStrategy = .custom { date, encoder in
             var container = encoder.singleValueContainer()
             try container.encode(Int64(1000 * date.timeIntervalSince1970))
         }
-        let jsonDoc = try jsonEncoder.encode(object)
+        var jsonDoc = try jsonEncoder.encode(object)
+        
+        if let overrides = overrides, !overrides.isEmpty, var decoded = try JSONSerialization.jsonObject(with: jsonDoc, options: []) as? [String: Any] {
+            for override in overrides {
+                decoded[override.key] = override.value
+            }
+            jsonDoc = try JSONSerialization.data(withJSONObject: decoded)
+        }
         guard let jsonStr = String(data: jsonDoc, encoding: .utf8) else {
             print("ERROR encoding \(object)")
             return nil
@@ -361,10 +379,10 @@ public class DBSync: ObservableObject {
     }
     
     @MainActor
-    private func syncTo(objects: [any DBSyncableObject]) async throws {
+    private func syncTo(objects: [any DBSyncableObject], overrides: [String: [String: Any]]) async throws {
         var jsonStr = "["
         for object in objects {
-            guard let objJson = try await jsonDictionaryFor(object: object) else {
+            guard let objJson = try await jsonDictionaryFor(object: object, overrides: overrides[object.className]) else {
                 print("ERROR serializing \(object)")
                 continue
             }

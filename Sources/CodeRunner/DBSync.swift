@@ -606,24 +606,29 @@ public class DBSync: ObservableObject {
                         print("Target \(targetObjectType) with ID \(relationship.entityID) not found for sync")
                         continue
                     }
-                    if let set = entity.value(forKey: relationship.relationshipName) as? MutableSet<Object> {
-                        set.insert(target)
-                    } else if let lst = entity.value(forKey: relationship.relationshipName) as? RealmSwift.List<Object> {
-                        lst.append(target)
-                    } else {
-                        entity.setValue(target, forKey: relationship.relationshipName)
-                    }
+                    applyPendingRelationshipUUID(entity: entity, target: target, relationshipName: relationship.relationshipName)
                 } else {
                     guard let target = realm.object(ofType: targetObjectType, forPrimaryKey: relationship.targetID) as? any DBSyncableObject else {
                         print("Target \(targetObjectType) with ID \(relationship.entityID) not found for sync")
                         continue
                     }
+                    // FIXME: Maybe breaks for non-UUID PK'd objects in List or MutableSet, see above.
                     entity.setValue(target, forKey: relationship.relationshipName)
                 }
                 
                 connectedRelationships.insert(relationship)
             }
             pendingRelationships.removeAll(where: { connectedRelationships.contains($0) })
+        }
+    }
+    
+    func applyPendingRelationshipUUID<T>(entity: any DBSyncableObject, target: T, relationshipName: String) where T: DBSyncableObject {
+        if let set = entity.value(forKey: relationshipName) as? MutableSet<T> {
+            set.insert(target)
+        } else if let lst = entity.value(forKey: relationshipName) as? RealmSwift.List<T> {
+            lst.append(target)
+        } else {
+            entity.setValue(target, forKey: relationshipName)
         }
     }
 }

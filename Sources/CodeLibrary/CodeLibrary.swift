@@ -140,7 +140,7 @@ public struct CodeLibraryDataButtons: View {
     func generateOPMLCollection(packageCollection: PackageCollection) {
         Task { @MainActor in
             opmlFile = try? await OPMLFile(opml: packageCollection.generateOPML())
-            print(opmlFile?.title)
+//            print(opmlFile?.title)
             isOPMLExportPresented = true
         }
     }
@@ -148,7 +148,7 @@ public struct CodeLibraryDataButtons: View {
     func generateOPML(package: CodePackage) {
         Task { @MainActor in
             opmlFile = try? await OPMLFile(opml: package.generateOPML())
-            print(opmlFile?.title)
+//            print(opmlFile?.title)
             isOPMLExportPresented = true
         }
     }
@@ -195,6 +195,7 @@ struct CodeLibraryNavigationItemMenuButtons: View {
         .onChange(of: package.packageCollection.count) { _ in
             refreshEditable()
         }
+        .id(package.id)
     }
     
     var collectionMoveButtons: some View {
@@ -224,6 +225,7 @@ struct CodeLibraryNavigationItemMenuButtons: View {
     func refreshEditable() {
         Task { @MainActor in
             isUserEditable = package.packageCollection.allSatisfy({ $0.isUserEditable })
+            print("package \(package.name) is editable \(isUserEditable.description)")
         }
     }
     
@@ -258,7 +260,7 @@ public struct CodeLibraryView: View {
             List(selection: $navigationModel.selectedPackage) {
                 ForEach(packageCollections) { collection in
                     Section {
-                        ForEach(collection.packages) { package in
+                        ForEach(collection.packages.where { !$0.isDeleted }) { package in
                             itemLink(package: package)
                         }
                     } header: {

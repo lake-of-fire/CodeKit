@@ -136,7 +136,7 @@ public class DBSync: ObservableObject {
         await syncIfNeeded()
         await beforeFinalizing?()
         do {
-            _ = try await asyncJavaScriptCaller("await window.finishedSyncingDocsFromCanonical()", nil, nil, nil)
+            _ = try await asyncJavaScriptCaller("await window.chat.parentBridge.finishedSyncingDocsFromCanonical()", nil, nil, nil)
         } catch {
             print("ERROR Finishing sync: \(error)")
         }
@@ -186,7 +186,7 @@ public class DBSync: ObservableObject {
 //        print(String(data: d.data(options: .prettyPrinted), encoding: .utf8) ?? "")
         do {
             _ = try await asyncJavaScriptCaller?(
-                "return await window.createCollectionsFromCanonical(collections)", ["collections": collections], nil, .page)
+                "return await window.chat.parentBridge.createCollectionsFromCanonical(collections)", ["collections": collections], nil, .page)
         } catch {
             print(error)
             throw error
@@ -393,8 +393,8 @@ public class DBSync: ObservableObject {
         
         if let firstObject = objects.first {
             let collectionName = type(of: firstObject).dbCollectionName()
-//            print("window.syncDocsFromCanonical('\(collectionName)', \(jsonStr))")
-            _ = try await asyncJavaScriptCaller?("window.syncDocsFromCanonical(collectionName, \(jsonStr))", [
+//            print("window.chat.parentBridge.syncDocsFromCanonical('\(collectionName)', \(jsonStr))")
+            _ = try await asyncJavaScriptCaller?("window.chat.parentBridge.syncDocsFromCanonical(collectionName, \(jsonStr))", [
                 "collectionName": collectionName,
             ], nil, .page)
         }

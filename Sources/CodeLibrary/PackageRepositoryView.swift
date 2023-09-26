@@ -7,8 +7,11 @@ struct CodePackageView: View {
     @ObservedRealmObject var package: CodePackage
     @ObservedObject var repository: CodePackageRepository
     
+    var isUserEditable: Bool {
+        package.packageCollection.allSatisfy({ $0.isUserEditable })
+    }
+    
     var body: some View {
-//        let _ = Self._printChanges()
         Form {
             LabeledContent("Name", value: package.name)
             RealmTextField("Repository URL", object: package, objectValue: $package.repositoryURL)
@@ -24,6 +27,7 @@ struct CodePackageView: View {
             }
         }
         .formStyle(.grouped)
+        .disabled(!isUserEditable)
 #if os(iOS)
         .toolbarTitleMenu {
             CodePackageCommands(package: package, repository: repository)
@@ -40,6 +44,7 @@ struct CodePackageView: View {
                 await repository.updateGitRepositoryStatus()
             }
         }
+        .id(package.id)
     }
 }
 

@@ -80,15 +80,16 @@ public extension CodePackage {
     
     static func importOPML(entry: OPMLEntry) -> Self? {
         guard entry.attributeStringValue("type") == "CodeKit.CodePackage" else { return nil }
+        guard let uuid = entry.attributeUUIDValue("id") else { return nil }
         var obj: Self?
         safeWrite { realm in
-            if let uuid = entry.attributeUUIDValue("id"), let match = realm.object(ofType: Self.self, forPrimaryKey: uuid) {
+            if let match = realm.object(ofType: Self.self, forPrimaryKey: uuid) {
                 obj = match
             } else {
                 obj = Self()
+                obj?.id = uuid
             }
             guard let obj = obj else { return }
-            obj.id = entry.attributeUUIDValue("id") ?? obj.id
             obj.repositoryURL = entry.attributeStringValue("repositoryURL") ?? obj.repositoryURL
             obj.isEnabled = entry.attributeBoolValue("isEnabled") ?? obj.isEnabled
             obj.modifiedAt = Date()

@@ -106,15 +106,16 @@ public class PackageCollection: Object, UnownedSyncableObject, ObjectKeyIdentifi
     
     public static func importOPML(entry: OPMLEntry) -> PackageCollection? {
         guard entry.attributeStringValue("type") == "CodeKit.PackageCollection" else { return nil }
+        guard let uuid = entry.attributeUUIDValue("id") else { return nil }
         var obj: PackageCollection?
         safeWrite { realm in
-            if let uuid = entry.attributeUUIDValue("id"), let match = realm.object(ofType: Self.self, forPrimaryKey: uuid) {
+            if let match = realm.object(ofType: Self.self, forPrimaryKey: uuid) {
                 obj = match
             } else {
                 obj = PackageCollection()
+                obj?.id = uuid
             }
             guard let obj = obj else { return }
-            obj.id = entry.attributeUUIDValue("id") ?? obj.id
             obj.name = entry.title ?? entry.text
             obj.modifiedAt = Date()
             for entry in entry.children ?? [] {

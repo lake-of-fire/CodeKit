@@ -53,23 +53,29 @@ public actor CodeCIActor: ObservableObject {
         try? await packages
             .changesetPublisher
             .receive(on: DispatchQueue.main)
-            .sink { changeset in
+            .sink { [weak self] changeset in
                 switch changeset {
                 case .initial(let results):
-                    let ref = ThreadSafeReference(to: results)
-                    Task { @MainActor [weak self] in
-                        guard let self = self, let results = try? await realm.resolve(ref) else { return }
+                    let results = results.freeze()
+//                    let ref = ThreadSafeReference(to: results)
+//                    Task { @MainActor [weak self] in
+                    Task { [weak self] in
+//                        guard let self = self, let results = try? await realm.resolve(ref) else { return }
+                        guard let self = self else { return }
                         let packages = Array(results)
-                        refreshRepositories(packages: packages)
-                        requestBuildsIfNeeded(forceBuild: true)
+                        await refreshRepositories(packages: packages)
+                        await requestBuildsIfNeeded(forceBuild: true)
                     }
                 case .update(let results, let deletions, let insertions, let modifications):
-                    let ref = ThreadSafeReference(to: results)
-                    Task { @MainActor [weak self] in
-                        guard let self = self, let results = try? await realm.resolve(ref) else { return }
+//                    let ref = ThreadSafeReference(to: results)
+//                    Task { @MainActor [weak self] in
+                    let results = results.freeze()
+                    Task { [weak self] in
+//                        guard let self = self, let results = try? await realm.resolve(ref) else { return }
+                        guard let self = self else { return }
                         let packages = Array(results)
-                        refreshRepositories(packages: packages)
-                        requestBuildsIfNeeded(forceBuild: true)
+                        await refreshRepositories(packages: packages)
+                        await requestBuildsIfNeeded(forceBuild: true)
 //                        buildIfNeeded(packages: Set(insertions + modifications).map { results[$0] })
                     }
                 case .error(let error):

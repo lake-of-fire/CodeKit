@@ -14,20 +14,38 @@ struct CodePackageView: View {
     var body: some View {
         Form {
             LabeledContent("Name", value: package.name)
-            RealmTextField("Repository URL", object: package, objectValue: $package.repositoryURL)
+            HStack {
+                RealmTextField("Repository URL", object: package, objectValue: $package.repositoryURL)
+                    .disabled(!isUserEditable)
+                if let url = URL(string: package.repositoryURL) {
+                    Group {
+                        Link(destination: url) {
+                            Label("Open Link", systemImage: "link")
+                        }
+                        ShareLink(item: url)
+                            .buttonStyle(.borderless)
+                    }
+                    .labelStyle(.iconOnly)
+                    .foregroundStyle(Color.accentColor)
+                }
+            }
             if !repository.statusDescription.isEmpty {
                 LabeledContent("Git Status", value: repository.statusDescription)
             }
             Toggle("Installed", isOn: $package.isEnabled)
+                .disabled(!isUserEditable)
             
             ForEach(package.codeExtensions.where { !$0.isDeleted }) { ext in
                 Section {
                     CodeExtensionStatus(ext: ext)
+//                        .disabled(!isUserEditable)
                 }
             }
         }
         .formStyle(.grouped)
-        .disabled(!isUserEditable)
+#if os(macOS)
+        .textFieldStyle(.roundedBorder)
+#endif
 #if os(iOS)
         .toolbarTitleMenu {
             CodePackageCommands(package: package, repository: repository)

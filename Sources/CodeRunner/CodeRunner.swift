@@ -81,6 +81,7 @@ public struct CodeRunner: View {
                     syncToSurrogateMap: syncToSurrogateMap,
                     asyncJavaScriptCaller: asyncJavaScriptCaller,
                     codeExtension: codeExtension) {
+                        print("before fin...")
                         await beforeRun?()
                     }
             }

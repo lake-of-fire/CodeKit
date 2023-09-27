@@ -134,7 +134,10 @@ public class DBSync: ObservableObject {
         }
         
         await syncIfNeeded()
-        await beforeFinalizing?()
+        if let beforeFinalizing = beforeFinalizing {
+            await beforeFinalizing()
+            await syncIfNeeded()
+        }
         do {
             _ = try await asyncJavaScriptCaller("await window.chat.parentBridge.finishedSyncingDocsFromCanonical()", nil, nil, nil)
         } catch {

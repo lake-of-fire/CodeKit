@@ -65,6 +65,10 @@ public struct CodeCoreView: NativeView {
             webView.isOpaque = false
         #endif
         
+        if #available(macOS 13.3, iOS 16, *) {
+            webView.isInspectable = true
+        }
+        
         context.coordinator.webView = webView
         return webView
     }

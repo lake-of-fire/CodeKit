@@ -31,9 +31,9 @@ struct MaybeCodePackageView: View {
                     .navigationTitle("")
             }
         }
-        .onChange(of: package) { package in
+        .onChange(of: package) { [oldPackage = package] package in
             Task { @MainActor in
-                guard let package = package else { return }
+                guard let package = package, package != oldPackage || repository == nil else { return }
                 repository = CodePackageRepository(package: package, codeCoreViewModel: nil)
             }
         }

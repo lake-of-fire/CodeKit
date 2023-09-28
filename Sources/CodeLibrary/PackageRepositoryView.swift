@@ -57,7 +57,7 @@ struct CodePackageView: View {
             } label: { Label("Package", systemImage: "shippingbox") }
         }
 #endif
-        .onChange(of: package) { package in
+        .onChange(of: package) { _ in
             Task { @MainActor in
                 await repository.updateGitRepositoryStatus()
             }

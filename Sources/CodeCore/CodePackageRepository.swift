@@ -79,7 +79,7 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
     @MainActor
     public var isWorkspaceInitialized: Bool {
         guard let workspaceStorage = workspaceStorage else { return false }
-        return workspaceStorage.currentDirectory.url == directoryURL.absoluteString && gitTracks.count > 0 || !branch.isEmpty
+        return workspaceStorage.currentDirectory.url == directoryURL.absoluteString && (gitTracks.count > 0 || !branch.isEmpty)
     }
 
     public init(package: CodePackage, codeCoreViewModel: CodeCoreViewModel?) {

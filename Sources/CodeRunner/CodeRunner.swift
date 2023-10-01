@@ -4,6 +4,12 @@ import RealmSwift
 import RealmSwiftGaps
 import WebKit
 
+public struct CodeRunnerProxyConfiguration {
+    public var allowHosts: [String] = []
+
+    public init() {}
+}
+
 public struct CodeRunner: View {
     @ObservedRealmObject var codeExtension: CodeExtension
     let beforeRun: (() async -> Void)?
@@ -12,12 +18,13 @@ public struct CodeRunner: View {
     let syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> ((any DBSyncableObject)?, [String: Any]?))]?
     let urlSchemeHandlers: [(WKURLSchemeHandler, String)]
     let defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler]
-    
+    let proxyConfiguration: CodeRunnerProxyConfiguration
+
     @StateObject private var codeCoreViewModel = CodeCoreViewModel()
     @StateObject private var dbSync = DBSync()
-    
+
     @State private var workspaceStorage: WorkspaceStorage?
-    
+
     public var body: some View {
         CodeCoreView(
             codeCoreViewModel,
@@ -32,7 +39,7 @@ public struct CodeRunner: View {
                     workspaceStorage = WorkspaceStorage(url: packageDir, isDirectoryMonitored: false)
                     await workspaceStorage?.updateDirectory(url: directoryURL)
                 }
-                
+
                 codeCoreViewModel.surrogateDocumentChanges = dbSync.surrogateDocumentChanges(collectionName:changedDocs:)
                 try? await run()
             }
@@ -43,8 +50,8 @@ public struct CodeRunner: View {
                 Task { @MainActor in try? await run() }
             }
     }
-    
-    public init(codeExtension: CodeExtension, beforeRun: (() async -> Void)? = nil, syncedTypes: [any DBSyncableObject.Type]? = nil, syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> ((any DBSyncableObject)?, [String: Any]?))]? = nil, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [], defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = []) {
+
+    public init(codeExtension: CodeExtension, beforeRun: (() async -> Void)? = nil, syncedTypes: [any DBSyncableObject.Type]? = nil, syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> ((any DBSyncableObject)?, [String: Any]?))]? = nil, urlSchemeHandlers: [(WKURLSchemeHandler, String)] = [], defaultURLSchemeHandlerExtensions: [WKURLSchemeHandler] = [], proxyConfiguration: CodeRunnerProxyConfiguration = CodeRunnerProxyConfiguration()) {
         self.codeExtension = codeExtension
         self.beforeRun = beforeRun
         self.syncedTypes = syncedTypes
@@ -52,8 +59,9 @@ public struct CodeRunner: View {
         self.syncToSurrogateMap = syncToSurrogateMap
         self.urlSchemeHandlers = urlSchemeHandlers
         self.defaultURLSchemeHandlerExtensions = defaultURLSchemeHandlerExtensions
+        self.proxyConfiguration = proxyConfiguration
     }
-    
+
     @MainActor
     func run() async throws {
         let (data, url) = try await loadLatestAvailableBuildResult()
@@ -64,11 +72,7 @@ public struct CodeRunner: View {
             safeWrite(codeExtension) { _, codeExtension in
                 codeExtension.lastRunStartedAt = Date()
             }
-            
-    //        if try await codeCoreViewModel.callAsyncJavaScript("window.livecodes") == nil {
-    //            print("Error initializing JS")
-    //        }
-            
+
             if let syncedTypes = syncedTypes, let asyncJavaScriptCaller = codeCoreViewModel.asyncJavaScriptCaller {
                 guard let realm = codeExtension.realm else {
                     print("No Realm found for CodeExtension in CodeRunner")
@@ -89,7 +93,7 @@ public struct CodeRunner: View {
             htmlData: data,
             baseURL: url)
     }
-    
+
     @MainActor
     func loadLatestAvailableBuildResult() async throws -> (Data, URL) {
         guard let workspaceStorage = workspaceStorage, let buildResultStorageURL = codeExtension.latestBuildResultStorageURL, let buildResultPageURL = codeExtension.buildResultPageURL else {

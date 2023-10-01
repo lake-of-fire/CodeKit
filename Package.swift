@@ -6,18 +6,11 @@ let package = Package(
     name: "CodeKit",
     platforms: [.iOS(.v16), .macOS(.v13)],
     products: [
-        .library(
-            name: "CodeLibrary",
-            targets: ["CodeLibrary"]),
-        .library(
-            name: "CodeEditor",
-            targets: ["CodeEditor"]),
-        .library(
-            name: "CodeCI",
-            targets: ["CodeCI"]),
-        .library(
-            name: "CodeRunner",
-            targets: ["CodeRunner"]),
+        .library(name: "CodeLibrary", targets: ["CodeLibrary"]),
+        .library(name: "CodeAI", targets: ["CodeAI"]),
+        .library(name: "CodeEditor", targets: ["CodeEditor"]),
+        .library(name: "CodeCI", targets: ["CodeCI"]),
+        .library(name: "CodeRunner", targets: ["CodeRunner"]),
     ],
     dependencies: [
         .package(url: "https://github.com/realm/realm-swift.git", from: "10.28.1"),
@@ -31,7 +24,7 @@ let package = Package(
         .package(url: "https://github.com/lake-of-fire/SwiftUtilities.git", branch: "main"),
         .package(url: "https://github.com/lake-of-fire/SwiftUIDownloads.git", branch: "main"),
         .package(url: "https://github.com/thebaselab/FileProvider.git", branch: "master"),
-        .package(url: "https://github.com/lake-of-fire/SwiftGit2.git", branch: "main"), // MBoxSpace/SwiftGit2 also interesting
+        .package(url: "https://github.com/lake-of-fire/SwiftGit2.git", branch: "main"),
     ],
     targets: [
         .target(
@@ -58,6 +51,7 @@ let package = Package(
             dependencies: [
                 .target(name: "CodeCore"),
                 .target(name: "CodeCI"),
+                .target(name: "CodeAI"),
                 .product(name: "OPML", package: "OPML"),
                 .product(name: "FilePicker", package: "FilePicker"),
                 .product(name: "Realm", package: "realm-swift"),
@@ -67,6 +61,19 @@ let package = Package(
                 .product(name: "SwiftUtilities", package: "SwiftUtilities"),
                 .product(name: "SwiftUIDownloads", package: "SwiftUIDownloads"),
 //                .product(name: "DebouncedOnChange", package: "DebouncedOnChange"),
+            ],
+            resources: [
+            ]),
+        .target(
+            name: "CodeAI",
+            dependencies: [
+                .target(name: "CodeCore"),
+                .target(name: "CodeRunner"),
+                .product(name: "Realm", package: "realm-swift"),
+                .product(name: "RealmSwift", package: "realm-swift"),
+                .product(name: "BigSyncKit", package: "BigSyncKit"),
+                .product(name: "RealmSwiftGaps", package: "RealmSwiftGaps"),
+                .product(name: "SwiftUtilities", package: "SwiftUtilities"),
             ],
             resources: [
             ]),

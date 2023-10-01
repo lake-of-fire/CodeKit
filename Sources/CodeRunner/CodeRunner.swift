@@ -5,9 +5,19 @@ import RealmSwiftGaps
 import WebKit
 
 public struct CodeRunnerProxyConfiguration {
-    public var allowHosts: [String] = []
+    public var allowHosts: [String]?
+    public var rewriteHosts: [String: String]?
+    public var requestModifiers: [String: ((URLRequest) -> URLRequest)]?
 
-    public init() {}
+    public init(
+        allowHosts: [String]? = [],
+        rewriteHosts: [String: String]? = nil,
+        requestModifiers: [String: ((URLRequest) -> URLRequest)]? = nil
+    ) {
+        self.allowHosts = allowHosts
+        self.rewriteHosts = rewriteHosts
+        self.requestModifiers = requestModifiers
+    }
 }
 
 public struct CodeRunner: View {
@@ -25,6 +35,8 @@ public struct CodeRunner: View {
 
     @State private var workspaceStorage: WorkspaceStorage?
 
+    @StateObject private var proxySchemeHandler = ExternalProxyURLSchemeHandler()
+    
     public var body: some View {
         CodeCoreView(
             codeCoreViewModel,
@@ -35,6 +47,8 @@ public struct CodeRunner: View {
             .allowsHitTesting(false)
             .task {
                 Task { @MainActor in
+                    proxySchemeHandler.proxyConfiguration = proxyConfiguration
+                    
                     guard let packageDir = codeExtension.package?.directoryURL, let directoryURL = codeExtension.directoryURL else { return }
                     workspaceStorage = WorkspaceStorage(url: packageDir, isDirectoryMonitored: false)
                     await workspaceStorage?.updateDirectory(url: directoryURL)

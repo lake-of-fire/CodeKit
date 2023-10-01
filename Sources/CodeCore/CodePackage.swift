@@ -21,6 +21,9 @@ public class CodePackage: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
     @Persisted(originProperty: "packages") public var packageCollection: LinkingObjects<PackageCollection>
     @Persisted(originProperty: "package") public var codeExtensions: LinkingObjects<CodeExtension>
     
+    @Persisted public var allowHosts = RealmSwift.List<String>()
+    @Persisted public var allowAllHosts = false
+    
     @Persisted public var modifiedAt = Date()
     @Persisted public var isDeleted = false
     public var needsSyncToServer: Bool { false }
@@ -35,6 +38,8 @@ public class CodePackage: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
         case id
         case repositoryURL
         case isEnabled
+        case allowHosts
+        case allowAllHosts
         case modifiedAt
         case isDeleted
     }
@@ -46,6 +51,17 @@ public class CodePackage: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
     public var directoryURL: URL {
         return getRootDirectory().appending(component: "CodeKit").appending(component: name + "-" + id.uuidString.suffix(6), directoryHint: .isDirectory)
     }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(repositoryURL, forKey: .repositoryURL)
+        try container.encode(isEnabled, forKey: .isEnabled)
+        try container.encode(allowHosts.joined(separator: ","), forKey: .allowHosts)
+        try container.encode(allowAllHosts, forKey: .allowAllHosts)
+        try container.encode(modifiedAt, forKey: .modifiedAt)
+        try container.encode(isDeleted, forKey: .isDeleted)
+    }
 }
 
 public extension CodePackage {
@@ -55,6 +71,8 @@ public extension CodePackage {
             Attribute(name: "type", value: "CodeKit.CodePackage"),
             Attribute(name: "repositoryURL", value: repositoryURL),
             Attribute(name: "id", value: id.uuidString),
+            Attribute(name: "allowHosts", value: allowHosts.joined(separator: ",")),
+            Attribute(name: "allowAllHosts", value: allowAllHosts ? "true" : "false"),
             Attribute(name: "isEnabled", value: isEnabled ? "true" : "false"),
         ])
     }
@@ -92,6 +110,10 @@ public extension CodePackage {
             guard let obj = obj else { return }
             obj.repositoryURL = entry.attributeStringValue("repositoryURL") ?? obj.repositoryURL
             obj.isEnabled = entry.attributeBoolValue("isEnabled") ?? obj.isEnabled
+            obj.allowAllHosts = entry.attributeBoolValue("allowAllHosts") ?? false
+            obj.allowHosts.removeAll()
+            let allowHosts = (entry.attributeStringValue("allowHosts")?.split(separator: ",") ?? []).map { String($0) }
+            obj.allowHosts.append(objectsIn: allowHosts)
             obj.modifiedAt = Date()
         }
         return obj

@@ -11,9 +11,10 @@ import RealmSwiftGaps
 import SwiftUtilities
 import CodeCore
 import CodeCI
+import CodeAI
 
-struct MaybeCodePackageView: View {
-    let package: CodePackage?
+struct CodePackageWithRepositoryView: View {
+    let package: CodePackage
     
     @State private var repository: CodePackageRepository?
     
@@ -23,17 +24,16 @@ struct MaybeCodePackageView: View {
         // For more information, see the iOS 16 Release Notes and
         // macOS 13 Release Notes. (91311311)"
         ZStack {
-            if let package = package, let repository = repository {
+            if let repository = repository {
                 CodePackageView(package: package, repository: repository)
                     .navigationTitle(package.name)
             } else {
-                Text("Choose or add a repository")
-                    .navigationTitle("")
+                ProgressView()
             }
         }
         .onChange(of: package) { [oldPackage = package] package in
             Task { @MainActor in
-                guard let package = package, package != oldPackage || repository == nil else { return }
+                guard package != oldPackage || repository == nil else { return }
                 repository = CodePackageRepository(package: package, codeCoreViewModel: nil)
             }
         }
@@ -231,10 +231,45 @@ struct CodeLibraryNavigationItemMenuButtons: View {
     
 }
 
+struct CodeLibraryPackageCell: View {
+    @ObservedRealmObject var package: CodePackage
+    let personas: [Persona]
+    
+    @ObservedObject var navigationModel: CodeLibraryNavigationModel
+    
+    var packageLabel: some View {
+        Text(package.name)
+    }
+    
+    public var body: some View {
+        if (personas.isEmpty) {
+            packageLabel
+        } else {
+            DisclosureGroup {
+                PersonaList(package: package) { persona in
+                    Task { @MainActor in
+                        navigationModel.selectedPersona = persona
+                    }
+                }
+            } label: {
+                packageLabel
+            }
+            .swipeActions(edge: .trailing) {
+                CodeLibraryNavigationItemMenuButtons(package: package, allowMenus: false)
+            }
+            .contextMenu {
+                CodeLibraryNavigationItemMenuButtons(package: package, allowMenus: true)
+            }
+            .tag(package)
+        }
+    }
+}
+
 public struct CodeLibraryView: View {
     @ObservedResults(PackageCollection.self, where: { !$0.isDeleted }) private var packageCollections
     @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.packageCollection.count > 0 }) private var collectionRepos
     @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.packageCollection.count == 0 }) private var orphanPackages
+    @ObservedResults(Persona.self, where: { !$0.isDeleted && $0.online }) private var allOnlinePersonas
     
     @State private var isCollectionNameAlertPresented = false
     @State private var newExtensionCollectionName = ""
@@ -245,14 +280,8 @@ public struct CodeLibraryView: View {
     @StateObject private var navigationModel = CodeLibraryNavigationModel()
     @SceneStorage("navigation") private var navigationData: Data?
     
-    func itemLink(package: CodePackage) -> some View {
-        return NavigationLink(package.name, value: package)
-            .swipeActions(edge: .trailing) {
-                CodeLibraryNavigationItemMenuButtons(package: package, allowMenus: false)
-            }
-            .contextMenu {
-                CodeLibraryNavigationItemMenuButtons(package: package, allowMenus: true)
-            }
+    func packageCell(package: CodePackage) -> some View {
+        CodeLibraryPackageCell(package: package, personas: Array(allOnlinePersonas.where({ $0.providedByExtension.id == package.id })), navigationModel: navigationModel)
     }
     
     public var body: some View {
@@ -261,7 +290,7 @@ public struct CodeLibraryView: View {
                 ForEach(packageCollections) { collection in
                     Section {
                         ForEach(collection.packages.where { !$0.isDeleted }) { package in
-                            itemLink(package: package)
+                            packageCell(package: package)
                         }
                     } header: {
                         Label(collection.name, systemImage: "folder")
@@ -279,7 +308,7 @@ public struct CodeLibraryView: View {
                 }
                 Section {
                     ForEach(orphanPackages) { package in
-                        itemLink(package: package)
+                        packageCell(package: package)
                     }
                 }
             }
@@ -330,7 +359,18 @@ public struct CodeLibraryView: View {
                 .padding()
             }
         }, detail: {
-            MaybeCodePackageView(package: navigationModel.selectedPackage)
+            NavigationStack(path: $navigationModel.navigationPath) {
+                ZStack {
+                    Text("Choose or add a repository containing Chat extensions.")
+                        .navigationTitle("")
+                }
+                .navigationDestination(for: CodePackage.self) { package in
+                    CodePackageWithRepositoryView(package: package)
+                }
+                .navigationDestination(for: Persona.self) { persona in
+                    PersonaDetailsView(persona: persona)
+                }
+            }
         })
 //        .navigationSplitViewStyle(.balanced)
 //        .environmentObject(viewModel)

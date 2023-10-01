@@ -156,7 +156,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
         case id
         case repositoryURL
         case name
-//        case package
+        case package
         case modifiedAt
         case isDeleted
     }
@@ -166,6 +166,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
         try container.encode(id, forKey: .id)
         try container.encode(repositoryURL, forKey: .repositoryURL)
         try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(package?.id, forKey: .package)
         try container.encode(modifiedAt, forKey: .modifiedAt)
         try container.encode(isDeleted, forKey: .isDeleted)
     }

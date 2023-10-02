@@ -35,6 +35,9 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     public static func makeCompoundKey(repositoryURL: String, name: String) -> String {
         return "[" + repositoryURL + "][" + name + "]"
     }
+    
+    @Persisted(originProperty: "providedByExtension") public var personas: LinkingObjects<Persona>
+    
 //    // Git UI states
 //    @MainActor @Published public var gitTracks: [URL: Diff.Status] = [:]
 //    @MainActor @Published public var indexedResources: [URL: Diff.Status] = [:]

@@ -195,7 +195,7 @@ struct CodeLibraryNavigationItemMenuButtons: View {
         .onChange(of: package.packageCollection.count) { _ in
             refreshEditable()
         }
-        .id(package.id)
+        .id("CodeLibraryNavigationItemMenuButtons-\(package.id.uuidString)")
     }
     
     var collectionMoveButtons: some View {
@@ -233,35 +233,33 @@ struct CodeLibraryNavigationItemMenuButtons: View {
 
 struct CodeLibraryPackageCell: View {
     @ObservedRealmObject var package: CodePackage
-    let personas: [Persona]
-    
-    @ObservedObject var navigationModel: CodeLibraryNavigationModel
+//    let personas: [Persona]
     
     var packageLabel: some View {
         Text(package.name)
     }
     
     public var body: some View {
-        if (personas.isEmpty) {
+//        if (personas.isEmpty) {
             packageLabel
-        } else {
-            DisclosureGroup {
-                PersonaList(package: package) { persona in
-                    Task { @MainActor in
-                        navigationModel.selectedPersona = persona
-                    }
-                }
-            } label: {
-                packageLabel
-            }
-            .swipeActions(edge: .trailing) {
-                CodeLibraryNavigationItemMenuButtons(package: package, allowMenus: false)
-            }
-            .contextMenu {
-                CodeLibraryNavigationItemMenuButtons(package: package, allowMenus: true)
-            }
+//        } else {
+//            OutlineGroup {
+//                PersonaListItems(personas: personas) { persona in
+//                    Task { @MainActor in
+//                        navigationModel.selectedPersona = persona
+//                    }
+//                }
+//            } label: {
+//                packageLabel
+//            }
+//            .swipeActions(edge: .trailing) {
+//                CodeLibraryNavigationItemMenuButtons(package: package, allowMenus: false)
+//            }
+//            .contextMenu {
+//                CodeLibraryNavigationItemMenuButtons(package: package, allowMenus: true)
+//            }
             .tag(package)
-        }
+//        }
     }
 }
 
@@ -269,7 +267,6 @@ public struct CodeLibraryView: View {
     @ObservedResults(PackageCollection.self, where: { !$0.isDeleted }) private var packageCollections
     @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.packageCollection.count > 0 }) private var collectionRepos
     @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.packageCollection.count == 0 }) private var orphanPackages
-    @ObservedResults(Persona.self, where: { !$0.isDeleted && $0.online }) private var allOnlinePersonas
     
     @State private var isCollectionNameAlertPresented = false
     @State private var newExtensionCollectionName = ""
@@ -281,7 +278,8 @@ public struct CodeLibraryView: View {
     @SceneStorage("navigation") private var navigationData: Data?
     
     func packageCell(package: CodePackage) -> some View {
-        CodeLibraryPackageCell(package: package, personas: Array(allOnlinePersonas.where({ $0.providedByExtension.id == package.id })), navigationModel: navigationModel)
+//        CodeLibraryPackageCell(package: package, personas: Array(allOnlinePersonas.where({ $0.providedByExtension.package == package })), navigationModel: navigationModel)
+        CodeLibraryPackageCell(package: package)
     }
     
     public var body: some View {
@@ -372,6 +370,7 @@ public struct CodeLibraryView: View {
                 }
             }
         })
+        .environmentObject(navigationModel)
 //        .navigationSplitViewStyle(.balanced)
 //        .environmentObject(viewModel)
         .task {

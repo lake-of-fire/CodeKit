@@ -7,6 +7,8 @@ struct CodePackageView: View {
     @ObservedRealmObject var package: CodePackage
     @ObservedObject var repository: CodePackageRepository
     
+    @EnvironmentObject private var navigationModel: CodeLibraryNavigationModel
+    
     var isUserEditable: Bool {
         package.packageCollection.allSatisfy({ $0.isUserEditable })
     }
@@ -32,12 +34,14 @@ struct CodePackageView: View {
             if !repository.statusDescription.isEmpty {
                 LabeledContent("Git Status", value: repository.statusDescription)
             }
-            Toggle("Allow Access to All Hosts", isOn: $package.allowAllHosts)
-                .disabled(!isUserEditable)
+//            Toggle("Allow Access to All Hosts", isOn: $package.allowAllHosts)
+//                .disabled(!isUserEditable)
             RealmCSVTextField("Allow Specific Hosts", object: package, objectValue: $package.allowHosts)
                 .disabled(!isUserEditable || package.allowAllHosts)
             Toggle("Installed", isOn: $package.isEnabled)
                 .disabled(!isUserEditable)
+            
+            
             
             ForEach(package.codeExtensions.where { !$0.isDeleted }) { ext in
                 Section {
@@ -71,7 +75,7 @@ struct CodePackageView: View {
                 await repository.updateGitRepositoryStatus()
             }
         }
-        .id(package.id)
+        .id("CodePackageView-\(package.id.uuidString)")
     }
 }
 

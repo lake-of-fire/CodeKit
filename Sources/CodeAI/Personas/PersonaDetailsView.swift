@@ -2,6 +2,7 @@ import SwiftUI
 import RealmSwift
 import RealmSwiftGaps
 import DebouncedOnChange
+import CodeCore
 
 public struct PersonaDetailsView: View {
     @ObservedRealmObject public var persona: Persona

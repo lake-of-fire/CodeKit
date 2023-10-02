@@ -2,6 +2,7 @@ import SwiftUI
 import Combine
 import RealmSwift
 import RealmSwiftGaps
+import CodeCore
 
 public struct PersonaInRoomView: View {
     let persona: Persona

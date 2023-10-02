@@ -1,5 +1,6 @@
 import SwiftUI
 import RealmSwift
+import CodeCore
 
 public struct PersonaStyleIcon: View {
     var size: CGFloat

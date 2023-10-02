@@ -35,9 +35,37 @@ public class PersonaListViewModel: ObservableObject {
     }
 }
 
+struct PersonaListItem: View {
+    @ObservedRealmObject var persona: Persona
+    
+    public var body: some View {
+        HStack(spacing: 0) {
+            PersonaIcon(persona: persona)
+                .padding(.trailing)
+            Text(persona.name)
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+public struct PersonaListItems: View {
+    public let personas: [Persona]
+    
+    public var body: some View {
+        ForEach(personas) { persona in
+            // NavigationLink(value: persona) { // using tag instead now...
+            PersonaListItem(persona: persona)
+                .tag(persona)
+        }
+    }
+    
+    public init(personas: [Persona]) {
+        self.personas = personas
+    }
+}
+
 public struct PersonaList: View {
     public var room: Room? = nil
-    public var package: CodePackage? = nil
     public var onSelected: ((Persona?) -> Void)? = nil
     
     @StateObject private var viewModel = PersonaListViewModel()
@@ -68,16 +96,7 @@ public struct PersonaList: View {
     
     func inner(pair: (String, [Persona])) -> some View {
         Section(header: Text(pair.0)) {
-            ForEach(pair.1) { persona in
-                // NavigationLink(value: persona) { // using tag instead now...
-                HStack(spacing: 0) {
-                    PersonaIcon(persona: persona)
-                        .padding(.trailing)
-                    Text(persona.name)
-                    Spacer(minLength: 0)
-                }
-                .tag(persona)
-            }
+            PersonaListItems(personas: pair.1)
         }
     }
     
@@ -97,9 +116,8 @@ public struct PersonaList: View {
 //        }
     }
     
-    public init(room: Room? = nil, package: CodePackage? = nil, onSelected: ((Persona?) -> Void)? = nil) {
+    public init(room: Room? = nil, onSelected: ((Persona?) -> Void)? = nil) {
         self.room = room
-        self.package = package
         self.onSelected = onSelected
     }
 }

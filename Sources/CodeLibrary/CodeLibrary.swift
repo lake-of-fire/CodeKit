@@ -13,19 +13,23 @@ import CodeCore
 import CodeCI
 import CodeAI
 
-struct CodePackageWithRepositoryView: View {
+public struct CodePackageWithRepositoryView: View {
     let package: CodePackage
     
-    @State private var repository: CodePackageRepository?
+    // For the view updates...
+    @ObservedResults(Persona.self, where: { !$0.isDeleted && $0.providedByExtension != nil && $0.personaType == .bot && $0.online }) private var allOnlinePersonas
     
-    var body: some View {
+    @State private var repository: CodePackageRepository? = nil
+    @State private var personas: [Persona] = []
+    
+    public var body: some View {
         // Workaround for a known issue where `NavigationSplitView` and
         // `NavigationStack` fail to update when their contents are conditional.
         // For more information, see the iOS 16 Release Notes and
         // macOS 13 Release Notes. (91311311)"
         ZStack {
             if let repository = repository {
-                CodePackageView(package: package, repository: repository)
+                CodePackageView(package: package, repository: repository, personas: personas)
                     .navigationTitle(package.name)
             } else {
                 ProgressView()
@@ -37,10 +41,20 @@ struct CodePackageWithRepositoryView: View {
                 repository = CodePackageRepository(package: package, codeCoreViewModel: nil)
             }
         }
+        .task {
+            Task { @MainActor in
+                repository = CodePackageRepository(package: package, codeCoreViewModel: nil)
+                personas = Array(allOnlinePersonas.filter { $0.providedByExtension?.package?.id == package.id })
+            }
+        }
     }
 
     var columns: [GridItem] {
         [ GridItem(.adaptive(minimum: 240)) ]
+    }
+    
+    public init(package: CodePackage) {
+        self.package = package
     }
 }
 
@@ -357,16 +371,20 @@ public struct CodeLibraryView: View {
                 .padding()
             }
         }, detail: {
-            NavigationStack(path: $navigationModel.navigationPath) {
+            NavigationStack {
                 ZStack {
-                    Text("Choose or add a repository containing Chat extensions.")
-                        .navigationTitle("")
-                }
-                .navigationDestination(for: CodePackage.self) { package in
-                    CodePackageWithRepositoryView(package: package)
+                    if let package = navigationModel.selectedPackage {
+                        CodePackageWithRepositoryView(package: package)
+                    } else {
+                        ZStack {
+                            Text("Choose or add a repository containing Chat extensions.")
+                                .navigationTitle("")
+                        }
+                    }
                 }
                 .navigationDestination(for: Persona.self) { persona in
                     PersonaDetailsView(persona: persona)
+                        .navigationTitle(persona.name)
                 }
             }
         })

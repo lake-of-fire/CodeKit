@@ -35,7 +35,7 @@ public class PersonaListViewModel: ObservableObject {
     }
 }
 
-struct PersonaListItem: View {
+public struct PersonaListItem: View {
     @ObservedRealmObject var persona: Persona
     
     public var body: some View {
@@ -45,6 +45,10 @@ struct PersonaListItem: View {
             Text(persona.name)
             Spacer(minLength: 0)
         }
+    }
+    
+    public init(persona: Persona) {
+        self.persona = persona
     }
 }
 

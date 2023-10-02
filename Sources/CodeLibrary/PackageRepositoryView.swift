@@ -1,11 +1,13 @@
 import SwiftUI
 import CodeCore
+import CodeAI
 import RealmSwift
 import RealmSwiftGaps
 
 struct CodePackageView: View {
     @ObservedRealmObject var package: CodePackage
     @ObservedObject var repository: CodePackageRepository
+    let personas: [Persona]
     
     @EnvironmentObject private var navigationModel: CodeLibraryNavigationModel
     
@@ -41,12 +43,19 @@ struct CodePackageView: View {
             Toggle("Installed", isOn: $package.isEnabled)
                 .disabled(!isUserEditable)
             
-            
-            
             ForEach(package.codeExtensions.where { !$0.isDeleted }) { ext in
                 Section {
                     CodeExtensionStatus(ext: ext)
 //                        .disabled(!isUserEditable)
+                    
+                    let extensionPersonas = personas.filter { $0.providedByExtension?.id == ext.id }
+                    if !extensionPersonas.isEmpty {
+                        ForEach(extensionPersonas) { persona in
+                            NavigationLink(value: persona) {
+                                PersonaListItem(persona: persona)
+                            }
+                        }
+                    }
                 }
             }
         }

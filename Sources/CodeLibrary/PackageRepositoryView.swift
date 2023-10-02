@@ -79,7 +79,7 @@ struct CodePackageView: View {
                 await repository.updateGitRepositoryStatus()
             }
         }
-        .onAppear {
+        .task {
             Task { @MainActor in
                 await repository.updateGitRepositoryStatus()
             }

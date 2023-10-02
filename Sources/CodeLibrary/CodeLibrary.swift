@@ -38,14 +38,11 @@ public struct CodePackageWithRepositoryView: View {
         .onChange(of: package) { [oldPackage = package] package in
             Task { @MainActor in
                 guard package != oldPackage || repository == nil else { return }
-                repository = CodePackageRepository(package: package, codeCoreViewModel: nil)
+                refreshState(package: package)
             }
         }
         .task {
-            Task { @MainActor in
-                repository = CodePackageRepository(package: package, codeCoreViewModel: nil)
-                personas = Array(allOnlinePersonas.filter { $0.providedByExtension?.package?.id == package.id })
-            }
+            refreshState()
         }
     }
 
@@ -55,6 +52,15 @@ public struct CodePackageWithRepositoryView: View {
     
     public init(package: CodePackage) {
         self.package = package
+    }
+    
+    func refreshState(package: CodePackage? = nil) {
+        Task { @MainActor in
+            let package = package ?? self.package
+            repository = CodePackageRepository(package: package, codeCoreViewModel: nil)
+//            await repository?.updateGitRepositoryStatus()
+            personas = Array(allOnlinePersonas.filter { $0.providedByExtension?.package?.id == package.id })
+        }
     }
 }
 

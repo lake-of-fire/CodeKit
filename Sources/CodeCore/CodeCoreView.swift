@@ -70,10 +70,14 @@ public struct CodeCoreView: NativeView {
         }
         
         context.coordinator.webView = webView
+        
+        context.coordinator.updateAllowHostsRule()
+        
         return webView
     }
-
+    
     private func updateWebView(context: Context) {
+        context.coordinator.updateAllowHostsRule()
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -127,6 +131,28 @@ public class Coordinator: NSObject {
             evaluateJavascript(function: function, callback: callback)
         } else {
             pendingFunctions.append((function, callback))
+        }
+    }
+    
+    internal func updateAllowHostsRule() {
+        let rules = """
+            [{
+                "trigger": {
+                    "url-filter": ".*",
+                    "url-filter-is-case-sensitive": false,
+                    "unless-domain": [\(viewModel.allowHosts.map({ "\"\($0)\"" }).joined(separator: ","))]
+                },
+                "action": {
+                    "type": "block"
+                }
+            }]
+        """
+        WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "codeCoreViewAllowHosts", encodedContentRuleList: rules) { [weak self] list, error in
+            guard let list = list, let self = self else {
+                print(error ?? "No list found.")
+                return
+            }
+            webView.configuration.userContentController.add(list)
         }
     }
 
@@ -208,7 +234,6 @@ extension Coordinator: WKNavigationDelegate {
     }
     
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        print("DID FINISH navigation...")
         if !waitOnCodeCoreIsReadyMessage || pageLoaded {
             pageLoaded = true
             callPendingFunctions()

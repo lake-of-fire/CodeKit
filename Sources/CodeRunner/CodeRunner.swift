@@ -79,6 +79,13 @@ public struct CodeRunner: View {
     @MainActor
     func run() async throws {
         let (data, url) = try await loadLatestAvailableBuildResult()
+        
+        if let package = codeExtension.package {
+            codeCoreViewModel.additionalAllowHosts = Array(package.allowHosts)
+        } else {
+            codeCoreViewModel.additionalAllowHosts = []
+        }
+        
         codeCoreViewModel.onLoadFailed = { error in
             print(error)
         }

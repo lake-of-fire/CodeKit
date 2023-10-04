@@ -3,6 +3,12 @@ import WebKit
 
 @MainActor
 public class CodeCoreViewModel: ObservableObject {
+    @Published public var additionalAllowHosts = [String]()
+    @Published public var defaultAllowHosts = ["code", "unpkg.com", "jspm.dev", "cdn.jsdelivr.com", "polyfill.io"]
+    public var allowHosts: [String] {
+        return defaultAllowHosts + additionalAllowHosts
+    }
+    
     public var onLoadSuccess: (() async -> Void)?
     public var onLoadFailed: ((Error) -> Void)?
 //    public var onContentChange: (() -> Void)?

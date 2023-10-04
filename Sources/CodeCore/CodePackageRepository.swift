@@ -518,6 +518,13 @@ public extension CodePackageRepository {
         safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
             codeExtension.isBuilding = true
         }
+        
+        if let package = codeExtension.package {
+            codeCoreViewModel.additionalAllowHosts = Array(package.allowHosts)
+        } else {
+            codeCoreViewModel.additionalAllowHosts.removeAll()
+        }
+        
         do {
             let resultPageHTML = try await codeCoreViewModel.callAsyncJavaScript(
             """

@@ -32,13 +32,16 @@ public struct PersonaStyleIcon: View {
         .foregroundColor(isFilled ? .white : .primary)
         .frame(width: size, height: size)
         .background {
-            if isFilled {
-                Circle()
-                    .fill(tint.opacity(0.6))
-            } else {
-                Circle()
-                    .stroke(tint.opacity(0.6), lineWidth: 4)
+            Group {
+                if isFilled {
+                    Circle()
+                        .fill(LinearGradient(colors: [tint.brighten(by: 0.2), tint], startPoint: .top, endPoint: .bottom))
+                } else {
+                    Circle()
+                        .stroke(tint, lineWidth: 4)
+                }
             }
+            .opacity(0.6)
         }
         .clipShape(Circle())
     }
@@ -93,7 +96,13 @@ public extension PersonaIconProtocol {
     }
     
     var personaTint: Color {
-        switch persona.tint {
+        return persona.tint.color
+    }
+}
+    
+public extension Persona.PersonaTint {
+    var color: Color {
+        switch self {
         case .red: return .red
         case .orange: return .orange
         case .yellow: return .yellow
@@ -136,5 +145,20 @@ public struct PersonaButton: View, PersonaIconProtocol {
     public init(persona: Persona, action: @escaping () -> Void) {
         self.persona = persona
         self.action = action
+    }
+}
+
+fileprivate extension Color {
+    func brighten(by factor: Double) -> Color {
+        #if os(macOS)
+        let color = NSColor(self).usingColorSpace(NSColorSpace.sRGB) ?? NSColor.white
+        #elseif os(iOS)
+        let color = UIColor(self)
+        #endif
+
+        var h: CGFloat = 0.0, s: CGFloat = 0.0, b: CGFloat = 0.0, a: CGFloat = 0.0
+        color.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+
+        return Color(hue: Double(h), saturation: Double(s), brightness: Double(min(b + CGFloat(factor), 1.0)), opacity: Double(a))
     }
 }

@@ -12,8 +12,8 @@ public class Room: Object, UnownedSyncableObject {
     @Persisted public var modifiedAt = Date()
     @Persisted public var isDeleted = false
     
+    @Persisted public var isPinned = false
     @Persisted public var participants = MutableSet<Persona>()
-    
     @Persisted(originProperty: "room") public var events: LinkingObjects<Event>
     
     public var needsSyncToServer: Bool { false }

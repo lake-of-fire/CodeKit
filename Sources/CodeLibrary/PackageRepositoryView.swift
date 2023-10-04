@@ -38,7 +38,7 @@ struct CodePackageView: View {
             }
 //            Toggle("Allow Access to All Hosts", isOn: $package.allowAllHosts)
 //                .disabled(!isUserEditable)
-            RealmCSVTextField("Allow Specific Hosts", object: package, objectValue: $package.allowHosts)
+            RealmCSVTextField("Allows Hostnames", object: package, objectValue: $package.allowHosts)
                 .disabled(!isUserEditable || package.allowAllHosts)
             Toggle("Installed", isOn: $package.isEnabled)
                 .disabled(!isUserEditable)

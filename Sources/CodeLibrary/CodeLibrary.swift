@@ -58,7 +58,6 @@ public struct CodePackageWithRepositoryView: View {
         Task { @MainActor in
             let package = package ?? self.package
             repository = CodePackageRepository(package: package, codeCoreViewModel: nil)
-//            await repository?.updateGitRepositoryStatus()
             personas = Array(allOnlinePersonas.filter { $0.providedByExtension?.package?.id == package.id })
         }
     }

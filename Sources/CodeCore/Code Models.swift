@@ -123,8 +123,12 @@ public class PackageCollection: Object, UnownedSyncableObject, ObjectKeyIdentifi
                     obj.packages.insert(package)
                 }
             }
-            for removeObj in obj.packages.where({ !$0.isDeleted && !$0.id.in((entry.children ?? []).compactMap({ $0.attributeUUIDValue("id") })) }) {
-                removeObj.isDeleted = true
+        }
+        if let obj = obj {
+            safeWrite(obj) { _, obj in
+                for removeObj in obj.packages.filter({ !$0.isDeleted }).filter({ !((entry.children ?? []).compactMap({ $0.attributeUUIDValue("id") }).contains($0.id)) }) {
+                    removeObj.isDeleted = true
+                }
             }
         }
         return obj

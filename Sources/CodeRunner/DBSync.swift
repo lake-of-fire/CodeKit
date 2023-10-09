@@ -341,11 +341,15 @@ public class DBSync: ObservableObject {
                             let (newObject, newOverrides) = surrogateMap(object, codeExtension)
                             
                             if let newOverrides = newOverrides, !newOverrides.isEmpty {
-                                var toSet = overrides[object.className] ?? [String: Any]()
+//#if os(iOS)
+                                var toSet = overrides[object.objectSchema.className] ?? [String: Any]()
+//#else
+//                                var toSet = overrides[object.className] ?? [String: Any]()
+//#endif
                                 for entry in newOverrides {
                                     toSet[entry.key] = entry.value
                                 }
-                                overrides[object.className] = toSet
+                                overrides[object.objectSchema.className] = toSet
                             }
                             
                             return newObject
@@ -385,7 +389,7 @@ public class DBSync: ObservableObject {
     private func syncTo(objects: [any DBSyncableObject], overrides: [String: [String: Any]]) async throws {
         var jsonStr = "["
         for object in objects {
-            guard let objJson = try await jsonDictionaryFor(object: object, overrides: overrides[object.className]) else {
+            guard let objJson = try await jsonDictionaryFor(object: object, overrides: overrides[object.objectSchema.className]) else {
                 print("ERROR serializing \(object)")
                 continue
             }

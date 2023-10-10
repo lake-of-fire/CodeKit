@@ -114,6 +114,9 @@ public class PackageCollection: Object, UnownedSyncableObject, ObjectKeyIdentifi
             } else {
                 obj = PackageCollection()
                 obj?.id = uuid
+                if let obj = obj {
+                    realm.add(obj)
+                }
             }
             guard let obj = obj else { return }
             obj.name = entry.title ?? entry.text
@@ -126,7 +129,7 @@ public class PackageCollection: Object, UnownedSyncableObject, ObjectKeyIdentifi
         }
         if let obj = obj {
             safeWrite(obj) { _, obj in
-                for removeObj in obj.packages.filter({ !$0.isDeleted }).filter({ !((entry.children ?? []).compactMap({ $0.attributeUUIDValue("id") }).contains($0.id)) }) {
+                for removeObj in Array(obj.packages).filter({ !$0.isDeleted && !((entry.children ?? []).compactMap({ $0.attributeUUIDValue("id") }).contains($0.id)) }) {
                     removeObj.isDeleted = true
                 }
             }

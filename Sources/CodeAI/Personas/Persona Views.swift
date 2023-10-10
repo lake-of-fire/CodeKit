@@ -66,7 +66,14 @@ public struct PersonaStyleButton: View {
         Button {
             action()
         } label: {
-            PersonaStyleIcon(iconSymbol: iconSymbol, sfSymbol: sfSymbol, tint: tint, isFilled: isFilled)
+            ZStack {
+                PersonaStyleIcon(iconSymbol: iconSymbol, sfSymbol: sfSymbol, tint: tint, isFilled: isFilled)
+                // Too add an appropriate minimal padding.
+                Menu { } label: { Image(systemName: "chevron.down.circle.fill") }
+                    .disabled(true)
+                    .opacity(0)
+                    .allowsHitTesting(false)
+            }
         }
         .buttonStyle(.plain)
     }

@@ -6,7 +6,7 @@ import RealmSwiftGaps
 
 public class Room: Object, UnownedSyncableObject {
     @Persisted(primaryKey: true) public var id = UUID()
-    @Persisted public var displayName = "New Chat Room"
+    @Persisted public var displayName = "New Chat"
     @Persisted public var displayIcon = "💬"
     @Persisted public var createdAt = Date()
     @Persisted public var modifiedAt = Date()

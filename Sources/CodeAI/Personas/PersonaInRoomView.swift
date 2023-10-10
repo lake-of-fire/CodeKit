@@ -30,6 +30,7 @@ public struct PersonaInRoomView: View {
                         }
                     }
                     .buttonStyle(.bordered)
+                    .tint(.red)
                     .padding(10)
                 }
                 .background(.ultraThinMaterial)

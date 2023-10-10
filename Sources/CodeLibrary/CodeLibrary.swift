@@ -295,6 +295,7 @@ public struct CodeLibraryView: View {
     
     @StateObject private var navigationModel = CodeLibraryNavigationModel()
     @SceneStorage("navigation") private var navigationData: Data?
+    @Environment(\.dismiss) private var dismiss
     
     func packageCell(package: CodePackage) -> some View {
 //        CodeLibraryPackageCell(package: package, personas: Array(allOnlinePersonas.where({ $0.providedByExtension.package == package })), navigationModel: navigationModel)
@@ -329,6 +330,18 @@ public struct CodeLibraryView: View {
                     }
                 }
             }
+#if os(iOS)
+            .toolbar {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("Done")
+                            .bold()
+                    }
+                }
+            }
+#endif
             .navigationTitle("Extensions")
             .safeAreaInset(edge: .bottom) {
                 HStack {
@@ -425,13 +438,11 @@ struct CodeLibrarySheetModifier: ViewModifier {
                 CodeLibraryView()
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
-                            HStack(spacing: 12) {
-                                Button {
-                                    isPresented = false
-                                } label: {
-                                    Text("Done")
-                                        .bold()
-                                }
+                            Button {
+                                isPresented = false
+                            } label: {
+                                Text("Done")
+                                    .bold()
                             }
                         }
                     }

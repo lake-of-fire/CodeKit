@@ -133,9 +133,10 @@ class LocalGitServiceProvider: GitServiceProvider {
         }
     }
 
+    @MainActor
     func status() async throws -> [StatusEntry] {
+        let repository = try self.checkedRepository()
         return try await WorkerQueueTask {
-            let repository = try self.checkedRepository()
             return try repository.status(options: [
                 .recurseUntrackedDirs, .includeIgnored, .includeUntracked, .excludeSubmodules,
             ]).get()
@@ -188,10 +189,11 @@ class LocalGitServiceProvider: GitServiceProvider {
         }
     }
 
+    @MainActor
     func commit(message: String) async throws {
+        let repository = try self.checkedRepository()
+        let signature = try self.checkedSignature()
         try await WorkerQueueTask {
-            let repository = try self.checkedRepository()
-            let signature = try self.checkedSignature()
             let isMerging = repository.repositoryState().contains(.merge)
             if isMerging {
                 let head = try repository.HEAD().get()
@@ -210,9 +212,10 @@ class LocalGitServiceProvider: GitServiceProvider {
         }
     }
 
+    @MainActor
     func unstage(paths: [String]) async throws {
+        let repository = try self.checkedRepository()
         try await WorkerQueueTask {
-            let repository = try self.checkedRepository()
             try paths.forEach {
                 guard let path = $0.replacingOccurrences(of: self.workingURL.absoluteString, with: "")
                     .removingPercentEncoding else { return }
@@ -246,16 +249,18 @@ class LocalGitServiceProvider: GitServiceProvider {
         }
     }
 
+    @MainActor
     func remotes() async throws -> [Remote] {
+        let repository = try self.checkedRepository()
         return try await WorkerQueueTask {
-            let repository = try self.checkedRepository()
             return try repository.allRemotes().get()
         }
     }
 
+    @MainActor
     func head() async throws -> ReferenceType {
+        let repository = try self.checkedRepository()
         return try await WorkerQueueTask {
-            let repository = try self.checkedRepository()
             return try repository.HEAD().get()
         }
     }

@@ -8,15 +8,15 @@ public struct CodeRunnerProxyConfiguration {
     public var allowHosts: [String]?
     public var rewriteHosts: [String: String]?
     public var requestModifiers: [String: ((URLRequest) -> URLRequest)]?
+    public var responseModifiers: [String: ((URLResponse) -> URLResponse)]?
+    public var responseDataModifiers: [String: ((URLSessionDataTask, Data) -> Data)]?
 
     public init(
         allowHosts: [String]? = [],
-        rewriteHosts: [String: String]? = nil,
-        requestModifiers: [String: ((URLRequest) -> URLRequest)]? = nil
+        rewriteHosts: [String: String]? = nil
     ) {
         self.allowHosts = allowHosts
         self.rewriteHosts = rewriteHosts
-        self.requestModifiers = requestModifiers
     }
 }
 

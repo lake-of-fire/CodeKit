@@ -92,19 +92,26 @@ private extension ExternalProxyURLSchemeHandler {
         // IMPORTANT: Ensure the urlSchemeTask is not strongly captured by the callback blocks.
         // Otherwise it will sometimes be deallocated on a non-main thread, causing a crash https://phabricator.wikimedia.org/T224113
         
-        var errorStatus: Int? = nil
-        let callback = Session.Callback(response: { [weak urlSchemeTask] response in
-            DispatchQueue.main.async {
-                guard let urlSchemeTask = urlSchemeTask else {
-                    return
-                }
+//        var errorStatus: Int? = nil
+        let callback = Session.Callback(response: { [weak urlSchemeTask, proxyConfiguration] response in
+            guard let urlSchemeTask = urlSchemeTask else {
+                return
+            }
+            
+            var response = response
+            if let proxiedHost = response.url?.host, let responseModifier = proxyConfiguration?.responseModifiers?[proxiedHost] {
+                response = responseModifier(response)
+            }
+            
+            let inputResponse = response
+            Task { @MainActor in
                 guard self.schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
                     return
                 }
-                if let httpResponse = response as? HTTPURLResponse, !HTTPStatusCode.isSuccessful(httpResponse.statusCode) {
-                    errorStatus = httpResponse.statusCode
+                if let httpResponse = inputResponse as? HTTPURLResponse, !HTTPStatusCode.isSuccessful(httpResponse.statusCode) {
+//                    errorStatus = httpResponse.statusCode
                     print("PROXIED RESPONSE ERROR:")
-                    print(response)
+                    print(inputResponse)
 //                    self.removeSessionTask(request: urlSchemeTask.request)
 //                    urlSchemeTask.didFailWithError(error)
 //                    self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
@@ -115,11 +122,11 @@ private extension ExternalProxyURLSchemeHandler {
                         return
                     }
                     
-                    urlSchemeTask.didReceive(response)
+                    urlSchemeTask.didReceive(inputResponse)
                 }
             }
-        }, data: { [weak urlSchemeTask] dataTask, data in
-            DispatchQueue.main.async {
+        }, data: { [proxyConfiguration] dataTask, data in
+            Task { @MainActor [weak urlSchemeTask] in
                 guard let urlSchemeTask = urlSchemeTask else {
                     return
                 }
@@ -127,36 +134,32 @@ private extension ExternalProxyURLSchemeHandler {
                     return
                 }
                 
-                if let errorStatus = errorStatus {
-                    print("PROXIED RESPONSE ERROR:")
-                    let body = String(data: data, encoding: .utf8)
-                    print(body)
-                    let response = dataTask.response ?? HTTPURLResponse()
-                    urlSchemeTask.didReceive(response)
-                    urlSchemeTask.didReceive(data)
-                    urlSchemeTask.didFinish()
-//                    urlSchemeTask.didFailWithError(error)
-                    self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
-                    return
+                var data = data
+                if let proxiedHost = urlSchemeTask.request.url?.host, let responseDataModifier = proxyConfiguration?.responseDataModifiers?[proxiedHost] {
+                    data = responseDataModifier(dataTask, data)
                 }
                 
                 urlSchemeTask.didReceive(data)
             }
-        }, success: { [weak urlSchemeTask] usedPermanentCache in
-            DispatchQueue.main.async {
+        }, success: { usedPermanentCache, response in
+            Task { @MainActor [weak urlSchemeTask] in
                 guard let urlSchemeTask = urlSchemeTask else {
                     return
                 }
                 guard self.schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
                     return
                 }
+                
+                if let response = response, let httpResponse = response as? HTTPURLResponse, !HTTPStatusCode.isSuccessful(httpResponse.statusCode) {
+                    urlSchemeTask.didReceive(response)
+                }
+
                 urlSchemeTask.didFinish()
                 self.removeSessionTask(request: urlSchemeTask.request)
                 self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
             }
-            
-        }, failure: { [weak urlSchemeTask] error in
-            DispatchQueue.main.async {
+        }, failure: { error in
+            Task { @MainActor [weak urlSchemeTask] in
                 guard let urlSchemeTask = urlSchemeTask else {
                     return
                 }
@@ -167,7 +170,6 @@ private extension ExternalProxyURLSchemeHandler {
                 urlSchemeTask.didFailWithError(error)
                 self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
             }
-            
         })
         
         if let dataTask = session.dataTask(with: request, callback: callback) {
@@ -280,10 +282,10 @@ public class Session: NSObject {
         public typealias UsedPermanentCache = Bool
         let response: ((URLResponse) -> Void)?
         let data: ((URLSessionDataTask, Data) -> Void)?
-        let success: ((UsedPermanentCache) -> Void)
+        let success: ((UsedPermanentCache, URLResponse?) -> Void)
         let failure: ((Error) -> Void)
         
-        public init(response: ((URLResponse) -> Void)?, data: ((URLSessionDataTask, Data) -> Void)?, success: @escaping (UsedPermanentCache) -> Void, failure: @escaping (Error) -> Void) {
+        public init(response: ((URLResponse) -> Void)?, data: ((URLSessionDataTask, Data) -> Void)?, success: @escaping (UsedPermanentCache, URLResponse?) -> Void, failure: @escaping (Error) -> Void) {
             self.response = response
             self.data = data
             self.success = success
@@ -535,7 +537,7 @@ public class SessionDelegate: NSObject, URLSessionDelegate, URLSessionDataDelega
             return
         }
         
-        callback.success(false)
+        callback.success(false, task.response)
     }
 }
 

@@ -128,9 +128,9 @@ public extension CodePackage {
         // We want ./private prefix because all other files have it
         //    var dir = URL.documentsDirectory
 #if os(iOS)
-        let documentsPathURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)?.appending(component: "Documents", directoryHint: .isDirectory) ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        let documentsPathURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
 #else
-        let documentsPathURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)?.appending(component: "Documents", directoryHint: .isDirectory) ?? Optional(URL.documentsDirectory)
+        let documentsPathURL = Optional(URL.documentsDirectory)
 #endif
         if let documentsPathURL = documentsPathURL {
             if (!FileManager.default.fileExists(atPath: documentsPathURL.path)) {

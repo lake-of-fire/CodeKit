@@ -4,7 +4,7 @@ import RealmSwift
 import RealmSwiftGaps
 import WebKit
 
-public struct CodeRunnerProxyConfiguration {
+public class CodeRunnerProxyConfiguration {
     public var allowHosts: [String]?
     public var rewriteHosts: [String: String]?
     public var requestModifiers: [String: ((URLRequest) -> URLRequest)]?
@@ -32,16 +32,16 @@ public struct CodeRunner: View {
 
     @StateObject private var codeCoreViewModel = CodeCoreViewModel()
     @StateObject private var dbSync = DBSync()
+    @StateObject private var proxySchemeHandler = ExternalProxyURLSchemeHandler()
 
     @State private var workspaceStorage: WorkspaceStorage?
 
-    @StateObject private var proxySchemeHandler = ExternalProxyURLSchemeHandler()
     
     public var body: some View {
         CodeCoreView(
             codeCoreViewModel,
             urlSchemeHandlers: urlSchemeHandlers,
-            defaultURLSchemeHandlerExtensions: defaultURLSchemeHandlerExtensions)
+            defaultURLSchemeHandlerExtensions: [proxySchemeHandler] + defaultURLSchemeHandlerExtensions)
             .opacity(0)
             .frame(maxWidth: 0.0000001, maxHeight: 0.0000001)
             .allowsHitTesting(false)

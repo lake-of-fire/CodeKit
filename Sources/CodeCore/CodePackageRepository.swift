@@ -204,7 +204,7 @@ public extension CodePackageRepository {
                         "id": CodeExtension.makeCompoundKey(repositoryURL: repositoryURL, name: name),
                         "repositoryURL": repositoryURL,
                         "name": name,
-                        "repository": self,
+                        "package": package,
                     ] as [String: Any], update: .modified)
                 }
             }

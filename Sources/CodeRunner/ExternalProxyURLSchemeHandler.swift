@@ -108,14 +108,14 @@ private extension ExternalProxyURLSchemeHandler {
                 guard self.schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
                     return
                 }
-                if let httpResponse = inputResponse as? HTTPURLResponse, !HTTPStatusCode.isSuccessful(httpResponse.statusCode) {
-//                    errorStatus = httpResponse.statusCode
-                    print("PROXIED RESPONSE ERROR:")
-                    print(inputResponse)
-//                    self.removeSessionTask(request: urlSchemeTask.request)
-//                    urlSchemeTask.didFailWithError(error)
-//                    self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
-                } else {
+//                if let httpResponse = inputResponse as? HTTPURLResponse, !HTTPStatusCode.isSuccessful(httpResponse.statusCode) {
+////                    errorStatus = httpResponse.statusCode
+//                    print("PROXIED RESPONSE ERROR:")
+//                    print(inputResponse)
+////                    self.removeSessionTask(request: urlSchemeTask.request)
+////                    urlSchemeTask.didFailWithError(error)
+////                    self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
+//                } else {
                     // May fix potential crashes if we have already called urlSchemeTask.didFinish() or webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) has already been called.
                     // https://developer.apple.com/documentation/webkit/wkurlschemetask/2890839-didreceive
                     guard self.schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
@@ -123,19 +123,20 @@ private extension ExternalProxyURLSchemeHandler {
                     }
                     
                     urlSchemeTask.didReceive(inputResponse)
-                }
+//                }
             }
         }, data: { [proxyConfiguration] dataTask, data in
-            Task { @MainActor [weak urlSchemeTask] in
-                guard let urlSchemeTask = urlSchemeTask else {
+            Task { @MainActor [weak self, weak urlSchemeTask] in
+                guard let self = self, let urlSchemeTask = urlSchemeTask else {
                     return
                 }
-                guard self.schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
+                guard schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
                     return
                 }
                 
+                // code://code/load/api.openai.com/v1/chat/completions
                 var data = data
-                if let proxiedHost = urlSchemeTask.request.url?.host, let responseDataModifier = proxyConfiguration?.responseDataModifiers?[proxiedHost] {
+                if let proxiedHost = urlRequestWithoutCustomScheme(from: urlSchemeTask.request)?.url?.host, let responseDataModifier = proxyConfiguration?.responseDataModifiers?[proxiedHost] {
                     data = responseDataModifier(dataTask, data)
                 }
                 
@@ -150,9 +151,9 @@ private extension ExternalProxyURLSchemeHandler {
                     return
                 }
                 
-                if let response = response, let httpResponse = response as? HTTPURLResponse, !HTTPStatusCode.isSuccessful(httpResponse.statusCode) {
-                    urlSchemeTask.didReceive(response)
-                }
+//                if let response = response, let httpResponse = response as? HTTPURLResponse, !HTTPStatusCode.isSuccessful(httpResponse.statusCode) {
+//                    urlSchemeTask.didReceive(response)
+//                }
 
                 urlSchemeTask.didFinish()
                 self.removeSessionTask(request: urlSchemeTask.request)

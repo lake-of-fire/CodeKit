@@ -49,7 +49,7 @@ public class CodePackage: Object, UnownedSyncableObject, ObjectKeyIdentifiable {
     }
     
     public var directoryURL: URL {
-        return getRootDirectory().appending(component: "CodeKit").appending(component: name + "-" + id.uuidString.suffix(6), directoryHint: .isDirectory)
+        return getRootDirectory().appending(component: "Code").appending(component: name + "-" + id.uuidString.suffix(6), directoryHint: .isDirectory)
     }
     
     public func encode(to encoder: Encoder) throws {

@@ -50,7 +50,6 @@ class LocalGitServiceProvider: GitServiceProvider {
         if let repository {
             return repository
         } else {
-        print("CHECK REPO - DOES NOT EXIST")
             throw NSError(descriptionKey: "Repository doesn't exist")
         }
     }
@@ -74,7 +73,6 @@ class LocalGitServiceProvider: GitServiceProvider {
     }
 
     func loadDirectory(url: URL) {
-        print("LOAD DIR 1")
         contentCache.removeAllObjects()
 
         if url.absoluteString.contains("com.apple.filesystems.smbclientd") {
@@ -82,27 +80,21 @@ class LocalGitServiceProvider: GitServiceProvider {
         }
         workingURL = url
 
-        print("LOAD DIR 2")
-        print(url)
         if let usr = UserDefaults.standard.object(forKey: "user_name") as? String,
             let email = UserDefaults.standard.object(forKey: "user_email") as? String
         {
             signature = Signature(name: usr, email: email)
         }
         load()
-        print("LOAD DIR 3")
     }
 
     private func load() {
-        print("LOAD 1")
         repository = nil
         let result = Repository.at(workingURL)
         switch result {
         case .success(let repo):
-        print("LOAD succ")
             repository = repo
         case .failure(let error):
-        print("LOAD fail")
             print("Could not open repository: \(error)")
         }
     }

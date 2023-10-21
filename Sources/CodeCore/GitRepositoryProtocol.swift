@@ -65,17 +65,13 @@ public extension GitRepositoryProtocol {
         }
         
         await Task {
-            print("GIT STATUS 1")
             defer {
                 onFinish()
             }
             do {
-            print("GIT STATUS 2")
                 let entries = try await gitServiceProvider.status()
-            print("GIT STATUS 3")
                 guard let (indexed, worktree) = groupStatusEntries(entries: entries) else { return }
                 
-            print("GIT STATUS 4")
                 let indexedDictionary = Dictionary(uniqueKeysWithValues: indexed)
                 let workingDictionary = Dictionary(uniqueKeysWithValues: worktree)
                 

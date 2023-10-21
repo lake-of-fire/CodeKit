@@ -215,11 +215,6 @@ public extension CodePackageRepository {
     func listExtensionFiles() async throws -> [URL] {
         await updateGitRepositoryStatus()
         
-        print("LIST EXT")
-        print(workspaceStorage)
-        print(isWorkspaceInitialized)
-        print(workspaceStorage?.currentDirectory.url)
-        print(gitTracks)
         guard let workspaceStorage = workspaceStorage, isWorkspaceInitialized, let currentDirectory = URL(string: workspaceStorage.currentDirectory.url) else {
             throw CodePackageError.repositoryLoadingFailed
         }
@@ -292,29 +287,21 @@ public extension CodePackageRepository {
                 
                 await updateGitRepositoryStatus()
                     
-                        print("CLONE 1")
                 do {
                     if isWorkspaceInitialized {
                         try await pull()
                         completionHandler(nil)
                     } else {
-                        print("CLONE 2 - real clone...")
                         try await workspaceStorage.gitServiceProvider?.clone(
                             from: repositoryURL,
                             to: directoryURL,
                             progress: nil)
-                        print("CLONE 3")
                         workspaceStorage.gitServiceProvider?.loadDirectory(url: directoryURL.standardizedFileURL)
-                        print("CLONE 3a")
                         try await loadRepository()
-                        print("CLONE 3b")
                         await updateGitRepositoryStatus()
-                        print("CLONE 4 done")
-                        print(gitTracks)
                         completionHandler(nil)
                     }
                 } catch {
-                        print("CLONE error")
                     print(error)
                     completionHandler(error)
                 }
@@ -449,25 +436,21 @@ public extension CodePackageRepository {
     
     @MainActor
     func requestBuildIfNeeded(forceBuild: Bool = false) async throws {
-        print("REQUEST BUILD IF NEEDED")
         return try await withCheckedThrowingContinuation { continuation in
             let ref = ThreadSafeReference(to: package)
             
             cloneOrPullIfNeeded { [weak self] error in
-        print("CLONE 6")
                 if let error = error {
                     print("Error: \(error)")
                     continuation.resume(throwing: error)
                     return
                 }
                 
-        print("CLONE 7")
                 Task { [weak self] in
                     do { try Task.checkCancellation() } catch {
                         continuation.resume(throwing: CodeError.unknownError)
                         return
                     }
-        print("CLONE 8")
                     
                     do {
                         guard let self = self, let package = package.realm?.resolve(ref) else {
@@ -475,24 +458,18 @@ public extension CodePackageRepository {
                             return
                         }
                         
-        print("CLONE 9")
                         let names = try await extensionNamesFromFiles()
-        print("CLONE 10")
-                print(names)
                         for extensionName in names {
                             guard let codeExtension = package.codeExtensions.where({ $0.name == extensionName && !$0.isDeleted }).first else {
                                 print("Warning: Couldn't find CodeExtension matching \(name) \(extensionName)")
                                 continue
                             }
                             
-        print("CLONE 11")
                             if forceBuild {
-        print("CLONE 12a")
                                 safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
                                     codeExtension.buildRequested = true
                                 }
                             } else {
-        print("CLONE 12b")
                                 try await requestBuildIfNeeded(codeExtension: codeExtension)
                             }
                         }

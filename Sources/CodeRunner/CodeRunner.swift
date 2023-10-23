@@ -6,6 +6,7 @@ import WebKit
 
 public class CodeRunnerProxyConfiguration {
     public var allowHosts: [String]?
+    public var hostsToProxy: [String]?
     public var rewriteHosts: [String: String]?
     public var requestModifiers: [String: ((URLRequest) -> URLRequest)]?
     public var responseModifiers: [String: ((URLResponse) -> URLResponse)]?
@@ -13,9 +14,11 @@ public class CodeRunnerProxyConfiguration {
 
     public init(
         allowHosts: [String]? = [],
+        hostsToProxy: [String]? = [],
         rewriteHosts: [String: String]? = nil
     ) {
         self.allowHosts = allowHosts
+        self.hostsToProxy = hostsToProxy
         self.rewriteHosts = rewriteHosts
     }
 }
@@ -48,6 +51,7 @@ public struct CodeRunner: View {
             .task {
                 Task { @MainActor in
                     proxySchemeHandler.proxyConfiguration = proxyConfiguration
+                    codeCoreViewModel.disallowHosts = proxyConfiguration.hostsToProxy
                     
                     guard let packageDir = codeExtension.package?.directoryURL, let directoryURL = codeExtension.directoryURL else { return }
                     workspaceStorage = WorkspaceStorage(url: packageDir, isDirectoryMonitored: false)

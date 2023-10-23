@@ -135,12 +135,13 @@ public class Coordinator: NSObject {
     }
     
     internal func updateAllowHostsRule() {
+        let allowHosts = viewModel.allowHosts.filter { !(viewModel.disallowHosts ?? []).contains($0) }
         let rules = """
             [{
                 "trigger": {
                     "url-filter": ".*",
                     "url-filter-is-case-sensitive": false,
-                    "unless-domain": [\(viewModel.allowHosts.map({ "\"\($0)\"" }).joined(separator: ","))]
+                    "unless-domain": [\(allowHosts.map({ "\"\($0)\"" }).joined(separator: ","))]
                 },
                 "action": {
                     "type": "block"

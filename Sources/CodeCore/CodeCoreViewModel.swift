@@ -8,6 +8,7 @@ public class CodeCoreViewModel: ObservableObject {
     public var allowHosts: [String] {
         return defaultAllowHosts + additionalAllowHosts
     }
+    @Published public var disallowHosts: [String]? = nil
     
     public var onLoadSuccess: (() async -> Void)?
     public var onLoadFailed: ((Error) -> Void)?

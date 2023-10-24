@@ -114,6 +114,8 @@ public class Coordinator: NSObject {
 
     private var pageLoaded = false
     private var pendingFunctions = [(JavascriptFunction, JavascriptCallback?)]()
+    
+    private var lastAllowHosts = [String]()
 
     var defaultURLSchemeHandler = GenericFileURLSchemeHandler()
     
@@ -136,6 +138,9 @@ public class Coordinator: NSObject {
     
     internal func updateAllowHostsRule() {
         let allowHosts = viewModel.allowHosts.filter { !(viewModel.disallowHosts ?? []).contains($0) }
+        if lastAllowHosts == allowHosts {
+            return
+        }
         let rules = """
             [{
                 "trigger": {
@@ -155,6 +160,7 @@ public class Coordinator: NSObject {
             }
             webView.configuration.userContentController.add(list)
         }
+        lastAllowHosts = allowHosts
     }
 
     private func callPendingFunctions() {

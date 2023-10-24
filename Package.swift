@@ -44,7 +44,9 @@ let package = Package(
                 "src/package-lock.json",
             ],
             resources: [
-                .copy("src"),
+                .copy("src/index.html"),
+                .copy("src/livecodes"),
+                .copy("src/build"),
             ]),
         .target(
             name: "CodeLibrary",

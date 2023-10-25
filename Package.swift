@@ -13,7 +13,7 @@ let package = Package(
         .library(name: "CodeRunner", targets: ["CodeRunner"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/realm/realm-swift.git", from: "10.28.1"),
+        .package(url: "https://github.com/lake-of-fire/RealmBinary.git", branch: "main"),
         .package(url: "https://github.com/lake-of-fire/opml", branch: "master"),
         .package(url: "https://github.com/lake-of-fire/FilePicker.git", branch: "main"),
         .package(url: "https://github.com/lake-of-fire/BigSyncKit.git", branch: "main"),
@@ -30,22 +30,13 @@ let package = Package(
         .target(
             name: "CodeCore",
             dependencies: [
-                .product(name: "Realm", package: "realm-swift"),
-                .product(name: "RealmSwift", package: "realm-swift"),
+                .product(name: "Realm", package: "RealmBinary"),
+                .product(name: "RealmSwift", package: "RealmBinary"),
                 .product(name: "BigSyncKit", package: "BigSyncKit"),
                 .product(name: "FilesProvider", package: "FileProvider"),
                 .product(name: "SwiftGit2", package: "SwiftGit2"),
             ],
-            exclude: [
-                "src/node_modules",
-                "src/codecore.js",
-                "src/rollup.config.mjs",
-                "src/package.json",
-                "src/package-lock.json",
-            ],
             resources: [
-                .copy("src/index.html"),
-                .copy("src/livecodes"),
                 .copy("src/build"),
             ]),
         .target(
@@ -56,8 +47,8 @@ let package = Package(
                 .target(name: "CodeAI"),
                 .product(name: "OPML", package: "OPML"),
                 .product(name: "FilePicker", package: "FilePicker"),
-                .product(name: "Realm", package: "realm-swift"),
-                .product(name: "RealmSwift", package: "realm-swift"),
+                .product(name: "Realm", package: "RealmBinary"),
+                .product(name: "RealmSwift", package: "RealmBinary"),
                 .product(name: "RealmSwiftGaps", package: "RealmSwiftGaps"),
                 .product(name: "SwiftUIWebView", package: "swiftui-webview"),
                 .product(name: "SwiftUtilities", package: "SwiftUtilities"),
@@ -71,8 +62,8 @@ let package = Package(
             dependencies: [
                 .target(name: "CodeCore"),
                 .target(name: "CodeRunner"),
-                .product(name: "Realm", package: "realm-swift"),
-                .product(name: "RealmSwift", package: "realm-swift"),
+                .product(name: "Realm", package: "RealmBinary"),
+                .product(name: "RealmSwift", package: "RealmBinary"),
                 .product(name: "BigSyncKit", package: "BigSyncKit"),
                 .product(name: "RealmSwiftGaps", package: "RealmSwiftGaps"),
                 .product(name: "SwiftUtilities", package: "SwiftUtilities"),
@@ -97,8 +88,8 @@ let package = Package(
             name: "CodeRunner",
             dependencies: [
                 .target(name: "CodeCore"),
-                .product(name: "Realm", package: "realm-swift"),
-                .product(name: "RealmSwift", package: "realm-swift"),
+                .product(name: "Realm", package: "RealmBinary"),
+                .product(name: "RealmSwift", package: "RealmBinary"),
             ],
             resources: [
             ]),

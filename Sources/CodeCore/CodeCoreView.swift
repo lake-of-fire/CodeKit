@@ -276,13 +276,13 @@ final class GenericFileURLSchemeHandler: NSObject, WKURLSchemeHandler {
     
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         guard let url = urlSchemeTask.request.url else { return }
-        let baseURL = Bundle.module.url(forResource: "src", withExtension: nil)
+        let baseURL = Bundle.module.url(forResource: "build", withExtension: nil)
         var fileURL: URL?
         if url.path == "/" {
             fileURL = baseURL?.appending(path: "/codekit/index.html")
         } else if url.absoluteString.hasPrefix("code://code/codekit/") {
             if let path = url.pathComponents.dropFirst(2).joined(separator: "/").addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-               let baseURL = Bundle.module.url(forResource: "src", withExtension: nil) {
+               let baseURL = Bundle.module.url(forResource: "build", withExtension: nil) {
                 fileURL = baseURL.appending(path: "/" + path)
                 if fileURL?.isDirectory ?? false {
                     fileURL = fileURL?.appending(component: "index.html")

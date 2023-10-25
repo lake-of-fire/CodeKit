@@ -438,7 +438,6 @@ public extension CodePackageRepository {
     func requestBuildIfNeeded(forceBuild: Bool = false) async throws {
         return try await withCheckedThrowingContinuation { continuation in
             let ref = ThreadSafeReference(to: package)
-            
             cloneOrPullIfNeeded { [weak self] error in
                 if let error = error {
                     print("Error: \(error)")
@@ -446,14 +445,15 @@ public extension CodePackageRepository {
                     return
                 }
                 
-                Task { [weak self] in
+                Task { @MainActor [weak self] in
                     do { try Task.checkCancellation() } catch {
                         continuation.resume(throwing: CodeError.unknownError)
                         return
                     }
                     
                     do {
-                        guard let self = self, let package = package.realm?.resolve(ref) else {
+                        let realm = try await Realm()
+                        guard let self = self, let package = realm.resolve(ref) else {
                             continuation.resume(throwing: CodeError.unknownError)
                             return
                         }

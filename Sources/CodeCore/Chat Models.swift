@@ -181,6 +181,14 @@ public class Persona: Object, UnownedSyncableObject {
         }
         return user
     }
+    
+    public func selectDefaultModelIfNeeded() {
+        if let modelOption = modelOptions.first, !modelOptions.contains(selectedModel) {
+            safeWrite(self) { _, participant in
+                selectedModel = modelOption
+            }
+        }
+    }
 }
 
 public class Event: Object, UnownedSyncableObject {

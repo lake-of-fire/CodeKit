@@ -451,6 +451,10 @@ public class DBSync: ObservableObject {
         applyPendingRelationships()
     }
     
+    private static func sortDictionaryValuesByIntegerKeys<T>(_ dictionary: [String: T]) -> [T] {
+        return dictionary.compactMap { (key, value) in Int(key).map { ($0, value) } }.sorted { $0.0 < $1.0 }.map(\.1)
+    }
+    
     private func applyChanges(in doc: [String: Any], to targetObj: any DBSyncableObject) {
         for property in targetObj.objectSchema.properties {
             let key = property.name
@@ -459,41 +463,51 @@ public class DBSync: ObservableObject {
             if property.isArray {
                 switch property.type {
                 case .int:
-                    guard let value = value as? [Int] else { continue }
+                    guard let value = value as? [String: Int] else { continue }
                     let new = RealmSwift.List<Int>()
-                    new.append(objectsIn: value)
+                    new.append(objectsIn: Self.sortDictionaryValuesByIntegerKeys(value))
                     targetObj.setValue(new, forKey: key)
                 case .string:
-                    guard let value = value as? [String] else { continue }
-                    let new = RealmSwift.List<String>()
-                    new.append(objectsIn: value)
-                    targetObj.setValue(new, forKey: key)
+                    guard let value = value as? [String: String] else { continue }
+                    let new = Self.sortDictionaryValuesByIntegerKeys(value)
+                    if let existing = targetObj.value(forKey: key) as? RealmSwift.List<String>, Array(existing) != new {
+                        existing.removeAll()
+                        existing.append(objectsIn: new)
+                    }
                 case .bool:
-                    guard let value = value as? [Bool] else { continue }
-                    let new = RealmSwift.List<Bool>()
-                    new.append(objectsIn: value)
-                    targetObj.setValue(new, forKey: key)
+                    guard let value = value as? [String: Bool] else { continue }
+                    let new = Self.sortDictionaryValuesByIntegerKeys(value)
+                    if let existing = targetObj.value(forKey: key) as? RealmSwift.List<Bool>, Array(existing) != new {
+                        existing.removeAll()
+                        existing.append(objectsIn: new)
+                    }
                 case .float:
-                    guard let value = value as? [Float] else { continue }
-                    let new = RealmSwift.List<Float>()
-                    new.append(objectsIn: value)
-                    targetObj.setValue(new, forKey: key)
+                    guard let value = value as? [String: Float] else { continue }
+                    let new = Self.sortDictionaryValuesByIntegerKeys(value)
+                    if let existing = targetObj.value(forKey: key) as? RealmSwift.List<Float>, Array(existing) != new {
+                        existing.removeAll()
+                        existing.append(objectsIn: new)
+                    }
                 case .double:
-                    guard let value = value as? [Double] else { continue }
-                    let new = RealmSwift.List<Double>()
-                    new.append(objectsIn: value)
-                    targetObj.setValue(new, forKey: key)
+                    guard let value = value as? [String: Double] else { continue }
+                    let new = Self.sortDictionaryValuesByIntegerKeys(value)
+                    if let existing = targetObj.value(forKey: key) as? RealmSwift.List<Double>, Array(existing) != new {
+                        existing.removeAll()
+                        existing.append(objectsIn: new)
+                    }
                 case .date:
-                    guard let value = value as? [String] else { continue }
-                    let dates = value.compactMap { dateFormatter.date(from: $0) }
-                    let new = RealmSwift.List<Date>()
-                    new.append(objectsIn: dates)
-                    targetObj.setValue(new, forKey: key)
+                    guard let value = value as? [String: String] else { continue }
+                    let new = Self.sortDictionaryValuesByIntegerKeys(value).compactMap { dateFormatter.date(from: $0) }
+                    if let existing = targetObj.value(forKey: key) as? RealmSwift.List<Date>, Array(existing) != new {
+                        existing.removeAll()
+                        existing.append(objectsIn: new)
+                    }
                 case .object:
                     // Save relationship to be applied after all records have been downloaded and persisted
                     // to ensure target of the relationship has already been created
-                    if let refs = value as? [String] {
-                        for ref in refs {
+                    if let refs = value as? [String: String] {
+                        removeAllFrom(entity: targetObj, relationshipName: key)
+                        for ref in refs.values {
                             savePendingRelationship(relationshipName: key, targetID: ref, entity: targetObj)
                         }
                     }
@@ -503,41 +517,42 @@ public class DBSync: ObservableObject {
             } else if property.isSet {
                 switch property.type {
                 case .int:
-                    guard let value = value as? [Int] else { continue }
+                    guard let value = value as? [String: Int] else { continue }
                     let new = RealmSwift.MutableSet<Int>()
-                    new.insert(objectsIn: value)
+                    new.insert(objectsIn: value.values)
                     targetObj.setValue(new, forKey: key)
                 case .string:
-                    guard let value = value as? [String] else { continue }
+                    guard let value = value as? [String: String] else { continue }
                     let new = RealmSwift.MutableSet<String>()
-                    new.insert(objectsIn: value)
+                    new.insert(objectsIn: value.values)
                     targetObj.setValue(new, forKey: key)
                 case .bool:
-                    guard let value = value as? [Bool] else { continue }
+                    guard let value = value as? [String: Bool] else { continue }
                     let new = RealmSwift.MutableSet<Bool>()
-                    new.insert(objectsIn: value)
+                    new.insert(objectsIn: value.values)
                     targetObj.setValue(new, forKey: key)
                 case .float:
-                    guard let value = value as? [Float] else { continue }
+                    guard let value = value as? [String: Float] else { continue }
                     let new = RealmSwift.MutableSet<Float>()
-                    new.insert(objectsIn: value)
+                    new.insert(objectsIn: value.values)
                     targetObj.setValue(new, forKey: key)
                 case .double:
-                    guard let value = value as? [Double] else { continue }
+                    guard let value = value as? [String: Double] else { continue }
                     let new = RealmSwift.MutableSet<Double>()
-                    new.insert(objectsIn: value)
+                    new.insert(objectsIn: value.values)
                     targetObj.setValue(new, forKey: key)
                 case .date:
-                    guard let value = value as? [String] else { continue }
-                    let dates = value.compactMap { dateFormatter.date(from: $0) }
+                    guard let value = value as? [String: String] else { continue }
+                    let dates = value.values.compactMap { dateFormatter.date(from: $0) }
                     let new = RealmSwift.MutableSet<Date>()
                     new.insert(objectsIn: dates)
                     targetObj.setValue(new, forKey: key)
                 case .object:
                     // Save relationship to be applied after all records have been downloaded and persisted
                     // to ensure target of the relationship has already been created
-                    if let refs = value as? [String] {
-                        for ref in refs {
+                    if let refs = value as? [String: String] {
+                        removeAllFrom(entity: targetObj, relationshipName: key)
+                        for ref in Self.sortDictionaryValuesByIntegerKeys(refs) {
                             savePendingRelationship(relationshipName: key, targetID: ref, entity: targetObj)
                         }
                     }
@@ -628,6 +643,14 @@ public class DBSync: ObservableObject {
         }
     }
     
+    func removeAllFrom(entity: any DBSyncableObject, relationshipName: String) {
+        if let set = entity.value(forKey: relationshipName) as? MutableSet<RealmSwift.Object> {
+            set.removeAll()
+        } else if let lst = entity.value(forKey: relationshipName) as? RealmSwift.List<RealmSwift.Object> {
+            lst.removeAll()
+        }
+    }
+
     func applyPendingRelationshipUUID<T>(entity: any DBSyncableObject, target: T, relationshipName: String) where T: DBSyncableObject {
         if let set = entity.value(forKey: relationshipName) as? MutableSet<T> {
             set.insert(target)

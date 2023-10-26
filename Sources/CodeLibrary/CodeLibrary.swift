@@ -407,7 +407,9 @@ public struct CodeLibraryView: View {
             }
         })
         .environmentObject(navigationModel)
-//        .navigationSplitViewStyle(.balanced)
+#if os(iOS)
+        .navigationSplitViewStyle(.prominentDetail)
+#endif
 //        .environmentObject(viewModel)
         .task {
             if let jsonData = navigationData {

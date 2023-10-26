@@ -6,25 +6,16 @@
       "location" : "https://github.com/lake-of-fire/BigSyncKit.git",
       "state" : {
         "branch" : "main",
-        "revision" : "9f79ee8cceaf436391ab142a6000512716aeb609"
+        "revision" : "77cfdd38c24e92d92c960985827cbeb225f5f6f6"
       }
     },
     {
-      "identity" : "clibgit2",
+      "identity" : "brotli",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/allotropeinc/Clibgit2.git",
+      "location" : "https://github.com/NghiaTranUIT/Brotli.git",
       "state" : {
-        "branch" : "main",
-        "revision" : "d3f3033d6ab2a8aee5740576a604a1d3ba75e714"
-      }
-    },
-    {
-      "identity" : "elva",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/L1MeN9Yu/Elva.git",
-      "state" : {
-        "branch" : "main",
-        "revision" : "9cd193dd5f0df430726256ab5d6aa08455f5d39b"
+        "branch" : "master",
+        "revision" : "57aae2129a6d5e56a6476b1a3891ed7049bc0a9a"
       }
     },
     {
@@ -46,12 +37,21 @@
       }
     },
     {
-      "identity" : "opengraph",
+      "identity" : "libgit2-on-ios-thebaselab",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/satoshi-takano/OpenGraph.git",
+      "location" : "https://github.com/lake-of-fire/LibGit2-On-iOS-thebaselab.git",
       "state" : {
-        "branch" : "main",
-        "revision" : "7a76976df4625c599f2685e376291669d841d369"
+        "branch" : "master",
+        "revision" : "d07edab04055f167b918853f2047075f18375286"
+      }
+    },
+    {
+      "identity" : "openssl",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/krzyzanowskim/OpenSSL.git",
+      "state" : {
+        "revision" : "5ae21d0c6dd75356df6a1b68d7ab2153f3b8181f",
+        "version" : "3.1.3001"
       }
     },
     {
@@ -60,25 +60,16 @@
       "location" : "https://github.com/lake-of-fire/opml",
       "state" : {
         "branch" : "master",
-        "revision" : "ae3c16303dc63f4ce0e717e82c8c82c47d76aefd"
+        "revision" : "188f860c805d66d0d4d4596c4f80869c9da88c5f"
       }
     },
     {
-      "identity" : "realm-core",
+      "identity" : "realmbinary",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/realm/realm-core.git",
+      "location" : "https://github.com/lake-of-fire/RealmBinary.git",
       "state" : {
-        "revision" : "f1e962cd447f8b69f8f7cf46a188b1c6246923c5",
-        "version" : "13.17.0"
-      }
-    },
-    {
-      "identity" : "realm-swift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/realm/realm-swift.git",
-      "state" : {
-        "revision" : "0155caac1a0830a9fbaaffe5866b909fad3a6fc4",
-        "version" : "10.41.1"
+        "branch" : "main",
+        "revision" : "900539531dd45892e390d29c57eeec8ba224106b"
       }
     },
     {
@@ -87,25 +78,16 @@
       "location" : "https://github.com/lake-of-fire/RealmSwiftGaps.git",
       "state" : {
         "branch" : "main",
-        "revision" : "ebd50dafbea902ad2c18e3df69448672eada6f05"
+        "revision" : "1d903fe0b6c82560a7773ef3930c6be44661fd70"
       }
     },
     {
       "identity" : "swift-html",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/hallee/swift-html.git",
+      "location" : "https://github.com/lake-of-fire/swift-html.git",
       "state" : {
         "branch" : "main",
-        "revision" : "d28317dd348a266c444deba046da33f0421667df"
-      }
-    },
-    {
-      "identity" : "swift-snapshot-testing",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-snapshot-testing.git",
-      "state" : {
-        "revision" : "dc46eeb3928a75390651fac6c1ef7f93ad59a73b",
-        "version" : "1.11.1"
+        "revision" : "0cec2f63067ac8c52e20810314ff5f1d77f0d036"
       }
     },
     {
@@ -114,7 +96,7 @@
       "location" : "https://github.com/lake-of-fire/SwiftGit2.git",
       "state" : {
         "branch" : "main",
-        "revision" : "7e3a4afdc162fd75cfbddd1539506d45ec2cdbbc"
+        "revision" : "f2af24ebd19f3afc59f0048d425f989c51974f61"
       }
     },
     {
@@ -123,7 +105,7 @@
       "location" : "https://github.com/lake-of-fire/swiftui-webview.git",
       "state" : {
         "branch" : "main",
-        "revision" : "0ca02661d03279bb7bc45596ce67a52f5d55d86e"
+        "revision" : "4609627c13b4e31fc8716a3c6ccee53efc63751a"
       }
     },
     {
@@ -132,7 +114,7 @@
       "location" : "https://github.com/lake-of-fire/SwiftUIDownloads.git",
       "state" : {
         "branch" : "main",
-        "revision" : "608d2e0b107bd30bf2c6c46bdbe80d07ef52c665"
+        "revision" : "168b79f96a84c8927b60ccd2446c2b51609083fe"
       }
     },
     {
@@ -141,7 +123,7 @@
       "location" : "https://github.com/lake-of-fire/SwiftUtilities.git",
       "state" : {
         "branch" : "main",
-        "revision" : "a39caec744894d1ed8f7862330f1d696578f2d70"
+        "revision" : "39ed80ab2e4f9701f18082278353c6305fb6304b"
       }
     },
     {
@@ -150,7 +132,7 @@
       "location" : "https://github.com/weichsel/ZIPFoundation.git",
       "state" : {
         "branch" : "development",
-        "revision" : "22bfd0ad22e1b2057088180e8e9c66e204755098"
+        "revision" : "7a685d227334f2bc3bb20c6bcb5947f37806d9f5"
       }
     }
   ],

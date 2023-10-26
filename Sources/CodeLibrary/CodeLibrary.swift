@@ -322,7 +322,9 @@ public struct CodeLibraryView: View {
                                 }
                             }
                     }
+#if os(macOS)
                     .headerProminence(.increased)
+#endif
                 }
                 Section {
                     ForEach(orphanPackages) { package in

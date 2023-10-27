@@ -76,7 +76,7 @@ public struct PersonaDetailsView: View {
                         }
                     }
                 
-                TextField("How should the bot respond?", text: $customInstructionForResponses)
+                TextField("How should the bot respond?", text: $customInstructionForResponses, axis: .vertical)
                     .lineLimit(25)
                     .task { Task { @MainActor in
                         customInstructionForResponses = persona.customInstructionForResponses

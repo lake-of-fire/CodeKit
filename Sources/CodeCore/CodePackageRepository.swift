@@ -176,8 +176,8 @@ public extension CodePackageRepository {
     @MainActor
     private func loadRepository() async throws {
         let extensionNames = try await extensionNamesFromFiles()
-        
-        guard let package = package.isFrozen ? package.thaw() : package, let realm = package.realm, let repositoryURL = repositoryURL?.absoluteString else { return }
+        let realm = try! await Realm()
+        guard let package = realm.object(ofType: CodePackage.self, forPrimaryKey: package.id), let realm = package.realm, let repositoryURL = repositoryURL?.absoluteString else { return }
         let allExisting = realm.objects(CodeExtension.self).where { $0.repositoryURL == repositoryURL && !$0.isDeleted }
         for ext in allExisting {
             guard extensionNames.contains(ext.name) else {

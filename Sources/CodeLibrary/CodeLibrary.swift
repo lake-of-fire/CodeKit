@@ -363,6 +363,10 @@ public struct CodeLibraryView: View {
                         .menuIndicator(.hidden)
                         .alert("Enter new extension collection name", isPresented: $isCollectionNameAlertPresented) {
                             TextField("Enter extension collection name", text: $newExtensionCollectionName)
+#if os(iOS)
+                                .keyboardType(.URL)
+                                .textContentType(.URL)
+#endif
                             Button("Add Collection") {
                                 let collection = PackageCollection()
                                 collection.name = newExtensionCollectionName

@@ -8,9 +8,9 @@ public class CodeRunnerProxyConfiguration {
     public var allowHosts: [String]?
     public var hostsToProxy: [String]?
     public var rewriteHosts: [String: String]?
-    public var requestModifiers: [String: ((URLRequest) -> URLRequest)]?
-    public var responseModifiers: [String: ((URLResponse) -> URLResponse)]?
-    public var responseDataModifiers: [String: ((URLSessionDataTask, Data) -> Data)]?
+    public var requestModifiers: [String: ((URLRequest) throws -> URLRequest?)]?
+    public var responseModifiers: [String: ((WKURLSchemeTask, URLResponse?) async throws -> (URLResponse?, Data?))]?
+    public var responseDataModifiers: [String: ((URLSessionDataTask?, Data?) throws -> Data?)]?
 
     public init(
         allowHosts: [String]? = [],
@@ -38,7 +38,6 @@ public struct CodeRunner: View {
     @StateObject private var proxySchemeHandler = ExternalProxyURLSchemeHandler()
 
     @State private var workspaceStorage: WorkspaceStorage?
-
     
     public var body: some View {
         CodeCoreView(

@@ -33,12 +33,18 @@ extension ExternalProxyURLSchemeHandler: WKURLSchemeHandler {
         }
         
         if let requestModifier = proxyConfiguration?.requestModifiers?[proxiedHost] {
-            request = requestModifier(request)
+            if let newRequest = try? requestModifier(request) {
+                request = newRequest
+            }
         }
         
         addSchemeTask(urlSchemeTask: urlSchemeTask)
         
-        kickOffDataTask(request: request, urlSchemeTask: urlSchemeTask)
+        let theRequest = request
+        Task { @MainActor [weak urlSchemeTask] in
+            guard let urlSchemeTask = urlSchemeTask else { return }
+            await kickOffDataTask(request: theRequest, urlSchemeTask: urlSchemeTask)
+        }
     }
     
     func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
@@ -74,7 +80,7 @@ private extension ExternalProxyURLSchemeHandler {
         return mutableRequest
     }
     
-    func kickOffDataTask(request: URLRequest, urlSchemeTask: WKURLSchemeTask) {
+    func kickOffDataTask(request: URLRequest?, urlSchemeTask: WKURLSchemeTask) async {
 //        print("PROXIED REQUEST:")
 //        print(request.debugDescription)
 //        print(request.httpMethod)
@@ -93,54 +99,13 @@ private extension ExternalProxyURLSchemeHandler {
         // Otherwise it will sometimes be deallocated on a non-main thread, causing a crash https://phabricator.wikimedia.org/T224113
         
 //        var errorStatus: Int? = nil
-        let callback = Session.Callback(response: { [weak urlSchemeTask, proxyConfiguration] response in
-            guard let urlSchemeTask = urlSchemeTask else {
-                return
-            }
-            
-            var response = response
-            if let proxiedHost = response.url?.host, let responseModifier = proxyConfiguration?.responseModifiers?[proxiedHost] {
-                response = responseModifier(response)
-            }
-            
-            let inputResponse = response
-            Task { @MainActor in
-                guard self.schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
-                    return
-                }
-//                if let httpResponse = inputResponse as? HTTPURLResponse, !HTTPStatusCode.isSuccessful(httpResponse.statusCode) {
-////                    errorStatus = httpResponse.statusCode
-//                    print("PROXIED RESPONSE ERROR:")
-//                    print(inputResponse)
-////                    self.removeSessionTask(request: urlSchemeTask.request)
-////                    urlSchemeTask.didFailWithError(error)
-////                    self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
-//                } else {
-                    // May fix potential crashes if we have already called urlSchemeTask.didFinish() or webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) has already been called.
-                    // https://developer.apple.com/documentation/webkit/wkurlschemetask/2890839-didreceive
-                    guard self.schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
-                        return
-                    }
-                    
-                    urlSchemeTask.didReceive(inputResponse)
-//                }
+        let callback = Session.Callback(response: { [weak self, weak urlSchemeTask, weak proxyConfiguration] response in
+            Task { @MainActor [weak self, weak urlSchemeTask, weak proxyConfiguration] in
+                await self?.responseCallback(urlSchemeTask: urlSchemeTask, proxyConfiguration: proxyConfiguration, response: response)
             }
         }, data: { [proxyConfiguration] dataTask, data in
             Task { @MainActor [weak self, weak urlSchemeTask] in
-                guard let self = self, let urlSchemeTask = urlSchemeTask else {
-                    return
-                }
-                guard schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
-                    return
-                }
-                
-                // code://code/load/api.openai.com/v1/chat/completions
-                var data = data
-                if let proxiedHost = urlRequestWithoutCustomScheme(from: urlSchemeTask.request)?.url?.host, let responseDataModifier = proxyConfiguration?.responseDataModifiers?[proxiedHost] {
-                    data = responseDataModifier(dataTask, data)
-                }
-                
-                urlSchemeTask.didReceive(data)
+                self?.dataCallback(urlSchemeTask: urlSchemeTask, proxyConfiguration: proxyConfiguration, dataTask: dataTask, data: data)
             }
         }, success: { usedPermanentCache, response in
             Task { @MainActor [weak urlSchemeTask] in
@@ -173,14 +138,95 @@ private extension ExternalProxyURLSchemeHandler {
             }
         })
         
-        if let dataTask = session.dataTask(with: request, callback: callback) {
-            addSessionTask(request: request, dataTask: dataTask)
-            dataTask.resume()
+        if let request = request {
+            if let dataTask = session.dataTask(with: request, callback: callback) {
+                addSessionTask(request: request, dataTask: dataTask)
+                dataTask.resume()
+            }
+        } else if let proxiedHost = urlRequestWithoutCustomScheme(from: urlSchemeTask.request)?.url?.host {
+            // We are serving a response locally.
+            let (response, data) = await responseCallback(urlSchemeTask: urlSchemeTask, proxyConfiguration: proxyConfiguration, response: nil)
+            if let response = response {
+                var data = data
+                if let curData = data, let responseDataModifier = proxyConfiguration?.responseDataModifiers?[proxiedHost], let newData = try? responseDataModifier(nil, curData) {
+                    data = newData
+                }
+                if let data = data {
+                    dataCallback(urlSchemeTask: urlSchemeTask, proxyConfiguration: proxyConfiguration, dataTask: nil, data: data)
+                    callback.success(false, response)
+                    return
+                }
+            }
         }
+        callback.failure(CustomSchemeHandlerError.rejected)
+    }
+    
+    private func responseCallback(urlSchemeTask: WKURLSchemeTask?, proxyConfiguration: CodeRunnerProxyConfiguration?, response: URLResponse?) async -> (URLResponse?, Data?) {
+        guard let urlSchemeTask = urlSchemeTask else {
+            return (response, nil)
+        }
+        
+        var response = response
+        var data: Data? = nil
+        if let proxiedHost = response?.url?.host ?? urlSchemeTask.request.url?.host, let responseModifier = proxyConfiguration?.responseModifiers?[proxiedHost], let (newResponse, newData) = try? await responseModifier(urlSchemeTask, response), let newResponse = newResponse {
+            response = newResponse
+            data = newData
+        }
+        
+        guard let inputResponse = response else {
+            if let task = activeSessionTasks[urlSchemeTask.request] {
+                removeSessionTask(request: urlSchemeTask.request)
+                switch task.state {
+                case .canceling: fallthrough
+                case .completed: break
+                default: task.cancel()
+                }
+            }
+                return (response, data)
+        }
+//        Task { @MainActor [weak self] in
+            guard schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
+                return (response, data)
+            }
+//                if let httpResponse = inputResponse as? HTTPURLResponse, !HTTPStatusCode.isSuccessful(httpResponse.statusCode) {
+////                    errorStatus = httpResponse.statusCode
+//                    print("PROXIED RESPONSE ERROR:")
+//                    print(inputResponse)
+////                    self.removeSessionTask(request: urlSchemeTask.request)
+////                    urlSchemeTask.didFailWithError(error)
+////                    self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
+//                } else {
+                // May fix potential crashes if we have already called urlSchemeTask.didFinish() or webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) has already been called.
+                // https://developer.apple.com/documentation/webkit/wkurlschemetask/2890839-didreceive
+                guard schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
+                    return (response, data)
+                }
+                
+                urlSchemeTask.didReceive(inputResponse)
+//                }
+                return (response, data)
+//        }
+    }
+    
+    private func dataCallback(urlSchemeTask: WKURLSchemeTask?, proxyConfiguration: CodeRunnerProxyConfiguration?, dataTask: URLSessionDataTask?, data: Data) {
+        guard let urlSchemeTask = urlSchemeTask else {
+            return
+        }
+        guard schemeTaskIsActive(urlSchemeTask: urlSchemeTask) else {
+            return
+        }
+        
+        // code://code/load/api.openai.com/v1/chat/completions
+        var data = data
+        if let proxiedHost = urlRequestWithoutCustomScheme(from: urlSchemeTask.request)?.url?.host, let responseDataModifier = proxyConfiguration?.responseDataModifiers?[proxiedHost], let newData = try? responseDataModifier(dataTask, data) {
+            data = newData
+        }
+        
+        urlSchemeTask.didReceive(data)
     }
     
     func schemeTaskIsActive(urlSchemeTask: WKURLSchemeTask) -> Bool {
-        assert(Thread.isMainThread)
+    assert(Thread.isMainThread)
         return activeSchemeTasks.contains(urlSchemeTask)
     }
     

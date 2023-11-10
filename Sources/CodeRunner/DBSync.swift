@@ -96,6 +96,8 @@ public class DBSync: ObservableObject {
     
     @MainActor
     public func initialize(realmConfiguration: Realm.Configuration, syncedTypes: [any DBSyncableObject.Type], syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> ((any DBSyncableObject)?, [String: Any]?))]? = nil, asyncJavaScriptCaller: @escaping ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?), codeExtension: CodeExtension, beforeFinalizing: (() async -> Void)? = nil) async {
+        deinitialize()
+        
         self.realmConfiguration = realmConfiguration
         self.syncedTypes = syncedTypes
         self.syncFromSurrogateMap = syncFromSurrogateMap
@@ -110,9 +112,6 @@ public class DBSync: ObservableObject {
         
         try? await initializeRemoteSchema()
         
-        for subscription in subscriptions {
-            subscription.cancel()
-        }
         for objectType in syncedTypes {
             realm.objects(objectType)
                 .changesetPublisher
@@ -142,6 +141,13 @@ public class DBSync: ObservableObject {
             _ = try await asyncJavaScriptCaller("await window.chat.parentBridge.finishedSyncingDocsFromCanonical()", nil, nil, nil)
         } catch {
             print("ERROR Finishing sync: \(error)")
+        }
+    }
+    
+    @MainActor
+    public func deinitialize() {
+        for subscription in subscriptions {
+            subscription.cancel()
         }
     }
     
@@ -329,7 +335,7 @@ public class DBSync: ObservableObject {
             }
             
             if let objects = objects {
-                for chunk in Array(objects).chunked(into: 400) {
+                for chunk in Array(objects).chunked(into: 50) {
                     guard var objects = chunk as? [any DBSyncableObject] else {
                         print("ERROR Couldn't cast chunk to DBSyncableObject")
                         continue

@@ -130,14 +130,18 @@ public extension Persona.PersonaTint {
 public struct PersonaIcon: View, PersonaIconProtocol {
     @ObservedRealmObject public var persona: Persona
     var size: CGFloat
+    var isFilled = true
+    let tint: Color
     
     public var body: some View {
         PersonaStyleIcon(size: size, iconSymbol: symbol, tint: personaTint)
     }
     
-    public init(persona: Persona, size: CGFloat = 21) {
+    public init(persona: Persona, size: CGFloat = 21, isFilled: Bool = true, tint: Color? = nil) {
         self.persona = persona
         self.size = size
+        self.isFilled = isFilled
+        self.tint = tint ?? persona.tint.color
     }
 }
 

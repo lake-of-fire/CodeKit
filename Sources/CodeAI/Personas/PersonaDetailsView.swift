@@ -4,17 +4,45 @@ import RealmSwiftGaps
 import DebouncedOnChange
 import CodeCore
 
+public struct ModelPickerView: View {
+    @ObservedRealmObject var persona: Persona
+    @State private var selectedModel: String
+
+    public init(persona: Persona) {
+        self._persona = ObservedRealmObject(wrappedValue: persona)
+        self._selectedModel = State(initialValue: persona.selectedModel)
+    }
+
+    public var body: some View {
+        Picker("Model", selection: $selectedModel) {
+            Text("").tag("")
+            ForEach(persona.modelOptions, id: \.self) { modelOption in
+                Text(modelOption).tag(modelOption)
+            }
+        }
+        .onChange(of: selectedModel) { selectedModel in
+            Task {
+                guard selectedModel != persona.selectedModel else { return }
+                safeWrite(persona) { _, persona in persona.selectedModel = selectedModel }
+            }
+        }
+        .task {
+            Task { @MainActor in
+                selectedModel = persona.selectedModel
+            }
+        }
+    }
+}
+
 public struct PersonaDetailsView: View {
     @ObservedRealmObject public var persona: Persona
-    
+
     @State private var name: String = ""
-    @State private var selectedModel = ""
-    @State private var modelOptions = [String]()
     @State private var modelTemperature = 0.5
     @State private var customInstructionForContext = ""
     @State private var customInstructionForResponses = ""
     @State private var rooms: [Room] = []
-    
+
     public var body: some View {
         Form {
             TextField("Name", text: $name)
@@ -29,39 +57,26 @@ public struct PersonaDetailsView: View {
                         }
                     }
                 }
-            
+
             if let codeExtension = persona.providedByExtension {
                 LabeledContent("Extension", value: codeExtension.nameWithOwner)
             }
-            
+
             Section("Configuration") {
-                Picker("Model", selection: $selectedModel) {
-                    Text("")
-                        .tag("")
-                    ForEach(persona.modelOptions, id: \.self) { modelOption in
-                        Text(modelOption)
-                            .tag(modelOption)
-                    }
-                }
-                .onChange(of: selectedModel) { selectedModel in
-                    Task { @MainActor in
-                        guard selectedModel != persona.selectedModel else { return }
-                        safeWrite(persona) { _, persona in persona.selectedModel = selectedModel }
-                    }
-                }
-                
+                ModelPickerView(persona: persona)
+
                 LabeledContent {
                     Slider(value: $modelTemperature, in: 0.0...2.0)
                 } label: {
                     Text("Temperature")
                 }
                 .onChange(of: modelTemperature, debounceTime: .seconds((0.2))) { modelTemperature in
-                    guard modelTemperature != persona.modelTemperature else { return }
                     Task { @MainActor in
+                        guard modelTemperature != persona.modelTemperature else { return }
                         safeWrite(persona) { _, persona in persona.modelTemperature = modelTemperature }
                     }
                 }
-                
+
                 TextField("What should the bot know about you?", text: $customInstructionForContext, axis: .vertical)
                     .lineLimit(25)
                     .task { Task { @MainActor in
@@ -75,7 +90,7 @@ public struct PersonaDetailsView: View {
                             }
                         }
                     }
-                
+
                 TextField("How should the bot respond?", text: $customInstructionForResponses, axis: .vertical)
                     .lineLimit(25)
                     .task { Task { @MainActor in
@@ -90,7 +105,7 @@ public struct PersonaDetailsView: View {
                         }
                     }
             }
-            
+
             Section("Rooms") {
                 if rooms.isEmpty {
                     Text("Not in any rooms.")
@@ -105,24 +120,15 @@ public struct PersonaDetailsView: View {
         .textFieldStyle(.roundedBorder)
         .formStyle(.grouped)
         .task {
-            Task {@MainActor in
+            Task { @MainActor in
                 let realm = try! Realm()
                 guard let matchPersona = realm.object(ofType: Persona.self, forPrimaryKey: persona.id) else { return }
                 rooms = Array(realm.objects(Room.self).where { $0.participants.contains(matchPersona) })
-                
-                if persona.selectedModel.isEmpty, !persona.modelOptions.isEmpty {
-                    safeWrite(persona) { _, persona in
-                        persona.selectedModel = persona.modelOptions.first(where: { !$0.isEmpty }) ?? ""
-                    }
-                }
-                
-                selectedModel = persona.selectedModel
-                modelOptions = Array(persona.modelOptions)
                 modelTemperature = persona.modelTemperature
             }
         }
     }
-    
+
     public init(persona: Persona) {
         self.persona = persona
     }

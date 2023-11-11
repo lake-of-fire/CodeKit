@@ -3,6 +3,7 @@ import RealmSwift
 import RealmSwiftGaps
 import DebouncedOnChange
 import CodeCore
+import Metal
 
 public struct ModelPickerView: View {
     @ObservedRealmObject var persona: Persona
@@ -47,11 +48,14 @@ public struct ModelPickerView: View {
     private func refreshModel(modelOptions: [String]? = nil) {
         let modelOptions = modelOptions ?? self.modelOptions
         let realm = try! Realm()
+        let memory = MTLCopyAllDevices().sorted {
+            $0.recommendedMaxWorkingSetSize > $1.recommendedMaxWorkingSetSize
+        } .first?.recommendedMaxWorkingSetSize
         modelItems = realm.objects(LLMConfiguration.self)
             .where { $0.name.in(modelOptions) && !$0.isDeleted }
             .filter {
-                if LLMModel.shared.state == .none || LLMModel.shared.modelURL == $0.downloadable?.localDestination, let memoryRequirement = $0.memoryRequirement {
-                    return
+                if LLMModel.shared.state == .none || LLMModel.shared.modelURL == $0.downloadable?.localDestination.path, let memoryRequirement = $0.memoryRequirement {
+                    return (memory ?? 0) >= memoryRequirement
                 }
                 return true
             }

@@ -38,7 +38,8 @@ let package = Package(
             ],
             resources: [
                 .copy("src/build"),
-            ]),
+            ],
+            swiftSettings: [.interoperabilityMode(.Cxx)]),
         .target(
             name: "CodeLibrary",
             dependencies: [
@@ -53,10 +54,8 @@ let package = Package(
                 .product(name: "SwiftUIWebView", package: "swiftui-webview"),
                 .product(name: "SwiftUtilities", package: "SwiftUtilities"),
                 .product(name: "SwiftUIDownloads", package: "SwiftUIDownloads"),
-//                .product(name: "DebouncedOnChange", package: "DebouncedOnChange"),
             ],
-            resources: [
-            ]),
+            swiftSettings: [.interoperabilityMode(.Cxx)]),
         .target(
             name: "CodeAI",
             dependencies: [
@@ -72,21 +71,16 @@ let package = Package(
                 .product(name: "SwiftLlama", package: "SwiftWhisperStream"),
                 .product(name: "SwiftWhisperStream", package: "SwiftWhisperStream"),
             ],
-            resources: [
-            ]),
+            swiftSettings: [.interoperabilityMode(.Cxx)]),
         .target(
             name: "CodeEditor",
             dependencies: [
                 .target(name: "CodeCore"),
-            ],
-            resources: [
             ]),
         .target(
             name: "CodeCI",
             dependencies: [
                 .target(name: "CodeCore"),
-            ],
-            resources: [
             ]),
         .target(
             name: "CodeRunner",
@@ -94,8 +88,6 @@ let package = Package(
                 .target(name: "CodeCore"),
                 .product(name: "Realm", package: "RealmBinary"),
                 .product(name: "RealmSwift", package: "RealmBinary"),
-            ],
-            resources: [
             ]),
     ]
 )

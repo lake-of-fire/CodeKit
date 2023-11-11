@@ -42,7 +42,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject, DBSyncableObject {
         guard let url = URL(string: modelDownloadURL) else { return nil }
         return Downloadable(
             name: name,
-            parentDirectoryName: "llm",
+            parentDirectoryName: "Downloads/llm-models",
             filename: url.lastPathComponent,
             downloadMirrors: [url])
     }
@@ -61,6 +61,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject, DBSyncableObject {
         return machine == "arm64"
     }
     
+        
     public enum CodingKeys: String, CodingKey {
         case id
         case name

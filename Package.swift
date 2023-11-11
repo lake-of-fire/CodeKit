@@ -23,6 +23,7 @@ let package = Package(
         .package(url: "https://github.com/lake-of-fire/SwiftUIDownloads.git", branch: "main"),
         .package(url: "https://github.com/thebaselab/FileProvider.git", branch: "master"),
         .package(url: "https://github.com/lake-of-fire/SwiftGit2.git", branch: "main"),
+        .package(url: "https://github.com/lake-of-fire/SwiftWhisperStream.git", branch: "master"),
         .package(url: "https://github.com/Tunous/DebouncedOnChange.git", branch: "main"),
     ],
     targets: [
@@ -68,6 +69,8 @@ let package = Package(
                 .product(name: "SwiftUtilities", package: "SwiftUtilities"),
                 .product(name: "SwiftUIDownloads", package: "SwiftUIDownloads"),
                 .product(name: "DebouncedOnChange", package: "DebouncedOnChange"),
+                .product(name: "SwiftLlama", package: "SwiftWhisperStream"),
+                .product(name: "SwiftWhisperStream", package: "SwiftWhisperStream"),
             ],
             resources: [
             ]),

@@ -11,7 +11,7 @@ import CodeCore
 
 public class CodeLibraryConfiguration: ObservableObject {
     public static var securityApplicationGroupIdentifier = ""
-    public static var downloadstDirectoryName = "code-library-configuration"
+    public static var downloadstDirectoryName = "Downloads/code-library-configuration"
     public static var opmlURLs = [URL]()
 
     public var downloadables: Set<Downloadable> {

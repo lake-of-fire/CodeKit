@@ -7,17 +7,24 @@ import CodeCore
 public struct ModelPickerView: View {
     @ObservedRealmObject var persona: Persona
     @State private var selectedModel: String
+    
+    @State private var modelItems: [(String, String)] = []
 
     public init(persona: Persona) {
         self._persona = ObservedRealmObject(wrappedValue: persona)
         self._selectedModel = State(initialValue: persona.selectedModel)
     }
 
+    var modelOptions: [String] {
+        persona.modelOptions.filter { !$0.isEmpty }
+    }
+    
     public var body: some View {
         Picker("Model", selection: $selectedModel) {
             Text("").tag("")
-            ForEach(persona.modelOptions, id: \.self) { modelOption in
-                Text(modelOption).tag(modelOption)
+            ForEach(modelItems, id: \.0) { modelItem in
+                let (modelName, modelDisplayName) = modelItem
+                Text(modelDisplayName).tag(modelName)
             }
         }
         .onChange(of: selectedModel) { selectedModel in
@@ -26,11 +33,30 @@ public struct ModelPickerView: View {
                 safeWrite(persona) { _, persona in persona.selectedModel = selectedModel }
             }
         }
+        .onChange(of: persona.modelOptions) { modelOptions in
+            Task { @MainActor in refreshModel(modelOptions: Array(modelOptions)) }
+        }
         .task {
             Task { @MainActor in
+                refreshModel()
                 selectedModel = persona.selectedModel
             }
         }
+    }
+    
+    private func refreshModel(modelOptions: [String]? = nil) {
+        let modelOptions = modelOptions ?? self.modelOptions
+        let realm = try! Realm()
+        modelItems = realm.objects(LLMConfiguration.self)
+            .where { $0.name.in(modelOptions) && !$0.isDeleted }
+            .filter {
+                if LLMModel.shared.state == .none || LLMModel.shared.modelURL == $0.downloadable?.localDestination, let memoryRequirement = $0.memoryRequirement {
+                    return
+                }
+                return true
+            }
+            .sorted { $0.name < $1.name }
+            .map { ($0.name, $0.displayName) }
     }
 }
 

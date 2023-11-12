@@ -18,6 +18,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject, DBSyncableObject {
     @Persisted public var isDeleted = false
     
     @Persisted public var providedByExtension: CodeExtension?
+    @Persisted public var usedByPersona: Persona?
     @Persisted public var apiURL = ""
     
     // Local LLM
@@ -74,7 +75,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject, DBSyncableObject {
             }
         return false
     }
-        
+    
     public enum CodingKeys: String, CodingKey {
         case id
         case name
@@ -82,6 +83,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject, DBSyncableObject {
         case displayName
         case markdownDescription
         case providedByExtension
+        case usedByPersona
         case modelDownloadURL
         case apiURL
         case memoryRequirement
@@ -110,6 +112,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject, DBSyncableObject {
         try container.encode(displayName, forKey: .displayName)
         try container.encode(markdownDescription, forKey: .markdownDescription)
         try container.encodeIfPresent(providedByExtension?.id, forKey: .providedByExtension)
+        try container.encodeIfPresent(usedByPersona?.id, forKey: .usedByPersona)
         try container.encode(modelDownloadURL, forKey: .modelDownloadURL)
         try container.encode(apiURL, forKey: .apiURL)
         try container.encode(memoryRequirement, forKey: .memoryRequirement)

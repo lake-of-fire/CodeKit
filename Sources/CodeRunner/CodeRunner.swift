@@ -88,34 +88,37 @@ public struct CodeRunner: View {
         } else {
             codeCoreViewModel.additionalAllowHosts = []
         }
-        
         codeCoreViewModel.onLoadFailed = { error in
             print(error)
         }
-        codeCoreViewModel.onLoadSuccess = {
-            safeWrite(codeExtension) { _, codeExtension in
-                codeExtension.lastRunStartedAt = Date()
-            }
-
-            if let syncedTypes = syncedTypes, let asyncJavaScriptCaller = codeCoreViewModel.asyncJavaScriptCaller {
-                guard let realm = codeExtension.realm else {
-                    print("No Realm found for CodeExtension in CodeRunner")
-                    return
+            codeCoreViewModel.onLoadSuccess = {
+                safeWrite(codeExtension) { _, codeExtension in
+                    codeExtension.lastRunStartedAt = Date()
                 }
-                await dbSync.initialize(
-                    realmConfiguration: realm.configuration,
-                    syncedTypes: syncedTypes,
-                    syncFromSurrogateMap: syncFromSurrogateMap,
-                    syncToSurrogateMap: syncToSurrogateMap,
-                    asyncJavaScriptCaller: asyncJavaScriptCaller,
-                    codeExtension: codeExtension) {
-                        await beforeRun?()
+                
+                if let syncedTypes = syncedTypes, let asyncJavaScriptCaller = codeCoreViewModel.asyncJavaScriptCaller {
+                    guard let realm = codeExtension.realm else {
+                        print("No Realm found for CodeExtension in CodeRunner")
+                        return
                     }
+                    await dbSync.initialize(
+                        realmConfiguration: realm.configuration,
+                        syncedTypes: syncedTypes,
+                        syncFromSurrogateMap: syncFromSurrogateMap,
+                        syncToSurrogateMap: syncToSurrogateMap,
+                        asyncJavaScriptCaller: asyncJavaScriptCaller,
+                        codeExtension: codeExtension) {
+                            await beforeRun?()
+                        }
+                }
             }
-        }
-        codeCoreViewModel.load(
-            htmlData: data,
-            baseURL: url)
+//        print(String(data: data, encoding: .utf8)?.prefix(100) ?? "--")
+            codeCoreViewModel.load(
+//        htmlData: "<html><body>\(Date().debugDescription)</body></html>".data(using: .utf8)!,
+                htmlData: data,
+//                htmlData: (String(data: data, encoding: .utf8)! + "<!-- \(Date().debugDescription) -->").data(using: .utf8)!,
+                baseURL: url)
+//        codeCoreViewModel.load(htmlData: "<html><body>\(Date().debugDescription)</body></html>".data(using: .utf8)!, baseURL: URL(string: "about:blank?test")!)
     }
 
     @MainActor

@@ -81,13 +81,15 @@ let package = Package(
             name: "CodeCI",
             dependencies: [
                 .target(name: "CodeCore"),
-            ]),
+            ],
+            swiftSettings: [.interoperabilityMode(.Cxx)]),
         .target(
             name: "CodeRunner",
             dependencies: [
                 .target(name: "CodeCore"),
                 .product(name: "Realm", package: "RealmBinary"),
                 .product(name: "RealmSwift", package: "RealmBinary"),
-            ]),
+            ],
+            swiftSettings: [.interoperabilityMode(.Cxx)]),
     ]
 )

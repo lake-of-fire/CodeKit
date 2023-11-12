@@ -139,6 +139,7 @@ public class DBSync: ObservableObject {
         }
         do {
             _ = try await asyncJavaScriptCaller("await window.chat.parentBridge.finishedSyncingDocsFromCanonical()", nil, nil, nil)
+
         } catch {
             print("ERROR Finishing sync: \(error)")
         }

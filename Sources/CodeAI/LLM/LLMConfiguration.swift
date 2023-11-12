@@ -61,6 +61,19 @@ public class LLMConfiguration: Object, UnownedSyncableObject, DBSyncableObject {
         return machine == "arm64"
     }
     
+    public var isModelInstalled: Bool {
+        guard let downloadable = downloadable else { return false }
+        return FileManager.default.fileExists(atPath: downloadable.localDestination.path)
+    }
+    
+    public static func isModelInstalled(_ modelName: String) -> Bool {
+        let realm = try! Realm()
+        if let path = realm.objects(LLMConfiguration.self).where({
+            !$0.isDeleted && $0.name == modelName }).first?.downloadable?.localDestination.path {
+                return FileManager.default.fileExists(atPath: path)
+            }
+        return false
+    }
         
     public enum CodingKeys: String, CodingKey {
         case id

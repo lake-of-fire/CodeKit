@@ -3,6 +3,7 @@ import RealmSwift
 import RealmSwiftGaps
 import CodeCore
 import SwiftUIDownloads
+@_spi(Advanced) import SwiftUIIntrospect
 import LakeKit
 import Metal
 import Combine
@@ -66,8 +67,10 @@ struct ModelSwitcher: View {
             if persona.modelOptions.count > 4 {
                 ModelPickerView(persona: persona)
                     .pickerStyle(.menu)
-                    .menuStyle(.borderlessButton)
-//                    .menuStyle(.)
+                    .introspect(.picker(style: .menu), on: .macOS(.v12...)) { picker in
+                        picker.isBordered = false
+                    }
+                    .fixedSize()
             } else {
                 ModelPickerView(persona: persona)
                     .pickerStyle(.segmented)
@@ -382,7 +385,7 @@ public struct ModelsControlsContainer: View {
     }
     
     public var body: some View {
-        Group {
+        HStack(spacing: 0) {
             ModelSwitcher(persona: persona)
                 .onChange(of: persona) { _ in
                     Task { @MainActor in

@@ -25,6 +25,7 @@ public struct ModelPickerView: View {
                         Text(modelDisplayName).tag(id as UUID?)
                     }
                 }
+                .background(.red)
             }
         }
         .onChange(of: persona.modifiedAt) { _ in

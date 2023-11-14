@@ -13,3 +13,6 @@ extension Event: DBSyncableObject {
 
 extension CodeCore.Link: DBSyncableObject {
 }
+
+extension LLMConfiguration: DBSyncableObject {
+}

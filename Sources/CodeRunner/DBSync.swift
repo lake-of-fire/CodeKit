@@ -424,7 +424,8 @@ public class DBSync: ObservableObject {
         }
         
         let surrogateMaps = syncFromSurrogateMap?.filter { $0.0 == objectType }.map { $0.1 } ?? []
-        
+//        print("SURR doc incoming:")
+//        print(changedDocs.debugDescription)
         safeWrite { realm in
             for doc in changedDocs {
                 guard let rawUUID = doc["id"] as? String, let uuid = UUID(uuidString: rawUUID), let rawModifiedAt = doc["modifiedAt"] as? Int64 else {

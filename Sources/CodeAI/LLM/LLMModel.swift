@@ -9,6 +9,7 @@ import SwiftUI
 import os
 import SwiftLlama
 import SwiftUIDownloads
+import CodeCore
 
 @MainActor
 final public class LLMModel: ObservableObject {

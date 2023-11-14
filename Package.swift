@@ -34,6 +34,7 @@ let package = Package(
                 .product(name: "RealmSwift", package: "RealmBinary"),
                 .product(name: "BigSyncKit", package: "BigSyncKit"),
                 .product(name: "FilesProvider", package: "FileProvider"),
+                .product(name: "SwiftUIDownloads", package: "SwiftUIDownloads"),
                 .product(name: "SwiftGit2", package: "SwiftGit2"),
             ],
             resources: [

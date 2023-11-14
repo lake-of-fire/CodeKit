@@ -1,0 +1,384 @@
+import SwiftUI
+import RealmSwift
+import RealmSwiftGaps
+import CodeCore
+import SwiftUIDownloads
+import LakeKit
+import Metal
+import Combine
+
+//public struct ModelPickerView: View {
+//    @ObservedRealmObject var persona: Persona
+//    @State private var selectedModel: String
+//
+//    @State private var modelItems: [(String, String)] = []
+//
+//    public init(persona: Persona) {
+//        self._persona = ObservedRealmObject(wrappedValue: persona)
+//        self._selectedModel = State(initialValue: persona.selectedModel)
+//    }
+//
+//    var modelOptions: [String] {
+//        persona.modelOptions.filter { !$0.isEmpty }
+//    }
+//
+//    public var body: some View {
+//        Text(persona.selectedModel)
+//        Text(selectedModel)
+//        Picker("Model", selection: $selectedModel) {
+//            Text("").tag("")
+//            ForEach(modelItems, id: \.0) { modelItem in
+//                let (modelName, modelDisplayName) = modelItem
+//                Text(modelDisplayName).tag(modelName)
+//            }
+//        }
+//        .onChange(of: selectedModel) { selectedModel in
+//            Task {
+//                guard selectedModel != persona.selectedModel else { return }
+//                safeWrite(persona) { _, persona in persona.selectedModel = selectedModel }
+//            }
+//        }
+//        .onChange(of: persona.modelOptions) { modelOptions in
+//            Task { @MainActor in refreshModel(modelOptions: Array(modelOptions)) }
+//        }
+//        .task {
+//            Task { @MainActor in
+//                refreshModel()
+//                selectedModel = persona.selectedModel
+//            }
+//        }
+//    }
+//
+//    private func refreshModel(modelOptions: [String]? = nil) {
+//        let modelOptions = modelOptions ?? self.modelOptions
+//        let realm = try! Realm()
+//        let modelDisplayNames = Array(realm.objects(LLMConfiguration.self).where { $0.name.in(modelOptions) && !$0.isDeleted }.map { $0.displayName })
+//        let modelDisplayNames2 = Array(realm.objects(LLMConfiguration.self).where { !$0.isDeleted }.map { $0.displayName })
+//        modelItems = Array(zip(modelOptions, modelDisplayNames))
+//    }
+//}
+
+struct ModelSwitcher: View {
+    @ObservedRealmObject var persona: Persona
+    
+    var body: some View {
+        Group {
+            if persona.modelOptions.count > 4 {
+                ModelPickerView(persona: persona)
+                    .pickerStyle(.menu)
+                    .menuStyle(.borderlessButton)
+//                    .menuStyle(.)
+            } else {
+                ModelPickerView(persona: persona)
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+            }
+        }
+    }
+}
+
+open class BlockableMessagingViewModel: ObservableObject {
+    @Published public var messageSubmissionBlockMessage: String?
+    @Published public var messageSubmissionBlockedAction: (() -> Void)?
+    
+    public init() { }
+}
+
+struct ModelControls: View {
+    @ObservedObject var viewModel: ModelsControlsViewModel
+    @ObservedRealmObject var persona: Persona
+    @ObservedObject var downloadable: Downloadable
+    
+    @ObservedObject private var downloadController = DownloadController.shared
+    @ScaledMetric(relativeTo: .callout) private var downloadProgressSize: CGFloat = 18
+    
+    @EnvironmentObject private var blockableMessagingViewModel: BlockableMessagingViewModel
+    
+    var body: some View {
+        Group {
+            if let humanizedFileSize = downloadable.humanizedFileSize {
+                Text(humanizedFileSize)
+                    .font(.caption)
+                    .bold()
+                    .foregroundStyle(.secondary)
+            }
+            if downloadable.isActive {
+                DownloadProgressView(size: downloadProgressSize, downloadable: downloadable)
+            } else if downloadable.isFinishedDownloading {
+                modelDeleteButton
+            } else {
+                DownloadButton(downloadable: downloadable, downloadModels: $viewModel.downloadModels)
+                    .onChange(of: viewModel.selectedDownloadable) { downloadable in
+                    }
+                
+                FailureMessagesButton(messages: downloadController.failureMessages)
+            }
+        }
+    }
+    
+    private var modelDeleteButton: some View {
+        Button {
+            viewModel.downloadModels = Array(Set(viewModel.downloadModels).subtracting(Set([downloadable.name])))
+            Task { try? await downloadController.delete(download: downloadable) }
+        } label: {
+            Image(systemName: "trash")
+                .font(.callout)
+        }
+        .buttonStyle(.borderless)
+        .tint(.secondary)
+    }
+    
+    private func refreshDownload() {
+        Task { @MainActor in
+            let realm = try! await Realm()
+            if let llm = realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == persona.id }).first, !llm.isModelInstalled, let downloadable = llm.downloadable {
+                if !viewModel.downloadModels.contains(downloadable.id) {
+                    blockableMessagingViewModel.messageSubmissionBlockMessage = "Download"
+                    blockableMessagingViewModel.messageSubmissionBlockedAction = {
+                        Task { @MainActor in
+                            viewModel.downloadModels = Array(Set(viewModel.downloadModels).union(Set([downloadable.id])))
+                        }
+                    }
+                } else {
+                    blockableMessagingViewModel.messageSubmissionBlockMessage = "Download"
+                    blockableMessagingViewModel.messageSubmissionBlockedAction = nil
+                }
+            }
+        }
+    }
+}
+
+class ModelsControlsViewModel: ObservableObject {
+    @Published var selectedDownloadable: Downloadable?
+    @PublishingAppStorage("downloadModels") var downloadModels: [String] = []
+    @Published var persona: Persona? = nil
+    @Published var modelItems: [(UUID, String)] = []
+    @Published var selectedModel: LLMConfiguration.ID?
+    
+    private var cancellables = Set<AnyCancellable>()
+    
+    private var modelOptions: [String] {
+        persona?.modelOptions.filter { !$0.isEmpty } ?? []
+    }
+
+    init() {
+        let realm = try! Realm()
+        realm.objects(LLMConfiguration.self)
+            .where { !$0.isDeleted }
+            .changesetPublisher
+            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] changeset in
+                switch changeset {
+                case .initial(let results):
+                    Task { [weak self] in
+                        await self?.refreshModelItems()
+                        await self?.refreshDownloads()
+                    }
+                case .update(let results, let deletions, let insertions, let modifications):
+                    Task { [weak self] in
+                        await self?.refreshModelItems()
+                        await self?.refreshDownloads()
+                    }
+                case .error(let error):
+                    print("Error: \(error)")
+                }
+            }
+            .store(in: &cancellables)
+        
+        $downloadModels.publisher
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] downloadModels in
+                Task { @MainActor [weak self] in
+                    await self?.refreshDownloads(downloadModels: downloadModels)
+                }
+            }
+            .store(in: &cancellables)
+        
+        $selectedModel
+            .receive(on: DispatchQueue.main)
+            .removeDuplicates()
+            .sink { [weak self] selectedModel in
+                guard let self = self, let persona = persona else { return }
+                let realm = try! Realm()
+                let toRemove = realm.objects(LLMConfiguration.self).where { !$0.isDeleted && $0.usedByPersona.id == persona.id }.filter { $0.id != selectedModel }
+                for llm in toRemove {
+                    safeWrite(llm) { _, llm in llm.usedByPersona = nil }
+                }
+                if let llm = realm.object(ofType: LLMConfiguration.self, forPrimaryKey: selectedModel) {
+                    safeWrite(llm) { _, llm in llm.usedByPersona = (persona.isFrozen ? persona.thaw() : persona) }
+                }
+            }
+            .store(in: &cancellables)
+        
+        $persona
+            .receive(on: DispatchQueue.main)
+            .removeDuplicates(by: {
+                return $0?.id == $1?.id
+            })
+            .sink { [weak self] persona in
+                guard let personaID = persona?.id else {
+                    self?.selectedModel = nil
+                    self?.modelItems = []
+                    return
+                }
+                Task { @MainActor [weak self] in
+                    guard let self = self else { return }
+                    let realm = try! await Realm()
+                    refreshModelItems()
+                    selectedModel = realm.objects(LLMConfiguration.self)
+                        .where { !$0.isDeleted && $0.usedByPersona.id == personaID }
+                        .first?.id
+                }
+            }
+            .store(in: &cancellables)
+    }
+   
+    @MainActor
+    func refreshModelItems(modelOptions: [String]? = nil) {
+        guard let persona = (persona?.isFrozen ?? false ? persona?.thaw() : persona) else {
+            modelItems = []
+            selectedModel = nil
+            return
+        }
+        
+        let modelOptions = modelOptions ?? self.modelOptions
+        let realm = try! Realm()
+        
+        var memory = MTLCopyAllDevices().sorted {
+            $0.recommendedMaxWorkingSetSize > $1.recommendedMaxWorkingSetSize
+        } .first?.recommendedMaxWorkingSetSize ?? 0
+        if LLMModel.shared.state != .none {
+            let active = realm.objects(LLMConfiguration.self).where({
+                !$0.isDeleted && $0.usedByPersona != nil
+            }).filter({ $0.downloadable?.localDestination.path == LLMModel.shared.modelURL })
+            let activeMemory = UInt64(active.compactMap { $0.memoryRequirement }.reduce(0, +))
+            memory += activeMemory
+        }
+        
+        // Default model
+        if let llm = realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == persona.id }).first {
+            selectedModel = llm.id
+        } else {
+            if let llm = realm.objects(LLMConfiguration.self).where({
+                !$0.isDeleted && $0.usedByPersona == nil && ($0.memoryRequirement == nil || $0.memoryRequirement <= Int(memory))
+            }).sorted(by: \.defaultPriority, ascending: false).first {
+                safeWrite(llm) { _, llm in
+                    llm.usedByPersona = persona
+                }
+                selectedModel = llm.id
+            }
+        }
+        
+        let modelItems: [(UUID, String)] = realm.objects(LLMConfiguration.self)
+            .where {
+                $0.name.in(modelOptions) && !$0.isDeleted && ($0.usedByPersona.id == persona.id || $0.usedByPersona == nil)
+            }
+            .sorted {
+                if $0.name == $1.name {
+                    if $0.usedByPersona?.id == persona.id {
+                        return $1.usedByPersona?.id == persona.id ? $0.id.uuidString < $1.id.uuidString : true
+                    } else if $1.usedByPersona?.id == persona.id {
+                        return false
+                    } else if $0.usedByPersona != nil, $1.usedByPersona == nil {
+                        return false
+                    } else if $0.usedByPersona == nil, $1.usedByPersona != nil {
+                        return true
+                    } else if $0.usedByPersona == nil, $1.usedByPersona == nil {
+                        return $0.createdAt < $1.createdAt
+                    }
+                }
+                return $0.name < $1.name
+            }
+            .reduce(into: [String: LLMConfiguration]()) { result, llmConfig in
+                // Keep the first occurrence of each name
+                result[llmConfig.name] = result[llmConfig.name] ?? llmConfig
+            }
+            .values
+            .filter { (llm: LLMConfiguration) -> Bool in
+                if llm.usedByPersona?.id == persona.id {
+                    return true
+                }
+                if LLMModel.shared.state == .none || LLMModel.shared.modelURL == llm.downloadable?.localDestination.path,
+                   let memoryRequirement = llm.memoryRequirement {
+                    return memory >= memoryRequirement
+                } else if LLMModel.shared.state != .none, (llm.memoryRequirement ?? 0) > 0 {
+                    return memory >= llm.memoryRequirement ?? 0
+                }
+                return true
+            }
+            .sorted { $0.displayName < $1.displayName }
+            .map { (llm: LLMConfiguration) -> (UUID, String) in (llm.id, llm.displayName) }
+        self.modelItems = Array(modelItems)
+    }
+    
+    @MainActor
+    private func refreshDownloads(downloadModels: [String]? = nil) async {
+        var downloadModels = downloadModels ?? self.downloadModels
+        let realm = try! await Realm()
+        
+        let selectedLLM = realm.objects(LLMConfiguration.self).where {
+            !$0.isDeleted && $0.usedByPersona.id == (persona?.id ?? UUID())
+        }.first
+        
+        // Start downloads
+        var downloads = [Downloadable]()
+        self.downloadModels = downloadModels
+        for modelName in downloadModels {
+            let download = realm.objects(LLMConfiguration.self).where {
+                !$0.isDeleted && $0.name == modelName
+                && !$0.providedByExtension.isDeleted
+                && $0.providedByExtension.package.isEnabled }.first?.downloadable
+            if let download = download, selectedDownloadable == nil || selectedDownloadable?.url != download.url, download.url == selectedLLM?.downloadable?.url {
+                selectedDownloadable = download
+            }
+            if let download = download {
+                downloads.append(download)
+            } else {
+                downloadModels.removeAll(where: { $0 == modelName })
+            }
+        }
+        await DownloadController.shared.ensureDownloaded(Set(downloads))
+        
+        if let selectedDownload = downloads.first(where: { $0.url == selectedLLM?.downloadable?.url }), selectedDownloadable?.id != selectedDownload.id {
+            selectedDownloadable = selectedDownload
+            if selectedDownload.fileSize == nil {
+                await selectedDownload.fetchRemoteFileSize()
+            }
+        }
+    }
+}
+
+public struct ModelsControlsContainer: View {
+    @ObservedRealmObject var persona: Persona
+   
+    @ObservedObject private var downloadController = DownloadController.shared
+    @StateObject private var viewModel = ModelsControlsViewModel()
+    
+//    @ObservedResults(LLMConfiguration.self, where: {
+//        !$0.isDeleted }, keyPaths: ["id", "usedByPersona"]) private var llmConfigurations
+    
+    public init(persona: Persona) {
+        self.persona = persona
+    }
+    
+    public var body: some View {
+        Group {
+            ModelSwitcher(persona: persona)
+                .onChange(of: persona) { _ in
+                    Task { @MainActor in
+                        if viewModel.persona?.id != persona.id {
+                            viewModel.persona = persona.freeze()
+                        }
+//                        viewModel.refreshModelItems()
+                    }
+                }
+            
+            if let downloadable = viewModel.selectedDownloadable {
+                ModelControls(viewModel: viewModel, persona: persona, downloadable: downloadable)
+            }
+        }
+        .environmentObject(viewModel)
+    }
+}

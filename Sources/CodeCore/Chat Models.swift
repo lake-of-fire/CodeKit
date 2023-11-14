@@ -122,7 +122,6 @@ public class Persona: Object, UnownedSyncableObject {
     
     // Bot params
     @Persisted public var modelOptions = RealmSwift.List<String>()
-    @objc @Persisted public dynamic var selectedModel = ""
     @Persisted public var modelTemperature = 0.5
     @Persisted public var customInstructionForContext = ""
     @Persisted public var customInstructionForResponses = ""
@@ -141,7 +140,6 @@ public class Persona: Object, UnownedSyncableObject {
         case homepage
         case providedByExtension
         case modelOptions
-        case selectedModel
         case modelTemperature
         case customInstructionForContext
         case customInstructionForResponses
@@ -160,7 +158,6 @@ public class Persona: Object, UnownedSyncableObject {
         try container.encodeIfPresent(homepage, forKey: .homepage)
         try container.encodeIfPresent(providedByExtension?.id, forKey: .providedByExtension)
         try container.encode(modelOptions, forKey: .modelOptions)
-        try container.encode(selectedModel, forKey: .selectedModel)
         try container.encode(modelTemperature, forKey: .modelTemperature)
         try container.encode(customInstructionForContext, forKey: .customInstructionForContext)
         try container.encode(customInstructionForResponses, forKey: .customInstructionForResponses)
@@ -180,14 +177,6 @@ public class Persona: Object, UnownedSyncableObject {
             realm.add(user)
         }
         return user
-    }
-    
-    public func selectDefaultModelIfNeeded() {
-        if let modelOption = modelOptions.first, !modelOptions.contains(selectedModel) {
-            safeWrite(self) { _, participant in
-                selectedModel = modelOption
-            }
-        }
     }
 }
 

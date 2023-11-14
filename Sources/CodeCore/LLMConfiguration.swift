@@ -4,10 +4,8 @@ import BigSyncKit
 import SwiftUtilities
 import RealmSwiftGaps
 import SwiftUIDownloads
-import CodeCore
-import CodeRunner
 
-public class LLMConfiguration: Object, UnownedSyncableObject, DBSyncableObject {
+public class LLMConfiguration: Object, UnownedSyncableObject {
     @Persisted(primaryKey: true) public var id = UUID()
     @Persisted public var name = ""
     @Persisted public var organization = ""
@@ -17,6 +15,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject, DBSyncableObject {
     @Persisted public var modifiedAt = Date()
     @Persisted public var isDeleted = false
     
+    @Persisted public var defaultPriority = -1
     @Persisted public var providedByExtension: CodeExtension?
     @Persisted public var usedByPersona: Persona?
     @Persisted public var apiURL = ""
@@ -85,6 +84,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject, DBSyncableObject {
         case providedByExtension
         case usedByPersona
         case modelDownloadURL
+        case defaultPriority
         case apiURL
         case memoryRequirement
         case createdAt
@@ -119,6 +119,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject, DBSyncableObject {
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(modifiedAt, forKey: .modifiedAt)
         try container.encode(isDeleted, forKey: .isDeleted)
+        try container.encode(defaultPriority, forKey: .defaultPriority)
         try container.encode(modelInference, forKey: .modelInference)
         try container.encode(context, forKey: .context)
         try container.encode(nBatch, forKey: .nBatch)

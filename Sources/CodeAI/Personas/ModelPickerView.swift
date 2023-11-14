@@ -23,9 +23,9 @@ public struct ModelPickerView: View {
                     ForEach(viewModel.modelItems, id: \.0) { modelItem in
                         let (id, modelDisplayName) = modelItem
                         Text(modelDisplayName).tag(id as UUID?)
+                            .bold()
                     }
                 }
-                .background(.red)
             }
         }
         .onChange(of: persona.modifiedAt) { _ in

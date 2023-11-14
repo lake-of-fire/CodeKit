@@ -139,7 +139,7 @@ struct ModelControls: View {
 
 class ModelsControlsViewModel: ObservableObject {
     @Published var selectedDownloadable: Downloadable?
-    @PublishingAppStorage("downloadModels") var downloadModels: [String] = []
+    @PublishingAppStorage("downloadLLMModels") var downloadModels: [String] = []
     @Published var persona: Persona? = nil
     @Published var modelItems: [(UUID, String)] = []
     @Published var selectedModel: LLMConfiguration.ID?
@@ -345,6 +345,8 @@ class ModelsControlsViewModel: ObservableObject {
             if selectedDownload.fileSize == nil {
                 await selectedDownload.fetchRemoteFileSize()
             }
+        } else {
+            selectedDownloadable = selectedLLM?.downloadable
         }
         
         refreshDownloadMessage()

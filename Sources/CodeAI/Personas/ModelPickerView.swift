@@ -17,8 +17,6 @@ public struct ModelPickerView: View {
     }
     
     public var body: some View {
-//        Text(viewModel.selectedModel?.debugDescription ?? "empty")
-//        Text(persona.selectedModel?.id.uuidString ?? "")
         Group {
             if viewModel.selectedModel != nil {
                 Picker("Model", selection: $viewModel.selectedModel) {

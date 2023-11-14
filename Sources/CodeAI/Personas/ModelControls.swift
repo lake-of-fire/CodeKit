@@ -114,6 +114,11 @@ struct ModelControls: View {
                 FailureMessagesButton(messages: downloadController.failureMessages)
             }
         }
+        .task {
+            Task { @MainActor in
+                viewModel.blockableMessagingViewModel = blockableMessagingViewModel
+            }
+        }
     }
     
     private var modelDeleteButton: some View {
@@ -127,25 +132,6 @@ struct ModelControls: View {
         .buttonStyle(.borderless)
         .tint(.secondary)
     }
-    
-    private func refreshDownload() {
-        Task { @MainActor in
-            let realm = try! await Realm()
-            if let llm = realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == persona.id }).first, !llm.isModelInstalled, let downloadable = llm.downloadable {
-                if !viewModel.downloadModels.contains(downloadable.id) {
-                    blockableMessagingViewModel.messageSubmissionBlockMessage = "Download"
-                    blockableMessagingViewModel.messageSubmissionBlockedAction = {
-                        Task { @MainActor in
-                            viewModel.downloadModels = Array(Set(viewModel.downloadModels).union(Set([downloadable.id])))
-                        }
-                    }
-                } else {
-                    blockableMessagingViewModel.messageSubmissionBlockMessage = "Download"
-                    blockableMessagingViewModel.messageSubmissionBlockedAction = nil
-                }
-            }
-        }
-    }
 }
 
 class ModelsControlsViewModel: ObservableObject {
@@ -154,6 +140,8 @@ class ModelsControlsViewModel: ObservableObject {
     @Published var persona: Persona? = nil
     @Published var modelItems: [(UUID, String)] = []
     @Published var selectedModel: LLMConfiguration.ID?
+    
+    @Published var blockableMessagingViewModel: BlockableMessagingViewModel? = nil
     
     private var cancellables = Set<AnyCancellable>()
     
@@ -183,6 +171,14 @@ class ModelsControlsViewModel: ObservableObject {
                 case .error(let error):
                     print("Error: \(error)")
                 }
+            }
+            .store(in: &cancellables)
+        
+        $blockableMessagingViewModel
+            .compactMap { $0 }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.refreshDownloadMessage()
             }
             .store(in: &cancellables)
         
@@ -345,6 +341,28 @@ class ModelsControlsViewModel: ObservableObject {
             selectedDownloadable = selectedDownload
             if selectedDownload.fileSize == nil {
                 await selectedDownload.fetchRemoteFileSize()
+            }
+        }
+        
+        refreshDownloadMessage()
+    }
+    
+    private func refreshDownloadMessage() {
+        Task { @MainActor in
+            let realm = try! await Realm()
+            if let persona = persona, let llm = realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == persona.id }).first, !llm.isModelInstalled, let downloadable = llm.downloadable {
+                if !downloadModels.contains(downloadable.id) {
+                    blockableMessagingViewModel?.messageSubmissionBlockMessage = "Download"
+                    blockableMessagingViewModel?.messageSubmissionBlockedAction = {
+                        Task { @MainActor [weak self] in
+                            guard let self = self else { return }
+                            downloadModels = Array(Set(downloadModels).union(Set([downloadable.id])))
+                        }
+                    }
+                } else {
+                    blockableMessagingViewModel?.messageSubmissionBlockMessage = "Download"
+                    blockableMessagingViewModel?.messageSubmissionBlockedAction = nil
+                }
             }
         }
     }

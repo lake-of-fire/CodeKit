@@ -98,42 +98,12 @@ struct ModelControls: View {
     @EnvironmentObject private var blockableMessagingViewModel: BlockableMessagingViewModel
     
     var body: some View {
-        Group {
-            if let humanizedFileSize = downloadable.humanizedFileSize {
-                Text(humanizedFileSize)
-                    .font(.caption)
-                    .bold()
-                    .foregroundStyle(.secondary)
+        DownloadControls(downloadable: downloadable, downloadURLs: $viewModel.downloadModels)
+            .task {
+                Task { @MainActor in
+                    viewModel.blockableMessagingViewModel = blockableMessagingViewModel
+                }
             }
-            if downloadable.isActive {
-                DownloadProgressView(size: downloadProgressSize, downloadable: downloadable)
-            } else if downloadable.isFinishedDownloading {
-                modelDeleteButton
-            } else {
-                DownloadButton(downloadable: downloadable, downloadModels: $viewModel.downloadModels)
-                    .onChange(of: viewModel.selectedDownloadable) { downloadable in
-                    }
-                
-                FailureMessagesButton(messages: downloadController.failureMessages)
-            }
-        }
-        .task {
-            Task { @MainActor in
-                viewModel.blockableMessagingViewModel = blockableMessagingViewModel
-            }
-        }
-    }
-    
-    private var modelDeleteButton: some View {
-        Button {
-            viewModel.downloadModels = Array(Set(viewModel.downloadModels).subtracting(Set([downloadable.name])))
-            Task { try? await downloadController.delete(download: downloadable) }
-        } label: {
-            Image(systemName: "trash")
-                .font(.callout)
-        }
-        .buttonStyle(.borderless)
-        .tint(.secondary)
     }
 }
 
@@ -321,32 +291,41 @@ class ModelsControlsViewModel: ObservableObject {
             !$0.isDeleted && $0.usedByPersona.id == (persona?.id ?? UUID())
         }.first
         
-        // Start downloads
+        // Queue downloads
         var downloads = [Downloadable]()
         self.downloadModels = downloadModels
-        for modelName in downloadModels {
-            let download = realm.objects(LLMConfiguration.self).where {
-                !$0.isDeleted && $0.name == modelName
-                && !$0.providedByExtension.isDeleted
-                && $0.providedByExtension.package.isEnabled }.first?.downloadable
+        for modelURL in downloadModels {
+            var download = realm.objects(LLMConfiguration.self).where {
+                !$0.isDeleted && !$0.providedByExtension.isDeleted
+                && $0.providedByExtension.package.isEnabled }
+                .filter { $0.downloadable?.url.absoluteString == modelURL }
+                .first?.downloadable
+            if let existingSelectedDL = selectedDownloadable, existingSelectedDL.url == download?.url {
+                download = existingSelectedDL
+            }
+            if let existingDL = DownloadController.shared.assuredDownloads.first(where: { $0.url == download?.url }) {
+                download = existingDL
+            }
             if let download = download, selectedDownloadable == nil || selectedDownloadable?.url != download.url, download.url == selectedLLM?.downloadable?.url {
                 selectedDownloadable = download
             }
             if let download = download {
                 downloads.append(download)
             } else {
-                downloadModels.removeAll(where: { $0 == modelName })
+                downloadModels.removeAll(where: { $0 == modelURL })
             }
         }
         await DownloadController.shared.ensureDownloaded(Set(downloads))
         
-        if let selectedDownload = downloads.first(where: { $0.url == selectedLLM?.downloadable?.url }), selectedDownloadable?.id != selectedDownload.id {
-            selectedDownloadable = selectedDownload
-            if selectedDownload.fileSize == nil {
-                await selectedDownload.fetchRemoteFileSize()
+        if let selectedDownload = DownloadController.shared.assuredDownloads.first(where: { $0.url == selectedLLM?.downloadable?.url }) {
+            if selectedDownloadable?.id != selectedDownload.id {
+                selectedDownloadable = selectedDownload
+                if selectedDownload.fileSize == nil {
+                    await selectedDownload.fetchRemoteFileSize()
+                }
             }
-        } else {
-            selectedDownloadable = selectedLLM?.downloadable
+        } else if let download = selectedLLM?.downloadable, selectedDownloadable?.url != download.url {
+            selectedDownloadable = download
         }
         
         refreshDownloadMessage()
@@ -387,7 +366,7 @@ public struct ModelsControlsContainer: View {
     }
     
     public var body: some View {
-        HStack(spacing: 0) {
+        HStack {
             ModelSwitcher(persona: persona)
                 .onChange(of: persona) { _ in
                     Task { @MainActor in

@@ -25,6 +25,7 @@ let package = Package(
         .package(url: "https://github.com/lake-of-fire/SwiftGit2.git", branch: "main"),
         .package(url: "https://github.com/lake-of-fire/SwiftWhisperStream.git", branch: "master"),
         .package(url: "https://github.com/Tunous/DebouncedOnChange.git", branch: "main"),
+        .package(url: "https://github.com/objecthub/swift-markdownkit.git", branch: "master"),
     ],
     targets: [
         .target(
@@ -36,6 +37,7 @@ let package = Package(
                 .product(name: "FilesProvider", package: "FileProvider"),
                 .product(name: "SwiftUIDownloads", package: "SwiftUIDownloads"),
                 .product(name: "SwiftGit2", package: "SwiftGit2"),
+                .product(name: "MarkdownKit", package: "Swift-MarkdownKit"),
             ],
             resources: [
                 .copy("src/build"),

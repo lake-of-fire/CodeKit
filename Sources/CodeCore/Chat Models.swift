@@ -3,6 +3,7 @@ import RealmSwift
 import BigSyncKit
 import SwiftUtilities
 import RealmSwiftGaps
+import MarkdownKit
 
 public class Room: Object, UnownedSyncableObject {
     @Persisted(primaryKey: true) public var id = UUID()
@@ -253,6 +254,16 @@ public class Event: Object, UnownedSyncableObject {
             }
         }
     }
+    
+    public func makeAttributedString() -> NSAttributedString? {
+        let generator = AttributedStringGenerator(
+            fontSize: 12,
+            fontFamily: "SF Pro, sans-serif",
+            fontColor: Color.primary.toHex(),
+            h1Color: Color.primary.toHex())
+        let doc = MarkdownParser.standard.parse(content.trimmingCharacters(in: .whitespacesAndNewlines))
+        return generator.generate(doc: doc)
+    }
 }
 
 public class Link: Object, UnownedSyncableObject {
@@ -369,3 +380,19 @@ public class Link: Object, UnownedSyncableObject {
 //public class ConversationManager: ObservableObject {
 //    static func
 //}
+
+fileprivate extension Color {
+    func toHex() -> String {
+#if os(macOS)
+        guard let components = NSColor(self).cgColor.components else { return "" }
+#else
+        guard let components = UIColor(self).cgColor.components else { return "" }
+#endif
+        
+        let r = UInt8(components[0] * 255.0)
+        let g = UInt8(components[1] * 255.0)
+        let b = UInt8(components[2] * 255.0)
+        
+        return String(format: "#%02X%02X%02X", r, g, b)
+    }
+}

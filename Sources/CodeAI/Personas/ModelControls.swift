@@ -151,7 +151,9 @@ class ModelsControlsViewModel: ObservableObject {
             .compactMap { $0 }
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.refreshDownloadMessage()
+                Task { @MainActor [weak self] in
+                    self?.refreshDownloadMessage()
+                }
             }
             .store(in: &cancellables)
         
@@ -332,9 +334,12 @@ class ModelsControlsViewModel: ObservableObject {
     }
     
     private func refreshDownloadMessage() {
-        Task { @MainActor in
-            let realm = try! await Realm()
-            if let persona = persona, let llm = realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == persona.id }).first, !llm.isModelInstalled, let downloadable = llm.downloadable {
+        let realm = try! Realm()
+        if let persona = persona, let llm = realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == persona.id }).first {
+            if llm.isModelInstalled {
+                blockableMessagingViewModel?.messageSubmissionBlockMessage = nil
+                blockableMessagingViewModel?.messageSubmissionBlockedAction = nil
+            } else if let downloadable = llm.downloadable {
                 if !downloadModels.contains(downloadable.id) {
                     blockableMessagingViewModel?.messageSubmissionBlockMessage = "Download"
                     blockableMessagingViewModel?.messageSubmissionBlockedAction = {

@@ -9,7 +9,7 @@ public class CodeRunnerProxyConfiguration {
     public var hostsToProxy: [String]?
     public var rewriteHosts: [String: String]?
     public var requestModifiers: [String: ((URLRequest) throws -> URLRequest?)]?
-    public var responseModifiers: [String: ((WKURLSchemeTask, URLResponse?) async throws -> (URLResponse?, Data?))]?
+    public var responseModifiers: [String: ((URLRequest, URLResponse?) async throws -> (URLResponse?, Data?))]?
     public var responseDataModifiers: [String: ((URLSessionDataTask?, Data?) throws -> Data?)]?
 
     public init(

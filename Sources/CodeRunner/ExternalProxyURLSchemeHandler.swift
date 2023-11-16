@@ -23,7 +23,7 @@ extension ExternalProxyURLSchemeHandler: WKURLSchemeHandler {
     }
     
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
-        guard var request = urlRequestWithoutCustomScheme(from: urlSchemeTask.request), let proxiedHost = request.url?.host else {
+        guard let originalRequest = urlRequestWithoutCustomScheme(from: urlSchemeTask.request), let proxiedHost = originalRequest.url?.host else {
             urlSchemeTask.didFailWithError(CustomSchemeHandlerError.rejected)
             return
         }
@@ -32,10 +32,9 @@ extension ExternalProxyURLSchemeHandler: WKURLSchemeHandler {
             return
         }
         
+        var request = Optional(originalRequest)
         if let requestModifier = proxyConfiguration?.requestModifiers?[proxiedHost] {
-            if let newRequest = try? requestModifier(request) {
-                request = newRequest
-            }
+            request = try? requestModifier(originalRequest)
         }
         
         addSchemeTask(urlSchemeTask: urlSchemeTask)
@@ -80,6 +79,7 @@ private extension ExternalProxyURLSchemeHandler {
         return mutableRequest
     }
     
+    @MainActor
     func kickOffDataTask(request: URLRequest?, urlSchemeTask: WKURLSchemeTask) async {
 //        print("PROXIED REQUEST:")
 //        print(request.debugDescription)
@@ -161,6 +161,7 @@ private extension ExternalProxyURLSchemeHandler {
         callback.failure(CustomSchemeHandlerError.rejected)
     }
     
+    @MainActor
     private func responseCallback(urlSchemeTask: WKURLSchemeTask?, proxyConfiguration: CodeRunnerProxyConfiguration?, response: URLResponse?) async -> (URLResponse?, Data?) {
         guard let urlSchemeTask = urlSchemeTask else {
             return (response, nil)
@@ -168,7 +169,8 @@ private extension ExternalProxyURLSchemeHandler {
         
         var response = response
         var data: Data? = nil
-        if let proxiedHost = response?.url?.host ?? urlSchemeTask.request.url?.host, let responseModifier = proxyConfiguration?.responseModifiers?[proxiedHost], let (newResponse, newData) = try? await responseModifier(urlSchemeTask, response), let newResponse = newResponse {
+        let requestWithoutCustomScheme = urlRequestWithoutCustomScheme(from: urlSchemeTask.request) ?? urlSchemeTask.request
+        if let proxiedHost = response?.url?.host ?? requestWithoutCustomScheme.url?.host, let responseModifier = proxyConfiguration?.responseModifiers?[proxiedHost], let (newResponse, newData) = try? await responseModifier(requestWithoutCustomScheme, response), let newResponse = newResponse {
             response = newResponse
             data = newData
         }
@@ -226,7 +228,7 @@ private extension ExternalProxyURLSchemeHandler {
     }
     
     func schemeTaskIsActive(urlSchemeTask: WKURLSchemeTask) -> Bool {
-    assert(Thread.isMainThread)
+        assert(Thread.isMainThread)
         return activeSchemeTasks.contains(urlSchemeTask)
     }
     

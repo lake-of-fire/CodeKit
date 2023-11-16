@@ -70,10 +70,8 @@ final public class LLMModel: ObservableObject {
 //        model_context_param.useMMap = true
         
         let model_sample_params = ModelSampleParams(n_batch: Int32(llm.nBatch ?? 512), temp: Float(llm.temperature), top_k: Int32(llm.topK ?? 40), top_p: Float(llm.topP ?? 0.95), tfs_z: ModelSampleParams.default.tfs_z, typical_p: ModelSampleParams.default.typical_p, repeat_penalty: Float(llm.repeatPenalty ?? 1.1), repeat_last_n: Int32(llm.repeatLastN ?? 64), frequence_penalty: ModelSampleParams.default.frequence_penalty, presence_penalty: ModelSampleParams.default.presence_penalty, mirostat: ModelSampleParams.default.mirostat, mirostat_tau: ModelSampleParams.default.mirostat_tau, mirostat_eta: ModelSampleParams.default.mirostat_eta, penalize_nl: ModelSampleParams.default.penalize_nl, use_metal: llm.canUseMetal)
-        chat?.model.sampleParams = model_sample_params
         let threads = Int32(min(4, ProcessInfo().processorCount))
         let model_context_param = ModelAndContextParams(context: Int32(llm.context ?? 1024), parts: ModelAndContextParams.default.parts, seed: ModelAndContextParams.default.seed, numberOfThreads: threads, n_batch: Int32(llm.nBatch ?? 512), f16Kv: ModelAndContextParams.default.f16Kv, logitsAll: ModelAndContextParams.default.logitsAll, vocabOnly: ModelAndContextParams.default.vocabOnly, useMlock: false, useMMap: true, embedding: ModelAndContextParams.default.embedding)
-        chat?.model.contextParams = model_context_param
         
         do {
             if llm.modelInference == "llama" {
@@ -112,6 +110,9 @@ final public class LLMModel: ObservableObject {
         if chat?.model == nil || chat?.model.context == nil {
             return nil
         }
+        
+        chat?.model.sampleParams = model_sample_params
+        chat?.model.contextParams = model_context_param
         
         if !llm.reversePrompt.isEmpty {
             let splited_revrse_prompt = llm.reversePrompt.components(separatedBy: [";"])

@@ -306,7 +306,7 @@ class ModelsControlsViewModel: ObservableObject {
             if let existingDL = DownloadController.shared.assuredDownloads.first(where: { $0.url == download?.url }) {
                 download = existingDL
             }
-            if let download = download, selectedDownloadable == nil || selectedDownloadable?.url != download.url, download.url == selectedLLM?.downloadable?.url {
+            if let download = download, selectedDownloadable == nil || selectedDownloadable?.url != download.url, selectedLLM == nil || download.url == selectedLLM?.downloadable?.url {
                 selectedDownloadable = download
             }
             if let download = download {
@@ -379,6 +379,8 @@ public struct ModelsControlsContainer: View {
             
             if let downloadable = viewModel.selectedDownloadable {
                 ModelControls(viewModel: viewModel, persona: persona, downloadable: downloadable)
+//                Text(downloadable.debugUUID.uuidString.prefix(3))
+//                Text(downloadable.isActive.description)
             }
         }
         .environmentObject(viewModel)

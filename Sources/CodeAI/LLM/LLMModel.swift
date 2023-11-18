@@ -54,11 +54,12 @@ final public class LLMModel: ObservableObject {
 //        self.avalible_models = get_avalible_models()!
 //    }
     
+    @MainActor
     public func loadModel(llm: LLMConfiguration) async throws -> Bool? {
         guard let downloadable = llm.downloadable else { return nil }
         await DownloadController.shared.ensureDownloaded(download: downloadable)
         let modelURL = downloadable.localDestination
-        chat = AI(_modelPath: modelURL.absoluteString)
+        chat = AI(_modelPath: modelURL.standardizedFileURL.path)
         //            if (chat_config!["warm_prompt"] != nil){
         //                model_context_param.warm_prompt = chat_config!["warm_prompt"]! as! String
         //            }
@@ -69,14 +70,14 @@ final public class LLMModel: ObservableObject {
 //        model_context_param.useMlock = false
 //        model_context_param.useMMap = true
         
-        let model_sample_params = ModelSampleParams(n_batch: Int32(llm.nBatch ?? 512), temp: Float(llm.temperature), top_k: Int32(llm.topK ?? 40), top_p: Float(llm.topP ?? 0.95), tfs_z: ModelSampleParams.default.tfs_z, typical_p: ModelSampleParams.default.typical_p, repeat_penalty: Float(llm.repeatPenalty ?? 1.1), repeat_last_n: Int32(llm.repeatLastN ?? 64), frequence_penalty: ModelSampleParams.default.frequence_penalty, presence_penalty: ModelSampleParams.default.presence_penalty, mirostat: ModelSampleParams.default.mirostat, mirostat_tau: ModelSampleParams.default.mirostat_tau, mirostat_eta: ModelSampleParams.default.mirostat_eta, penalize_nl: ModelSampleParams.default.penalize_nl, use_metal: llm.canUseMetal)
+        let model_sample_params = ModelSampleParams(n_batch: Int32(llm.nBatch ?? 512), temp: Float(llm.temperature), top_k: Int32(llm.topK ?? 40), top_p: Float(llm.topP ?? 0.95), tfs_z: ModelSampleParams.default.tfs_z, typical_p: ModelSampleParams.default.typical_p, repeat_penalty: Float(llm.repeatPenalty ?? 1.1), repeat_last_n: Int32(llm.repeatLastN ?? 64), frequence_penalty: ModelSampleParams.default.frequence_penalty, presence_penalty: ModelSampleParams.default.presence_penalty, mirostat: ModelSampleParams.default.mirostat, mirostat_tau: ModelSampleParams.default.mirostat_tau, mirostat_eta: ModelSampleParams.default.mirostat_eta, penalize_nl: ModelSampleParams.default.penalize_nl)
         let threads = Int32(min(4, ProcessInfo().processorCount))
-        let model_context_param = ModelAndContextParams(context: Int32(llm.context ?? 1024), parts: ModelAndContextParams.default.parts, seed: ModelAndContextParams.default.seed, numberOfThreads: threads, n_batch: Int32(llm.nBatch ?? 512), f16Kv: ModelAndContextParams.default.f16Kv, logitsAll: ModelAndContextParams.default.logitsAll, vocabOnly: ModelAndContextParams.default.vocabOnly, useMlock: false, useMMap: true, embedding: ModelAndContextParams.default.embedding)
+        let model_context_param = ModelAndContextParams(context: Int32(llm.context ?? 1024), parts: ModelAndContextParams.default.parts, seed: ModelAndContextParams.default.seed, numberOfThreads: threads, n_batch: Int32(llm.nBatch ?? 512), f16Kv: ModelAndContextParams.default.f16Kv, logitsAll: ModelAndContextParams.default.logitsAll, vocabOnly: ModelAndContextParams.default.vocabOnly, useMlock: false, useMMap: true, useMetal: llm.canUseMetal, embedding: ModelAndContextParams.default.embedding)
         
         do {
             if llm.modelInference == "llama" {
                 if modelURL.pathExtension.lowercased() == "gguf" {
-                    try model_load_res = chat?.loadModel(ModelInference.LLama_gguf, contextParams: model_context_param)
+                    try model_load_res = await chat?.loadModel(ModelInference.LLama_gguf, contextParams: model_context_param)
                 }
 //                else {
 //                    try model_load_res = chat?.loadModel(ModelInference.LLama_bin, contextParams: model_context_param)
@@ -107,12 +108,12 @@ final public class LLMModel: ObservableObject {
             print(error)
             throw error
         }
-        if chat?.model == nil || chat?.model.context == nil {
-            return nil
-        }
+//        if chat?.model == nil || chat?.model.context == nil {
+//            return nil
+//        }
         
-        chat?.model.sampleParams = model_sample_params
-        chat?.model.contextParams = model_context_param
+        await chat?.model.sampleParams = model_sample_params
+        await chat?.model.contextParams = model_context_param
         
         if !llm.reversePrompt.isEmpty {
             let splited_revrse_prompt = llm.reversePrompt.components(separatedBy: [";"])
@@ -122,14 +123,14 @@ final public class LLMModel: ObservableObject {
                     continue
                 }
                 var exist = false
-                for r_word in chat!.model.reverse_prompt {
+                for r_word in await chat?.model.reverse_prompt ?? [] {
                     if r_word == trimed_word{
                         exist = true
                         break
                     }
                 }
                 if !exist {
-                    chat?.model.reverse_prompt.append(trimed_word)
+                    await chat?.model.reverse_prompt.append(trimed_word)
                 }
             }
         }
@@ -141,24 +142,24 @@ final public class LLMModel: ObservableObject {
         //Set prompt model if in config or try to set promt format by filename
         if (!llm.promptFormat.isEmpty && llm.promptFormat != "auto"
             && llm.promptFormat != "{{prompt}}") {
-            chat?.model.custom_prompt_format = llm.promptFormat
-            chat?.model.promptFormat = .Custom
+            await chat?.model.custom_prompt_format = llm.promptFormat
+            await chat?.model.promptFormat = .Custom
         } else {
             if modelLowercase.contains("dolly") {
-                self.chat?.model.promptFormat = .Dolly_b3;
+                await self.chat?.model.promptFormat = .Dolly_b3;
             } else if modelLowercase.contains("stable") {
-                chat?.model.promptFormat = .StableLM_Tuned
-                chat?.model.reverse_prompt.append("<|USER|>")
+                await chat?.model.promptFormat = .StableLM_Tuned
+                await chat?.model.reverse_prompt.append("<|USER|>")
             } else if (!llm.modelInference.isEmpty && llm.modelInference == "llama") ||
                         modelLowercase.contains("llama") ||
                         modelLowercase.contains("alpaca") ||
                         modelLowercase.contains("vic") {
                 //            self.chat?.model.promptStyle = .LLaMa
-                chat?.model.promptFormat = .LLaMa
+                await chat?.model.promptFormat = .LLaMa
             } else if modelLowercase.contains("rp-") && modelLowercase.contains("chat") {
-                chat?.model.promptFormat = .RedPajama_chat
+                await chat?.model.promptFormat = .RedPajama_chat
             } else {
-                chat?.model.promptFormat = .None
+                await chat?.model.promptFormat = .None
             }
         }
         return true
@@ -173,9 +174,10 @@ final public class LLMModel: ObservableObject {
 //        save_chat_history(self.messages,self.chat_name+".json")
     }
     
-    private func processPredictedStr(_ str: String, _ time: Double) -> Bool {
+    @MainActor
+    private func processPredictedStr(_ str: String, _ time: Double) async -> Bool {
         var check = true
-        for stop_word in chat?.model.reverse_prompt ?? [] {
+        for stop_word in await chat?.model.reverse_prompt ?? [] {
             if str == stop_word {
                 self.stopPrediction()
                 check = false
@@ -204,19 +206,22 @@ final public class LLMModel: ObservableObject {
         return check
     }
     
+    @MainActor
     public func send(message inputText: String, systemPrompt: String, messageHistory: [(String, String)], llm: LLMConfiguration) async throws -> String {
-        if llm.modelDownloadURL != modelURL || (llm.context ?? 1024) != chat?.model.contextParams.context ?? -1 || (llm.nBatch ?? 512) != chat?.model.contextParams.n_batch ?? -1 {
-            stopPrediction()
-            chat = nil
-            state = .none
-            text = ""
-            let old_typing = AI_typing
-            while AI_typing == old_typing {
-                AI_typing = -Int.random(in: 0..<100000)
+        await Task {
+            if llm.modelDownloadURL != modelURL || (llm.context ?? 1024) != chat?.context ?? -1 || (llm.nBatch ?? 512) != chat?.nBatch ?? -1 {
+                stopPrediction()
+                chat = nil
+                state = .none
+                text = ""
+                let old_typing = AI_typing
+                while AI_typing == old_typing {
+                    AI_typing = -Int.random(in: 0..<100000)
+                }
+            } else if predicting {
+                stopPrediction()
             }
-        } else if predicting {
-            stopPrediction()
-        }
+        }.value
         
         AI_typing += 1
         
@@ -244,33 +249,32 @@ final public class LLMModel: ObservableObject {
         predicting = true
         start_predicting_time = DispatchTime.now()
         
-        try chat?.reinitializeSystemPrompt(systemPrompt)
+        try await chat?.reinitializeSystemPrompt(systemPrompt)
         if !messageHistory.isEmpty {
-            try chat?.conversationHistory(allMessages: messageHistory)
+            try await chat?.conversationHistory(allMessages: messageHistory)
         }
-        try await withCheckedThrowingContinuation { continuation in
-            chat?.conversation(inputText, { [weak self] str, time in
-                _ = self?.processPredictedStr(str, time)
-            }, { [weak self] final_str in
-                guard let self = self else { return }
-                //                print(final_str)
-                AI_typing = 0
-                //                total_sec = Double((DispatchTime.now().uptimeNanoseconds - self.start_predicting_time.uptimeNanoseconds)) / 1_000_000_000
-                //                if chat_name == chat?.chatName && chat?.flagExit != true {
-                //                    message.state = .predicted(totalSecond: self.total_sec)
-                //                    self.messages[messageIndex] = message
-                //                } else {
-                //                    print("chat ended.")
-                //                }
-                predicting = false
-                numberOfTokens = 0
-                //                if final_str.hasPrefix("[Error]") {
-                //                    Message(sender: .system, state: .error, inputText: "Eval \(final_str)")
-                //                }
-                //                save_chat_history(self.messages,self.chat_name+".json")
-                continuation.resume()
-            })
+        let resp = await chat?.conversation(inputText, { [weak self] str, time in
+            Task {
+                _ = await self?.processPredictedStr(str, time)
+            }
+        })
+        AI_typing = 0
+        //                total_sec = Double((DispatchTime.now().uptimeNanoseconds - self.start_predicting_time.uptimeNanoseconds)) / 1_000_000_000
+        //                if chat_name == chat?.chatName && chat?.flagExit != true {
+        //                    message.state = .predicted(totalSecond: self.total_sec)
+        //                    self.messages[messageIndex] = message
+        //                } else {
+        //                    print("chat ended.")
+        //                }
+        predicting = false
+        numberOfTokens = 0
+        //                if final_str.hasPrefix("[Error]") {
+        //                    Message(sender: .system, state: .error, inputText: "Eval \(final_str)")
+        //                }
+        //                save_chat_history(self.messages,self.chat_name+".json")
+        guard chat?.flagExit != true, let resp = resp else {
+            throw LLMError.unknown(message: "No response or AI exited")
         }
-        return text
+        return resp
     }
 }

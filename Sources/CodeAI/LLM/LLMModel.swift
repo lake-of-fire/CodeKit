@@ -165,8 +165,8 @@ final public class LLMModel: ObservableObject {
         return true
     }
     
-    public func stopPrediction(is_error: Bool = false) {
-        chat?.flagExit = true
+    public func stopPrediction(is_error: Bool = false) async {
+        await chat?.stop()
         total_sec = Double((DispatchTime.now().uptimeNanoseconds - start_predicting_time.uptimeNanoseconds)) / 1_000_000_000
         predicting = false
         numberOfTokens = 0
@@ -179,19 +179,19 @@ final public class LLMModel: ObservableObject {
         var check = true
         for stop_word in await chat?.model.reverse_prompt ?? [] {
             if str == stop_word {
-                self.stopPrediction()
+                await stopPrediction()
                 check = false
                 break
             }
             if text.hasSuffix(stop_word) {
-                stopPrediction()
+                await stopPrediction()
                 check = false
                 if stop_word.count > 0 && text.count > stop_word.count {
                     text.removeLast(stop_word.count)
                 }
             }
         }
-        if check && chat?.flagExit != true {
+        if check && chat?.didFlagExit != true {
             text += str
             //                    self.AI_typing += str.count
             self.AI_typing += 1
@@ -210,7 +210,7 @@ final public class LLMModel: ObservableObject {
     public func send(message inputText: String, systemPrompt: String, messageHistory: [(String, String)], llm: LLMConfiguration) async throws -> String {
         await Task {
             if llm.modelDownloadURL != modelURL || (llm.context ?? 1024) != chat?.context ?? -1 || (llm.nBatch ?? 512) != chat?.nBatch ?? -1 {
-                stopPrediction()
+                await stopPrediction()
                 chat = nil
                 state = .none
                 text = ""
@@ -219,7 +219,7 @@ final public class LLMModel: ObservableObject {
                     AI_typing = -Int.random(in: 0..<100000)
                 }
             } else if predicting {
-                stopPrediction()
+                await stopPrediction()
             }
         }.value
         
@@ -231,18 +231,17 @@ final public class LLMModel: ObservableObject {
                 let res = try await loadModel(llm: llm)
                 if res == nil {
                     state = .completed
-                    stopPrediction(is_error: true)
+                    await stopPrediction(is_error: true)
                     throw LLMError.loadFailure
                 }
                 state = .completed
             } catch {
                 state = .completed
-                stopPrediction(is_error: true)
+                await stopPrediction(is_error: true)
                 throw error
             }
         }
         
-        chat?.flagExit = false
         text = ""
         numberOfTokens = 0
         total_sec = 0.0
@@ -253,7 +252,7 @@ final public class LLMModel: ObservableObject {
         if !messageHistory.isEmpty {
             try await chat?.conversationHistory(allMessages: messageHistory)
         }
-        let resp = await chat?.conversation(inputText, { [weak self] str, time in
+        let resp = try await chat?.conversation(inputText, { [weak self] str, time in
             Task {
                 _ = await self?.processPredictedStr(str, time)
             }
@@ -272,7 +271,7 @@ final public class LLMModel: ObservableObject {
         //                    Message(sender: .system, state: .error, inputText: "Eval \(final_str)")
         //                }
         //                save_chat_history(self.messages,self.chat_name+".json")
-        guard chat?.flagExit != true, let resp = resp else {
+        guard chat?.didFlagExit != true, let resp = resp else {
             throw LLMError.unknown(message: "No response or AI exited")
         }
         return resp

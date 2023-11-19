@@ -37,7 +37,7 @@ final public class LLMModel: ObservableObject {
     //    public var title:String = ""
     
     @Published var state: State = .none
-    @Published var text = ""
+//    @Published var text = ""
     
     public enum LLMError: Error {
         case loadFailure
@@ -115,26 +115,6 @@ final public class LLMModel: ObservableObject {
         await chat?.model.sampleParams = model_sample_params
         await chat?.model.contextParams = model_context_param
         
-        if !llm.reversePrompt.isEmpty {
-            let splited_revrse_prompt = llm.reversePrompt.components(separatedBy: [";"])
-            for word in splited_revrse_prompt{
-                let trimed_word = word.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimed_word == "" {
-                    continue
-                }
-                var exist = false
-                for r_word in await chat?.model.reverse_prompt ?? [] {
-                    if r_word == trimed_word{
-                        exist = true
-                        break
-                    }
-                }
-                if !exist {
-                    await chat?.model.reverse_prompt.append(trimed_word)
-                }
-            }
-        }
-
         print(model_load_res.debugDescription)
 //        print(model_sample_param)
 //        print(model_context_param)
@@ -175,24 +155,23 @@ final public class LLMModel: ObservableObject {
     }
     
     @MainActor
-    private func processPredictedStr(_ str: String, _ time: Double) async -> Bool {
-        var check = true
-        for stop_word in await chat?.model.reverse_prompt ?? [] {
-            if str == stop_word {
+    private func processPredictedStr(_ str: String, textSoFar: String, time: Double, stopWords: [String]) async -> (Bool, String) {
+        var check = false
+        var processedTextSoFar = textSoFar
+        for stopWord in stopWords {
+            if str == stopWord {
                 await stopPrediction()
-                check = false
+                check = true
                 break
-            }
-            if text.hasSuffix(stop_word) {
+            } else if textSoFar.hasSuffix(stopWord) {
                 await stopPrediction()
-                check = false
-                if stop_word.count > 0 && text.count > stop_word.count {
-                    text.removeLast(stop_word.count)
+                check = true
+                if stopWord.count > 0 && processedTextSoFar.count > stopWord.count {
+                    processedTextSoFar.removeLast(stopWord.count)
                 }
             }
         }
-        if check && chat?.didFlagExit != true {
-            text += str
+        if !check && chat?.didFlagExit != true {
             //                    self.AI_typing += str.count
             self.AI_typing += 1
             self.numberOfTokens += 1
@@ -200,10 +179,10 @@ final public class LLMModel: ObservableObject {
 //            if (self.numberOfTokens>self.maxToken){
 //                self.stop_predict()
 //            }
-        } else {
+//        } else {
 //            print("chat ended.")
         }
-        return check
+        return (check, processedTextSoFar)
     }
     
     @MainActor
@@ -213,7 +192,7 @@ final public class LLMModel: ObservableObject {
                 await stopPrediction()
                 chat = nil
                 state = .none
-                text = ""
+//                text = ""
                 let old_typing = AI_typing
                 while AI_typing == old_typing {
                     AI_typing = -Int.random(in: 0..<100000)
@@ -242,7 +221,7 @@ final public class LLMModel: ObservableObject {
             }
         }
         
-        text = ""
+//        text = ""
         numberOfTokens = 0
         total_sec = 0.0
         predicting = true
@@ -252,10 +231,10 @@ final public class LLMModel: ObservableObject {
         if !messageHistory.isEmpty {
             try await chat?.conversationHistory(allMessages: messageHistory)
         }
-        let resp = try await chat?.conversation(inputText, { [weak self] str, time in
-            Task {
-                _ = await self?.processPredictedStr(str, time)
-            }
+        
+        let stopWords = Array(llm.stopWords)
+        let resp = try await chat?.conversation(inputText, { [weak self] str, textSoFar, time in
+            return await self?.processPredictedStr(str, textSoFar: textSoFar, time: time, stopWords: stopWords)
         })
         AI_typing = 0
         //                total_sec = Double((DispatchTime.now().uptimeNanoseconds - self.start_predicting_time.uptimeNanoseconds)) / 1_000_000_000

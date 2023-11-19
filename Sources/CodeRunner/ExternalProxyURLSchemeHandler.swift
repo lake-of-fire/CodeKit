@@ -79,12 +79,19 @@ private extension ExternalProxyURLSchemeHandler {
         return mutableRequest
     }
     
+    func urlResponseWithRestoredURL(from response: HTTPURLResponse, originalRequest: URLRequest) -> HTTPURLResponse? {
+        if let url = originalRequest.url, let headers = response.allHeaderFields as? [String: String], let newResponse = HTTPURLResponse(url: url, statusCode: response.statusCode, httpVersion: "HTTP/1.1", headerFields: headers) {
+            return newResponse
+        }
+        return nil
+    }
+    
     @MainActor
     func kickOffDataTask(request: URLRequest?, urlSchemeTask: WKURLSchemeTask) async {
 //        print("PROXIED REQUEST:")
 //        print(request.debugDescription)
-//        print(request.httpMethod)
-//        print(request.allHTTPHeaderFields)
+//        print(request?.httpMethod)
+//        print(request?.allHTTPHeaderFields)
 //        if let data = request.httpBody {
 //            print(String(data: data, encoding: .utf8))
 //        } else {
@@ -170,8 +177,8 @@ private extension ExternalProxyURLSchemeHandler {
         var response = response
         var data: Data? = nil
         let requestWithoutCustomScheme = urlRequestWithoutCustomScheme(from: urlSchemeTask.request) ?? urlSchemeTask.request
-        if let proxiedHost = response?.url?.host ?? requestWithoutCustomScheme.url?.host, let responseModifier = proxyConfiguration?.responseModifiers?[proxiedHost], let (newResponse, newData) = try? await responseModifier(requestWithoutCustomScheme, response), let newResponse = newResponse {
-            response = newResponse
+        if let proxiedHost = response?.url?.host ?? requestWithoutCustomScheme.url?.host, let responseModifier = proxyConfiguration?.responseModifiers?[proxiedHost], let (newResponse, newData) = try? await responseModifier(requestWithoutCustomScheme, response), let newResponse = newResponse as? HTTPURLResponse, let restoredResponse = urlResponseWithRestoredURL(from: newResponse, originalRequest: urlSchemeTask.request) {
+            response = restoredResponse
             data = newData
         }
         

@@ -27,10 +27,10 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
     @Persisted public var context: Int?
     @Persisted public var nBatch: Int?
     @Persisted public var topK: Int?
-    @Persisted public var reversePrompt = ""
     @Persisted public var systemFormat = ""
     @Persisted public var systemPromptTemplate = ""
     @Persisted public var promptFormat = ""
+    @Persisted public var stopWords = RealmSwift.List<String>()
     @Persisted public var temperature: Float = 0.89999997615814209
     @Persisted public var topP: Float?
     @Persisted public var repeatLastN: Int?
@@ -90,11 +90,11 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
         case createdAt
         case modifiedAt
         case isDeleted
+        case stopWords
         case modelInference
         case context
         case nBatch
         case topK
-        case reversePrompt
         case systemFormat
         case systemPromptTemplate
         case promptFormat
@@ -115,6 +115,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
         try container.encodeIfPresent(usedByPersona?.id, forKey: .usedByPersona)
         try container.encode(modelDownloadURL, forKey: .modelDownloadURL)
         try container.encode(apiURL, forKey: .apiURL)
+        try container.encode(stopWords, forKey: .stopWords)
         try container.encode(memoryRequirement, forKey: .memoryRequirement)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(modifiedAt, forKey: .modifiedAt)
@@ -124,7 +125,6 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
         try container.encode(context, forKey: .context)
         try container.encode(nBatch, forKey: .nBatch)
         try container.encode(topK, forKey: .topK)
-        try container.encode(reversePrompt, forKey: .reversePrompt)
         try container.encode(systemPromptTemplate, forKey: .systemPromptTemplate)
         try container.encode(systemFormat, forKey: .systemFormat)
         try container.encode(promptFormat, forKey: .promptFormat)

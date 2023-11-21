@@ -60,8 +60,8 @@ public struct CodeRunner: View {
                 codeCoreViewModel.surrogateDocumentChanges = dbSync.surrogateDocumentChanges(collectionName:changedDocs:)
                 try? await run()
             }
-            .onChange(of: codeExtension.lastBuiltAt) { latestBuildHashAvailable in
-                guard latestBuildHashAvailable != nil else {
+            .onChange(of: codeExtension.lastBuiltAt) { lastBuiltAt in
+                guard lastBuiltAt != nil else {
                     return
                 }
                 Task { @MainActor in try? await run() }
@@ -83,6 +83,8 @@ public struct CodeRunner: View {
     func run() async throws {
         let (data, url) = try await loadLatestAvailableBuildResult()
         
+        print("### RUN \(url.absoluteString)")
+        
         if let package = codeExtension.package {
             codeCoreViewModel.additionalAllowHosts = Array(package.allowHosts)
         } else {
@@ -91,6 +93,13 @@ public struct CodeRunner: View {
         codeCoreViewModel.onLoadFailed = { error in
             print(error)
         }
+        
+        // To force a refresh in case run() is ran repeatedly
+        codeCoreViewModel.load(
+            htmlData: Data(),
+            baseURL: URL(string: "about:blank")!)
+        
+        codeCoreViewModel.onLoadSuccess = {
             codeCoreViewModel.onLoadSuccess = {
                 safeWrite(codeExtension) { _, codeExtension in
                     codeExtension.lastRunStartedAt = Date()
@@ -112,13 +121,12 @@ public struct CodeRunner: View {
                         }
                 }
             }
-//        print(String(data: data, encoding: .utf8)?.prefix(100) ?? "--")
+            //        print(String(data: data, encoding: .utf8)?.prefix(100) ?? "--")
             codeCoreViewModel.load(
-//        htmlData: "<html><body>\(Date().debugDescription)</body></html>".data(using: .utf8)!,
                 htmlData: data,
-//                htmlData: (String(data: data, encoding: .utf8)! + "<!-- \(Date().debugDescription) -->").data(using: .utf8)!,
                 baseURL: url)
-//        codeCoreViewModel.load(htmlData: "<html><body>\(Date().debugDescription)</body></html>".data(using: .utf8)!, baseURL: URL(string: "about:blank?test")!)
+            //        codeCoreViewModel.load(htmlData: "<html><body>\(Date().debugDescription)</body></html>".data(using: .utf8)!, baseURL: URL(string: "about:blank?test")!)
+        }
     }
 
     @MainActor

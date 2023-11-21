@@ -13,6 +13,7 @@ let package = Package(
         .library(name: "CodeRunner", targets: ["CodeRunner"]),
     ],
     dependencies: [
+        .package(url: "https://github.com/lake-of-fire/LakeKit.git", branch: "main"),
         .package(url: "https://github.com/lake-of-fire/RealmBinary.git", branch: "main"),
         .package(url: "https://github.com/lake-of-fire/opml", branch: "master"),
         .package(url: "https://github.com/lake-of-fire/FilePicker.git", branch: "main"),
@@ -73,6 +74,7 @@ let package = Package(
                 .product(name: "DebouncedOnChange", package: "DebouncedOnChange"),
                 .product(name: "SwiftLlama", package: "SwiftWhisperStream"),
                 .product(name: "SwiftWhisperStream", package: "SwiftWhisperStream"),
+                .product(name: "LakeKit", package: "LakeKit"),
             ],
             swiftSettings: [.interoperabilityMode(.Cxx)]),
         .target(

@@ -551,11 +551,13 @@ public extension CodePackageRepository {
             guard let resultPageHTML = resultPageHTML as? String else {
                 throw CodeError.unknownError
             }
-            _ = try await store(codeExtension: codeExtension, buildResultHTML: resultPageHTML, forSources: sourcePackage)
+            let fileChanged = try await store(codeExtension: codeExtension, buildResultHTML: resultPageHTML, forSources: sourcePackage)
             safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
                 codeExtension.buildRequested = false
                 codeExtension.isBuilding = false
-                codeExtension.lastBuiltAt = Date()
+                if fileChanged {
+                    codeExtension.lastBuiltAt = Date()
+                }
             }
         } catch {
             safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
@@ -619,17 +621,24 @@ public extension CodePackageRepository {
             script: script)
     }
 
+    /// Returns whether the file changed.
     @MainActor
-    func store(codeExtension: CodeExtension, buildResultHTML: String, forSources sourcePackage: SourcePackage) async throws -> URL {
+    func store(codeExtension: CodeExtension, buildResultHTML: String, forSources sourcePackage: SourcePackage) async throws -> Bool {
         let buildDirectoryURL = try await createBuildDirectoryIfNeeded(codeExtension: codeExtension)
         let buildHash = try await Self.buildHash(sourcePackage: sourcePackage)
         guard !codeExtension.name.isEmpty, let workspaceStorage = workspaceStorage, let resultData = buildResultHTML.data(using: .utf8), let storageURL = codeExtension.buildResultStorageURL(forBuildHash: buildHash) else {
             throw CodeExtensionError.unknownError
         }
+        if try await workspaceStorage.fileExists(at: storageURL) {
+            let existingContent = try await workspaceStorage.contents(at: storageURL)
+            if existingContent == resultData {
+                return false
+            }
+        }
         try await workspaceStorage.write(at: storageURL, content: resultData, atomically: true, overwrite: true)
         try await refreshBuildStatus(codeExtension: codeExtension)
         try await removeAllExtensionBuildsFromStorage(codeExtension: codeExtension, excludingBuildHash: buildHash)
-        return buildDirectoryURL
+        return true
     }
     
     @MainActor

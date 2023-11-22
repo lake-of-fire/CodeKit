@@ -55,15 +55,14 @@ public struct CodeRunner: View {
                     guard let packageDir = codeExtension.package?.directoryURL, let directoryURL = codeExtension.directoryURL else { return }
                     workspaceStorage = WorkspaceStorage(url: packageDir, isDirectoryMonitored: false)
                     await workspaceStorage?.updateDirectory(url: directoryURL)
+                    
+                    codeCoreViewModel.surrogateDocumentChanges = dbSync.surrogateDocumentChanges(collectionName:changedDocs:)
+                    
+                    try? await run()
                 }
-
-                codeCoreViewModel.surrogateDocumentChanges = dbSync.surrogateDocumentChanges(collectionName:changedDocs:)
-                try? await run()
             }
             .onChange(of: codeExtension.lastBuiltAt) { lastBuiltAt in
-                guard lastBuiltAt != nil else {
-                    return
-                }
+                guard lastBuiltAt != nil else { return }
                 Task { @MainActor in try? await run() }
             }
     }
@@ -132,6 +131,7 @@ public struct CodeRunner: View {
     @MainActor
     func loadLatestAvailableBuildResult() async throws -> (Data, URL) {
         guard let workspaceStorage = workspaceStorage, let buildResultStorageURL = codeExtension.latestBuildResultStorageURL, let buildResultPageURL = codeExtension.buildResultPageURL else {
+            print("Error: No available build result.")
             throw CodeError.unknownError
         }
         let resultData = try await workspaceStorage.contents(at: buildResultStorageURL)

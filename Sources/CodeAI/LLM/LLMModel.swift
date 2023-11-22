@@ -54,6 +54,11 @@ final public class LLMModel: ObservableObject {
 //        self.avalible_models = get_avalible_models()!
 //    }
     
+    private func refreshModelSampleParams(llm: LLMConfiguration) async {
+        let model_sample_params = ModelSampleParams(n_batch: Int32(llm.nBatch ?? 512), temp: Float(llm.temperature), top_k: Int32(llm.topK ?? 40), top_p: Float(llm.topP ?? 0.95), tfs_z: ModelSampleParams.default.tfs_z, typical_p: ModelSampleParams.default.typical_p, repeat_penalty: Float(llm.repeatPenalty ?? 1.1), repeat_last_n: Int32(llm.repeatLastN ?? 64), frequence_penalty: ModelSampleParams.default.frequence_penalty, presence_penalty: ModelSampleParams.default.presence_penalty, mirostat: ModelSampleParams.default.mirostat, mirostat_tau: ModelSampleParams.default.mirostat_tau, mirostat_eta: ModelSampleParams.default.mirostat_eta, penalize_nl: ModelSampleParams.default.penalize_nl)
+        await chat?.model.sampleParams = model_sample_params
+    }
+    
     @MainActor
     public func loadModel(llm: LLMConfiguration) async throws -> Bool? {
         guard let downloadable = llm.downloadable else { return nil }
@@ -70,7 +75,6 @@ final public class LLMModel: ObservableObject {
 //        model_context_param.useMlock = false
 //        model_context_param.useMMap = true
         
-        let model_sample_params = ModelSampleParams(n_batch: Int32(llm.nBatch ?? 512), temp: Float(llm.temperature), top_k: Int32(llm.topK ?? 40), top_p: Float(llm.topP ?? 0.95), tfs_z: ModelSampleParams.default.tfs_z, typical_p: ModelSampleParams.default.typical_p, repeat_penalty: Float(llm.repeatPenalty ?? 1.1), repeat_last_n: Int32(llm.repeatLastN ?? 64), frequence_penalty: ModelSampleParams.default.frequence_penalty, presence_penalty: ModelSampleParams.default.presence_penalty, mirostat: ModelSampleParams.default.mirostat, mirostat_tau: ModelSampleParams.default.mirostat_tau, mirostat_eta: ModelSampleParams.default.mirostat_eta, penalize_nl: ModelSampleParams.default.penalize_nl)
         let threads = Int32(min(4, ProcessInfo().processorCount))
         let model_context_param = ModelAndContextParams(context: Int32(llm.context ?? 1024), parts: ModelAndContextParams.default.parts, seed: ModelAndContextParams.default.seed, numberOfThreads: threads, n_batch: Int32(llm.nBatch ?? 512), f16Kv: ModelAndContextParams.default.f16Kv, logitsAll: ModelAndContextParams.default.logitsAll, vocabOnly: ModelAndContextParams.default.vocabOnly, useMlock: false, useMMap: true, useMetal: llm.canUseMetal, embedding: ModelAndContextParams.default.embedding)
         
@@ -112,12 +116,9 @@ final public class LLMModel: ObservableObject {
 //            return nil
 //        }
         
-        await chat?.model.sampleParams = model_sample_params
+        await refreshModelSampleParams(llm: llm)
         await chat?.model.contextParams = model_context_param
         
-        print(model_load_res.debugDescription)
-//        print(model_sample_param)
-//        print(model_context_param)
         let modelLowercase = modelURL.deletingPathExtension().lastPathComponent.lowercased()
         //Set prompt model if in config or try to set promt format by filename
         if (!llm.promptFormat.isEmpty && llm.promptFormat != "auto"
@@ -165,7 +166,7 @@ final public class LLMModel: ObservableObject {
                 break
             } else if textSoFar.hasSuffix(stopWord) {
                 await stopPrediction()
-//                check = true
+                check = true
                 if stopWord.count > 0 && processedTextSoFar.count > stopWord.count {
                     processedTextSoFar.removeLast(stopWord.count)
                 }
@@ -221,6 +222,10 @@ final public class LLMModel: ObservableObject {
             }
         }
         
+        await refreshModelSampleParams(llm: llm)
+        await print(chat?.model.contextParams)
+        await print(chat?.model.sampleParams)
+        
 //        text = ""
         numberOfTokens = 0
         total_sec = 0.0
@@ -236,6 +241,7 @@ final public class LLMModel: ObservableObject {
         let resp = try await chat?.conversation(inputText, { [weak self] str, textSoFar, time in
             return await self?.processPredictedStr(str, textSoFar: textSoFar, time: time, stopWords: stopWords)
         })
+        print("## GOT RESP: \(resp ?? "[no resp]")")
         AI_typing = 0
         //                total_sec = Double((DispatchTime.now().uptimeNanoseconds - self.start_predicting_time.uptimeNanoseconds)) / 1_000_000_000
         //                if chat_name == chat?.chatName && chat?.flagExit != true {
@@ -251,6 +257,7 @@ final public class LLMModel: ObservableObject {
         //                }
         //                save_chat_history(self.messages,self.chat_name+".json")
         guard chat?.didFlagExit != true, let resp = resp else {
+            print("No response or AI exited. Flag Exit: \(chat?.didFlagExit.description ?? "?")")
             throw LLMError.unknown(message: "No response or AI exited")
         }
         return resp

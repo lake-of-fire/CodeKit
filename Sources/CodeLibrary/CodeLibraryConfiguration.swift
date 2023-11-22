@@ -11,7 +11,7 @@ import CodeCore
 
 public class CodeLibraryConfiguration: ObservableObject {
     public static var securityApplicationGroupIdentifier = ""
-    public static var downloadstDirectoryName = "Downloads/code-library-configuration"
+    public static var downloadsDirectoryName = "Downloads/code-library-configuration"
     public static var opmlURLs = [URL]()
 
     public var downloadables: Set<Downloadable> {
@@ -20,7 +20,7 @@ public class CodeLibraryConfiguration: ObservableObject {
             Downloadable(
                 name: "App Data (\(url.lastPathComponent))",
                 groupIdentifier: Self.securityApplicationGroupIdentifier,
-                parentDirectoryName: Self.downloadstDirectoryName,
+                parentDirectoryName: Self.downloadsDirectoryName,
                 downloadMirrors: [url])
         })
     }

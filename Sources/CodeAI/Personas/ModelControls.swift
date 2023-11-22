@@ -217,15 +217,16 @@ class ModelsControlsViewModel: ObservableObject {
         let modelOptions = modelOptions ?? self.modelOptions
         let realm = try! Realm()
         
-        var memory = MTLCopyAllDevices().sorted {
+        var safelyAvailableMemory = UInt64(0.8 * Double(MTLCopyAllDevices().sorted {
             $0.recommendedMaxWorkingSetSize > $1.recommendedMaxWorkingSetSize
-        } .first?.recommendedMaxWorkingSetSize ?? 0
+        } .first?.recommendedMaxWorkingSetSize ?? 0))
+        
         if LLMModel.shared.state != .none {
             let active = realm.objects(LLMConfiguration.self).where({
                 !$0.isDeleted && $0.usedByPersona != nil
             }).filter({ $0.downloadable?.localDestination.path == LLMModel.shared.modelURL })
             let activeMemory = UInt64(active.compactMap { $0.memoryRequirement }.reduce(0, +))
-            memory += activeMemory
+            safelyAvailableMemory += activeMemory
         }
         
         // Default model
@@ -233,7 +234,7 @@ class ModelsControlsViewModel: ObservableObject {
             selectedModel = llm.id
         } else {
             if let llm = realm.objects(LLMConfiguration.self).where({
-                !$0.isDeleted && $0.usedByPersona == nil && ($0.memoryRequirement == nil || $0.memoryRequirement <= Int(memory))
+                !$0.isDeleted && $0.usedByPersona == nil && ($0.memoryRequirement == nil || $0.memoryRequirement <= Int(safelyAvailableMemory))
             }).sorted(by: \.defaultPriority, ascending: false).first {
                 safeWrite(llm) { _, llm in
                     llm.usedByPersona = persona
@@ -273,9 +274,9 @@ class ModelsControlsViewModel: ObservableObject {
                 }
                 if LLMModel.shared.state == .none || LLMModel.shared.modelURL == llm.downloadable?.localDestination.path,
                    let memoryRequirement = llm.memoryRequirement {
-                    return memory >= memoryRequirement
+                    return safelyAvailableMemory >= memoryRequirement
                 } else if LLMModel.shared.state != .none, (llm.memoryRequirement ?? 0) > 0 {
-                    return memory >= llm.memoryRequirement ?? 0
+                    return safelyAvailableMemory >= llm.memoryRequirement ?? 0
                 }
                 return true
             }

@@ -6,6 +6,8 @@ import RealmSwiftGaps
 import SwiftUIDownloads
 
 public class LLMConfiguration: Object, UnownedSyncableObject {
+    public static var securityApplicationGroupIdentifier = ""
+    
     @Persisted(primaryKey: true) public var id = UUID()
     @Persisted public var name = ""
     @Persisted public var organization = ""
@@ -42,6 +44,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
         guard let url = URL(string: modelDownloadURL) else { return nil }
         return Downloadable(
             name: name,
+            groupIdentifier: Self.securityApplicationGroupIdentifier,
             parentDirectoryName: "Downloads/llm-models",
             filename: url.lastPathComponent,
             downloadMirrors: [url])

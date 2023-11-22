@@ -165,7 +165,7 @@ final public class LLMModel: ObservableObject {
                 break
             } else if textSoFar.hasSuffix(stopWord) {
                 await stopPrediction()
-                check = true
+//                check = true
                 if stopWord.count > 0 && processedTextSoFar.count > stopWord.count {
                     processedTextSoFar.removeLast(stopWord.count)
                 }

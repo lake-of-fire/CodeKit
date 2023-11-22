@@ -60,8 +60,10 @@ final public class LLMModel: ObservableObject {
     }
     
     @MainActor
-    public func loadModel(llm: LLMConfiguration) async throws -> Bool? {
-        guard let downloadable = llm.downloadable else { return nil }
+    public func loadModel(llm: LLMConfiguration) async throws {
+        guard let downloadable = llm.downloadable else {
+            throw ModelError.modelNotFound(llm.name)
+        }
         await DownloadController.shared.ensureDownloaded(download: downloadable)
         let modelURL = downloadable.localDestination
         chat = AI(_modelPath: modelURL.standardizedFileURL.path)
@@ -81,32 +83,10 @@ final public class LLMModel: ObservableObject {
         do {
             if llm.modelInference == "llama" {
                 if modelURL.pathExtension.lowercased() == "gguf" {
-                    try model_load_res = await chat?.loadModel(ModelInference.LLama_gguf, contextParams: model_context_param)
+                    try await chat?.loadModel(ModelInference.LLama_gguf, contextParams: model_context_param)
+                } else {
+                    throw ModelLoadError.modelLoadError
                 }
-//                else {
-//                    try model_load_res = chat?.loadModel(ModelInference.LLama_bin, contextParams: model_context_param)
-//                }
-                //            } else if llm.modelInference == "gptneox" {
-                //                    if modelURL.hasSuffix(".gguf"){
-                //                        try model_load_res = self.chat?.loadModel(ModelInference.LLama_gguf,contextParams: model_context_param)
-                //                    }else{
-                //                        try model_load_res = self.chat?.loadModel(ModelInference.GPTNeox,contextParams: model_context_param)
-                //                    }
-//            } else if modelURL.pathExtension.lowercased() == "rwkv" {
-//                try model_load_res = chat?.loadModel(ModelInference.RWKV,contextParams: model_context_param)
-//                //                } else if modelURL.pathExtension.lowercased() == "gpt2" {
-//                //                    try model_load_res = self.chat?.loadModel(ModelInference.GPT2,contextParams: model_context_param)
-//                //                    self.chat?.model.reverse_prompt.append("<|endoftext|>")
-//            } else if llm.modelInference == "replit" {
-//                try model_load_res = self.chat?.loadModel(ModelInference.Replit, contextParams: model_context_param)
-//                self.chat?.model.reverse_prompt.append("<|endoftext|>")
-//            } else if llm.modelInference == "starcoder" {
-//                if modelURL.pathExtension == "gguf" {
-//                    try model_load_res = chat?.loadModel(ModelInference.LLama_gguf, contextParams: model_context_param)
-//                } else {
-//                    try model_load_res = chat?.loadModel(ModelInference.Starcoder, contextParams: model_context_param)
-//                }
-//                chat?.model.reverse_prompt.append("<|endoftext|>")
             }
         } catch {
             print(error)
@@ -118,35 +98,12 @@ final public class LLMModel: ObservableObject {
         
         await refreshModelSampleParams(llm: llm)
         await chat?.model.contextParams = model_context_param
-        
-        let modelLowercase = modelURL.deletingPathExtension().lastPathComponent.lowercased()
-        //Set prompt model if in config or try to set promt format by filename
-        if (!llm.promptFormat.isEmpty && llm.promptFormat != "auto"
-            && llm.promptFormat != "{{prompt}}") {
-            await chat?.model.custom_prompt_format = llm.promptFormat
-            await chat?.model.promptFormat = .Custom
-        } else {
-            if modelLowercase.contains("dolly") {
-                await self.chat?.model.promptFormat = .Dolly_b3;
-            } else if modelLowercase.contains("stable") {
-                await chat?.model.promptFormat = .StableLM_Tuned
-                await chat?.model.reverse_prompt.append("<|USER|>")
-            } else if (!llm.modelInference.isEmpty && llm.modelInference == "llama") ||
-                        modelLowercase.contains("llama") ||
-                        modelLowercase.contains("alpaca") ||
-                        modelLowercase.contains("vic") {
-                //            self.chat?.model.promptStyle = .LLaMa
-                await chat?.model.promptFormat = .LLaMa
-            } else if modelLowercase.contains("rp-") && modelLowercase.contains("chat") {
-                await chat?.model.promptFormat = .RedPajama_chat
-            } else {
-                await chat?.model.promptFormat = .None
-            }
-        }
-        return true
+        await chat?.model.promptFormat = llm.promptFormat
+        await chat?.model.systemFormat = llm.systemFormat
     }
     
-    public func stopPrediction(is_error: Bool = false) async {
+    public func stopPrediction(isError: Bool = false, isStopWord: Bool = false) async {
+        chat?.didFlagExitDueToStopWord = isStopWord
         await chat?.stop()
         total_sec = Double((DispatchTime.now().uptimeNanoseconds - start_predicting_time.uptimeNanoseconds)) / 1_000_000_000
         predicting = false
@@ -161,11 +118,11 @@ final public class LLMModel: ObservableObject {
         var processedTextSoFar = textSoFar
         for stopWord in stopWords {
             if str == stopWord {
-                await stopPrediction()
+                await stopPrediction(isStopWord: true)
                 check = true
                 break
             } else if textSoFar.hasSuffix(stopWord) {
-                await stopPrediction()
+                await stopPrediction(isStopWord: true)
                 check = true
                 if stopWord.count > 0 && processedTextSoFar.count > stopWord.count {
                     processedTextSoFar.removeLast(stopWord.count)
@@ -208,16 +165,11 @@ final public class LLMModel: ObservableObject {
         if chat == nil {
             state = .loading
             do {
-                let res = try await loadModel(llm: llm)
-                if res == nil {
-                    state = .completed
-                    await stopPrediction(is_error: true)
-                    throw LLMError.loadFailure
-                }
+                try await loadModel(llm: llm)
                 state = .completed
             } catch {
                 state = .completed
-                await stopPrediction(is_error: true)
+                await stopPrediction(isError: true)
                 throw error
             }
         }
@@ -225,6 +177,8 @@ final public class LLMModel: ObservableObject {
         await refreshModelSampleParams(llm: llm)
         await print(chat?.model.contextParams)
         await print(chat?.model.sampleParams)
+        await print(chat?.model.systemFormat)
+        await print(chat?.model.promptFormat)
         
 //        text = ""
         numberOfTokens = 0
@@ -256,8 +210,7 @@ final public class LLMModel: ObservableObject {
         //                    Message(sender: .system, state: .error, inputText: "Eval \(final_str)")
         //                }
         //                save_chat_history(self.messages,self.chat_name+".json")
-        guard chat?.didFlagExit != true, let resp = resp else {
-            print("No response or AI exited. Flag Exit: \(chat?.didFlagExit.description ?? "?")")
+        guard (chat?.didFlagExitDueToStopWord == true || chat?.didFlagExit != true), let resp = resp else {
             throw LLMError.unknown(message: "No response or AI exited")
         }
         return resp

@@ -121,6 +121,8 @@ public class Persona: Object, UnownedSyncableObject {
     @Persisted public var homepage: URL?
     @Persisted public var providedByExtension: CodeExtension?
     
+    @Persisted public var isTyping = false
+    
     // Bot params
     @Persisted public var modelOptions = RealmSwift.List<String>()
     @Persisted public var modelTemperature = 0.5
@@ -139,6 +141,7 @@ public class Persona: Object, UnownedSyncableObject {
         case tint
         case online
         case homepage
+        case isTyping
         case providedByExtension
         case modelOptions
         case modelTemperature
@@ -156,6 +159,7 @@ public class Persona: Object, UnownedSyncableObject {
         try container.encode(name, forKey: .name)
         try container.encode(iconSymbol, forKey: .iconSymbol)
         try container.encode(tint, forKey: .tint)
+        try container.encode(isTyping, forKey: .isTyping)
         try container.encodeIfPresent(homepage, forKey: .homepage)
         try container.encodeIfPresent(providedByExtension?.id, forKey: .providedByExtension)
         try container.encode(modelOptions, forKey: .modelOptions)

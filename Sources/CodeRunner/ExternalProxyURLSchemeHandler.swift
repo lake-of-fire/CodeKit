@@ -33,8 +33,10 @@ extension ExternalProxyURLSchemeHandler: WKURLSchemeHandler {
         }
         
         var request = Optional(originalRequest)
-        if let requestModifier = proxyConfiguration?.requestModifiers?[proxiedHost] {
-            request = try? requestModifier(originalRequest)
+        for host in [proxiedHost, "*"] {
+            if let requestModifier = proxyConfiguration?.requestModifiers?[host] {
+                request = try? requestModifier(originalRequest)
+            }
         }
         
         addSchemeTask(urlSchemeTask: urlSchemeTask)
@@ -142,6 +144,7 @@ private extension ExternalProxyURLSchemeHandler {
                 self.removeSessionTask(request: urlSchemeTask.request)
                 urlSchemeTask.didFailWithError(error)
                 self.removeSchemeTask(urlSchemeTask: urlSchemeTask)
+                self.proxyConfiguration?.onFailure?(urlSchemeTask.request)
             }
         })
         
@@ -177,6 +180,11 @@ private extension ExternalProxyURLSchemeHandler {
         var response = response
         var data: Data? = nil
         let requestWithoutCustomScheme = urlRequestWithoutCustomScheme(from: urlSchemeTask.request) ?? urlSchemeTask.request
+        
+        if let responseModifier = proxyConfiguration?.responseModifiers?["*"], let (newResponse, newData) = try? await responseModifier(requestWithoutCustomScheme, response) {
+            response = newResponse
+            data = newData
+        }
         if let proxiedHost = response?.url?.host ?? requestWithoutCustomScheme.url?.host, let responseModifier = proxyConfiguration?.responseModifiers?[proxiedHost], let (newResponse, newData) = try? await responseModifier(requestWithoutCustomScheme, response), let newResponse = newResponse as? HTTPURLResponse, let restoredResponse = urlResponseWithRestoredURL(from: newResponse, originalRequest: urlSchemeTask.request) {
             response = restoredResponse
             data = newData
@@ -225,8 +233,10 @@ private extension ExternalProxyURLSchemeHandler {
             return
         }
         
-        // code://code/load/api.openai.com/v1/chat/completions
         var data = data
+        if let responseDataModifier = proxyConfiguration?.responseDataModifiers?["*"], let newData = try? responseDataModifier(dataTask, data) {
+            data = newData
+        }
         if let proxiedHost = urlRequestWithoutCustomScheme(from: urlSchemeTask.request)?.url?.host, let responseDataModifier = proxyConfiguration?.responseDataModifiers?[proxiedHost], let newData = try? responseDataModifier(dataTask, data) {
             data = newData
         }

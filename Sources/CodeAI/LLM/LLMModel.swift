@@ -175,10 +175,10 @@ final public class LLMModel: ObservableObject {
         }
         
         await refreshModelSampleParams(llm: llm)
-        await print(chat?.model.contextParams)
-        await print(chat?.model.sampleParams)
-        await print(chat?.model.systemFormat)
-        await print(chat?.model.promptFormat)
+//        await print(chat?.model.contextParams)
+//        await print(chat?.model.sampleParams)
+//        await print(chat?.model.systemFormat)
+//        await print(chat?.model.promptFormat)
         
 //        text = ""
         numberOfTokens = 0

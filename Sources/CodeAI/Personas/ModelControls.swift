@@ -374,7 +374,12 @@ public struct ModelsControlsContainer: View {
     public var body: some View {
         HStack {
             ModelSwitcher(persona: persona)
-                .onChange(of: persona) { _ in
+                .task {
+                    Task { @MainActor in
+                        viewModel.persona = persona.freeze()
+                    }
+                }
+                .onChange(of: persona) { persona in
                     Task { @MainActor in
                         if viewModel.persona?.id != persona.id {
                             viewModel.persona = persona.freeze()

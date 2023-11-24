@@ -67,9 +67,11 @@ struct ModelSwitcher: View {
             if persona.modelOptions.count > 4 {
                 ModelPickerView(persona: persona)
                     .pickerStyle(.menu)
+#if os(macOS)
                     .introspect(.picker(style: .menu), on: .macOS(.v12...)) { picker in
                         picker.isBordered = false
                     }
+#endif
                     .fixedSize()
             } else {
                 ModelPickerView(persona: persona)
@@ -217,9 +219,14 @@ class ModelsControlsViewModel: ObservableObject {
         let modelOptions = modelOptions ?? self.modelOptions
         let realm = try! Realm()
         
+#if os(macOS)
         var safelyAvailableMemory = UInt64(0.8 * Double(MTLCopyAllDevices().sorted {
             $0.recommendedMaxWorkingSetSize > $1.recommendedMaxWorkingSetSize
         } .first?.recommendedMaxWorkingSetSize ?? 0))
+#else
+        let metalDevice = MTLCreateSystemDefaultDevice()
+        var safelyAvailableMemory = UInt64(0.8 * Double(metalDevice?.recommendedMaxWorkingSetSize ?? 0))
+#endif
         
         if LLMModel.shared.state != .none {
             let active = realm.objects(LLMConfiguration.self).where({

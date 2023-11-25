@@ -379,7 +379,7 @@ public struct ModelsControlsContainer: View {
     }
     
     public var body: some View {
-        HStack {
+        Group {
             ModelSwitcher(persona: persona)
                 .task {
                     Task { @MainActor in

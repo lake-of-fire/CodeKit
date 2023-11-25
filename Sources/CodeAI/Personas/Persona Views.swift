@@ -56,31 +56,58 @@ public struct PersonaStyleIcon: View {
 }
 
 public struct PersonaStyleButton: View {
+    let title: String
     var iconSymbol: String? = nil
     var sfSymbol: String? = nil
+    let size: CGFloat
     let tint: Color
     var isFilled = true
+    var hasBorder = true
     let action: (() -> Void)
+    
+    let borderGapWidth: CGFloat = 3
+    let borderWidth: CGFloat = 1
+    
+    var buttonLabel: some View {
+        ZStack {
+            PersonaStyleIcon(size: size, iconSymbol: iconSymbol, sfSymbol: sfSymbol, tint: tint, isFilled: isFilled)
+            // Too add an appropriate minimal padding.
+            Menu { } label: { Image(systemName: "chevron.down.circle.fill") }
+                .disabled(true)
+                .opacity(0)
+                .allowsHitTesting(false)
+        }
+    }
     
     public var body: some View {
         Button {
             action()
         } label: {
-            ZStack {
-                PersonaStyleIcon(iconSymbol: iconSymbol, sfSymbol: sfSymbol, tint: tint, isFilled: isFilled)
-                // Too add an appropriate minimal padding.
-                Menu { } label: { Image(systemName: "chevron.down.circle.fill") }
-                    .disabled(true)
-                    .opacity(0)
-                    .allowsHitTesting(false)
-            }
+            Label(
+                title: { Text(title) },
+                icon: {
+                    if hasBorder {
+                        buttonLabel
+                            .padding(borderGapWidth)
+                            .overlay {
+                                Circle()
+                                    .stroke(Color.accentColor.opacity(0.9), lineWidth: borderWidth)
+                            }
+                    } else {
+                        buttonLabel
+                    }
+                    
+                }
+            )
         }
         .buttonStyle(.plain)
     }
     
-    public init(iconSymbol: String? = nil, sfSymbol: String? = nil, tint: Color, isFilled: Bool = true, action: @escaping () -> Void) {
+    public init(title: String, iconSymbol: String? = nil, sfSymbol: String? = nil, size: CGFloat = 21, tint: Color, isFilled: Bool = true, action: @escaping () -> Void) {
+        self.title = title
         self.iconSymbol = iconSymbol
         self.sfSymbol = sfSymbol
+        self.size = size
         self.tint = tint
         self.isFilled = isFilled
         self.action = action
@@ -147,29 +174,31 @@ public struct PersonaIcon: View, PersonaIconProtocol {
 
 public struct PersonaButton: View, PersonaIconProtocol {
     @ObservedRealmObject public var persona: Persona
+    let size: CGFloat
     let action: (() -> Void)
     
     public var body: some View {
-        PersonaStyleButton(iconSymbol: symbol, tint: personaTint, action: action)
+        PersonaStyleButton(title: persona.name, iconSymbol: symbol, size: size, tint: personaTint, action: action)
     }
     
-    public init(persona: Persona, action: @escaping () -> Void) {
+    public init(persona: Persona, size: CGFloat = 21, action: @escaping () -> Void) {
         self.persona = persona
         self.action = action
+        self.size = size
     }
 }
 
 fileprivate extension Color {
     func brighten(by factor: Double) -> Color {
-        #if os(macOS)
+#if os(macOS)
         let color = NSColor(self).usingColorSpace(NSColorSpace.sRGB) ?? NSColor.white
-        #elseif os(iOS)
+#elseif os(iOS)
         let color = UIColor(self)
-        #endif
-
+#endif
+        
         var h: CGFloat = 0.0, s: CGFloat = 0.0, b: CGFloat = 0.0, a: CGFloat = 0.0
         color.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
-
+        
         return Color(hue: Double(h), saturation: Double(s), brightness: Double(min(b + CGFloat(factor), 1.0)), opacity: Double(a))
     }
 }

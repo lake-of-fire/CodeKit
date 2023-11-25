@@ -44,3 +44,48 @@ public struct PersonaInRoomView: View {
         self.onRemoved = onRemoved
     }
 }
+
+public extension View {
+    func personaInRoomPopover(persona: Persona, room: Room, isPresented: Binding<Bool>, arrowEdge: Edge) -> some View {
+        self.modifier(PersonaInRoomPopoverModifier(persona: persona, room: room, isPresented: isPresented, arrowEdge: arrowEdge))
+    }
+}
+
+struct PersonaInRoomPopoverModifier: ViewModifier {
+    let persona: Persona
+    let room: Room
+    @Binding var isPresented: Bool
+    let arrowEdge: Edge
+    
+    @ScaledMetric(relativeTo: .body) private var idealWidth = 370
+    @ScaledMetric(relativeTo: .body) private var idealHeight = 420
+    
+    func body(content: Content) -> some View {
+        content
+            .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+#if os(iOS)
+                NavigationStack {
+                    PersonaInRoomView(persona: persona, room: room) {
+                        isPresented = false
+                    }
+                    .toolbar {
+                        ToolbarItemGroup(placement: .primaryAction) {
+                            Button("Done") {
+                                isPresented = false
+                            }
+                            .bold()
+                        }
+                    }
+                    .navigationTitle(persona.name)
+                    .navigationBarTitleDisplayMode(.inline)
+                }
+                .frame(idealWidth: idealWidth, idealHeight: idealHeight)
+#else
+                PersonaInRoomView(persona: persona, room: room) {
+                    isPresented = false
+                }
+                .frame(idealWidth: idealWidth, idealHeight: idealHeight)
+#endif
+            }
+    }
+}

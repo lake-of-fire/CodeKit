@@ -405,6 +405,7 @@ public extension CodePackageRepository {
             .where { $0.buildRequested }
             .changesetPublisher(keyPaths: ["buildRequested"])
             .receive(on: DispatchQueue.main)
+            .print("###")
             .sink { changeset in
                 switch changeset {
                 case .initial(let results):
@@ -511,6 +512,7 @@ public extension CodePackageRepository {
     
     @MainActor
     func build(codeExtension: CodeExtension) async throws {
+        print("### BUILD \(codeExtension.nameWithOwner)")
         guard let codeCoreViewModel = codeCoreViewModel else {
             print("No codeCoreViewModel on CodePackageRepository")
             return

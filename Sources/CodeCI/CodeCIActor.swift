@@ -51,7 +51,7 @@ public actor CodeCIActor: ObservableObject {
     
     private func wireRepos() async {
         try? await packages
-            .changesetPublisher
+            .changesetPublisher(keyPaths: ["id", "repositoryURL", "isEnabled"])
             .receive(on: DispatchQueue.main)
             .sink { [weak self] changeset in
                 switch changeset {

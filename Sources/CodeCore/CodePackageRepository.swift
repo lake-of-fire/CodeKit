@@ -403,35 +403,23 @@ public extension CodePackageRepository {
         
         package.codeExtensions
             .where { $0.buildRequested }
-            .changesetPublisher(keyPaths: ["buildRequested"])
+            .collectionPublisher(keyPaths: ["buildRequested"])
+            .freeze()
+            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
+            .removeDuplicates()
+            .threadSafeReference()
             .receive(on: DispatchQueue.main)
-            .print("###")
-            .sink { changeset in
-                switch changeset {
-                case .initial(let results):
-                    let ref = ThreadSafeReference(to: results)
-                    Task { @MainActor [weak self] in
-                        guard let self = self, let results = package.realm?.resolve(ref) else { return }
-                        for codeExtension in Array(results) {
-                            if codeExtension.buildRequested {
-                                try await build(codeExtension: codeExtension)
-                            }
+            .sink(receiveCompletion: { _ in }, receiveValue: { results in
+                let ref = ThreadSafeReference(to: results)
+                Task { @MainActor [weak self] in
+                    guard let self = self, let realm = try? await Realm(), let results = realm.resolve(ref) else { return }
+                    for codeExtension in Array(results) {
+                        if codeExtension.buildRequested {
+                            try await build(codeExtension: codeExtension)
                         }
                     }
-                case .update(let results, let deletions, let insertions, let modifications):
-                    let ref = ThreadSafeReference(to: results)
-                    Task { @MainActor [weak self] in
-                        guard let self = self, let results = package.realm?.resolve(ref) else { return }
-                        for codeExtension in Array(results) {
-                            if codeExtension.buildRequested {
-                                try await build(codeExtension: codeExtension)
-                            }
-                        }
-                    }
-                case .error(let error):
-                    print("Error: \(error)")
                 }
-            }
+            })
             .store(in: &cancellables)
     }
     

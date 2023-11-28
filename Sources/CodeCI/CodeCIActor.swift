@@ -51,44 +51,55 @@ public actor CodeCIActor: ObservableObject {
     
     private func wireRepos() async {
         try? await packages
-            .changesetPublisher(keyPaths: ["id", "repositoryURL", "isEnabled"])
+            .collectionPublisher(keyPaths: ["id", "repositoryURL", "isEnabled"])
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] changeset in
-                switch changeset {
-                case .initial(let results):
-                    let results = results.freeze()
-//                    let ref = ThreadSafeReference(to: results)
+            .freeze()
+            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
+            .removeDuplicates()
+            .threadSafeReference()
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { _ in }, receiveValue: { results in
+                    let ref = ThreadSafeReference(to: results)
 //                    Task { @MainActor [weak self] in
-                    Task { [weak self] in
-//                        guard let self = self, let results = try? await realm.resolve(ref) else { return }
-                        guard let self = self else { return }
-                        let packages = Array(results)
-                        await refreshRepositories(packages: packages)
-                        await requestBuildsIfNeeded(forceBuild: true)
+//                    let results = results.freeze()
+                Task { @MainActor [weak self] in
+                    //                        guard let self = self, let results = try? await realm.resolve(ref) else { return }
+                    guard let self = self, let realm = try? await Realm(), let results = realm.resolve(ref) else { return }
+                    let packages = Array(results)
+                    if refreshRepositories(packages: packages) {
+                        requestBuildsIfNeeded(forceBuild: true)
                     }
-                case .update(let results, let deletions, let insertions, let modifications):
-//                    let ref = ThreadSafeReference(to: results)
-//                    Task { @MainActor [weak self] in
-                    let results = results.freeze()
-                    Task { [weak self] in
-//                        guard let self = self, let results = try? await realm.resolve(ref) else { return }
-                        guard let self = self else { return }
-                        let packages = Array(results)
-                        await refreshRepositories(packages: packages)
-                        await requestBuildsIfNeeded(forceBuild: true)
-//                        buildIfNeeded(packages: Set(insertions + modifications).map { results[$0] })
-                    }
-                case .error(let error):
-                    print("Error: \(error)")
+                    //                        buildIfNeeded(packages: Set(insertions + modifications).map { results[$0] })
                 }
-            }
+            })
             .store(in: &cancellables)
     }
    
     @MainActor
-    private func refreshRepositories(packages: [CodePackage]) {
+    private func refreshRepositories(packages: [CodePackage]) -> Bool {
         // TODO: Only refresh/remove initial/added/modified/removed ones from wireRepos
+        guard packages != repositories.map({ $0.package }) else {
+            return false
+        }
+        var oldPackages = [UUID: CodePackage]()
+        for package in repositories.map({ $0.package }) {
+            oldPackages[package.id] = package
+        }
+        var anyChanged = false
+        for newPackage in packages {
+            if let oldPackage = oldPackages[newPackage.id] {
+                if oldPackage.id != newPackage.id || oldPackage.isEnabled != newPackage.isEnabled || oldPackage.repositoryURL != newPackage.repositoryURL || oldPackage.allowAllHosts != newPackage.allowAllHosts || oldPackage.allowHosts != newPackage.allowHosts {
+                    anyChanged = true
+                    break
+                }
+            } else {
+                anyChanged = true
+                break
+            }
+        }
+        guard anyChanged else { return false }
         repositories = packages.map { CodePackageRepository(package: $0, codeCoreViewModel: codeCoreViewModel) }
+        return true
     }
     
     @MainActor

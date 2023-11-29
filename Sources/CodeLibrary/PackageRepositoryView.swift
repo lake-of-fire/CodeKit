@@ -142,6 +142,7 @@ struct CodePackageCommands: View {
                 safeWrite(package) { _, package in
                     for codeExtension in package.codeExtensions.where({ !$0.isDeleted }) {
                         codeExtension.buildRequested = true
+                        codeExtension.lastBuildRequestedAt = Date()
                     }
                 }
             }

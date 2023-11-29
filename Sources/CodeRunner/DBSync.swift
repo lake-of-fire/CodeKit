@@ -455,8 +455,9 @@ public class DBSync: ObservableObject {
                     realm.add(newObject)
                 }
             }
+            
+            applyPendingRelationships(realm: realm)
         }
-        applyPendingRelationships()
     }
     
     private static func sortDictionaryValuesByIntegerKeys<T>(_ dictionary: [String: T]) -> [T] {
@@ -590,65 +591,63 @@ public class DBSync: ObservableObject {
         pendingRelationships.append(DBPendingRelationship(relationshipName: relationshipName, targetID: targetID, entityType: entity.objectSchema.className, entityID: entity.idString))
     }
     
-    func applyPendingRelationships() {
+    func applyPendingRelationships(realm: Realm) {
         if pendingRelationships.isEmpty { return }
         
-        safeWrite { realm in
-            var connectedRelationships = Set<DBPendingRelationship>()
-            for relationship in pendingRelationships {
-                guard let objectType = syncedTypes.first(where: { $0.className() == relationship.entityType }) else {
-                    print("Unsupported relationship entity type \(relationship.entityType)")
-                    continue
-                }
-                
-                var entity: (any DBSyncableObject)?
-                if let entityUUID = UUID(uuidString: relationship.entityID) {
-                    guard let matchedEntity = realm.object(ofType: objectType, forPrimaryKey: entityUUID) as? any DBSyncableObject else {
-                        print("Entity \(relationship.entityType) with ID \(relationship.entityID) not found for sync")
-                        continue
-                    }
-                    entity = matchedEntity
-                } else {
-                    guard let matchedEntity = realm.object(ofType: objectType, forPrimaryKey: relationship.entityID) as? any DBSyncableObject else {
-                        print("Entity \(relationship.entityType) with ID \(relationship.entityID) not found for sync")
-                        continue
-                    }
-                    entity = matchedEntity
-                }
-                guard let entity = entity else { continue }
-                
-                if entity.isDeleted { continue }
-                
-                var targetClassName: String?
-                for property in entity.objectSchema.properties {
-                    if property.name == relationship.relationshipName {
-                        targetClassName = property.objectClassName
-                        break
-                    }
-                }
-                guard let targetClassName = targetClassName, let targetObjectType = syncedTypes.first(where: { $0.className() == targetClassName }) else {
-                    print("Unsupported relationship target type \(relationship.entityType). syncedTypes configured: \(syncedTypes)")
-                    continue
-                }
-                if let targetUUID = UUID(uuidString: relationship.targetID) {
-                    guard let target = realm.object(ofType: targetObjectType, forPrimaryKey: targetUUID) as? any DBSyncableObject else {
-                        print("Target \(targetObjectType) with ID \(relationship.entityID) not found for sync")
-                        continue
-                    }
-                    applyPendingRelationshipUUID(entity: entity, target: target, relationshipName: relationship.relationshipName)
-                } else {
-                    guard let target = realm.object(ofType: targetObjectType, forPrimaryKey: relationship.targetID) as? any DBSyncableObject else {
-                        print("Target \(targetObjectType) with ID \(relationship.entityID) not found for sync")
-                        continue
-                    }
-                    // FIXME: Maybe breaks for non-UUID PK'd objects in List or MutableSet, see above.
-                    entity.setValue(target, forKey: relationship.relationshipName)
-                }
-                
-                connectedRelationships.insert(relationship)
+        var connectedRelationships = Set<DBPendingRelationship>()
+        for relationship in pendingRelationships {
+            guard let objectType = syncedTypes.first(where: { $0.className() == relationship.entityType }) else {
+                print("Unsupported relationship entity type \(relationship.entityType)")
+                continue
             }
-            pendingRelationships.removeAll(where: { connectedRelationships.contains($0) })
+            
+            var entity: (any DBSyncableObject)?
+            if let entityUUID = UUID(uuidString: relationship.entityID) {
+                guard let matchedEntity = realm.object(ofType: objectType, forPrimaryKey: entityUUID) as? any DBSyncableObject else {
+                    print("Entity \(relationship.entityType) with ID \(relationship.entityID) not found for sync")
+                    continue
+                }
+                entity = matchedEntity
+            } else {
+                guard let matchedEntity = realm.object(ofType: objectType, forPrimaryKey: relationship.entityID) as? any DBSyncableObject else {
+                    print("Entity \(relationship.entityType) with ID \(relationship.entityID) not found for sync")
+                    continue
+                }
+                entity = matchedEntity
+            }
+            guard let entity = entity else { continue }
+            
+            if entity.isDeleted { continue }
+            
+            var targetClassName: String?
+            for property in entity.objectSchema.properties {
+                if property.name == relationship.relationshipName {
+                    targetClassName = property.objectClassName
+                    break
+                }
+            }
+            guard let targetClassName = targetClassName, let targetObjectType = syncedTypes.first(where: { $0.className() == targetClassName }) else {
+                print("Unsupported relationship target type \(relationship.entityType). syncedTypes configured: \(syncedTypes)")
+                continue
+            }
+            if let targetUUID = UUID(uuidString: relationship.targetID) {
+                guard let target = realm.object(ofType: targetObjectType, forPrimaryKey: targetUUID) as? any DBSyncableObject else {
+                    print("Target \(targetObjectType) with ID \(relationship.entityID) not found for sync")
+                    continue
+                }
+                applyPendingRelationshipUUID(entity: entity, target: target, relationshipName: relationship.relationshipName)
+            } else {
+                guard let target = realm.object(ofType: targetObjectType, forPrimaryKey: relationship.targetID) as? any DBSyncableObject else {
+                    print("Target \(targetObjectType) with ID \(relationship.entityID) not found for sync")
+                    continue
+                }
+                // FIXME: Maybe breaks for non-UUID PK'd objects in List or MutableSet, see above.
+                entity.setValue(target, forKey: relationship.relationshipName)
+            }
+            
+            connectedRelationships.insert(relationship)
         }
+        pendingRelationships.removeAll(where: { connectedRelationships.contains($0) })
     }
     
     func removeAllFrom(entity: any DBSyncableObject, relationshipName: String) {

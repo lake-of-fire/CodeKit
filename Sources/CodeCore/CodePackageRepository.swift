@@ -50,6 +50,7 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
                                 safeWrite(package, configuration: package.realm?.configuration) { _, package in
                                     for ext in package.codeExtensions.where({ !$0.isDeleted }) {
                                         ext.buildRequested = true
+                                        ext.lastBuildRequestedAt = Date()
                                     }
                                 }
                             }
@@ -457,6 +458,7 @@ public extension CodePackageRepository {
                             if forceBuild {
                                 safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
                                     codeExtension.buildRequested = true
+                                    codeExtension.lastBuildRequestedAt = Date()
                                 }
                             } else {
                                 try await requestBuildIfNeeded(codeExtension: codeExtension)
@@ -494,6 +496,7 @@ public extension CodePackageRepository {
         if codeExtension.desiredBuildHash != codeExtension.latestBuildHashAvailable && !codeExtension.buildRequested && (codeExtension.package?.isEnabled ?? false) && !(codeExtension.package?.isDeleted ?? true) {
             safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
                 codeExtension.buildRequested = true
+                codeExtension.lastBuildRequestedAt = Date()
             }
         }
     }
@@ -544,10 +547,12 @@ public extension CodePackageRepository {
             let fileChanged = try await store(codeExtension: codeExtension, buildResultHTML: resultPageHTML, forSources: sourcePackage)
             safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
                 codeExtension.buildRequested = false
+                codeExtension.lastBuildRequestedAt = Date()
                 codeExtension.isBuilding = false
-                if fileChanged {
+//                if fileChanged {
+                // Triggers re-run.
                     codeExtension.lastBuiltAt = Date()
-                }
+//                }
             }
         } catch {
             safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in

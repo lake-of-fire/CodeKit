@@ -20,6 +20,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     @Persisted public var package: CodePackage?
     
     @Persisted public var buildRequested = false
+    @Persisted public var lastBuildRequestedAt: Date?
     @Persisted public var isBuilding = false
     @Persisted public var lastBuiltAt: Date?
     @Persisted public var desiredBuildHash: String? = nil

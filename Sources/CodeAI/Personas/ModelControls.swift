@@ -379,7 +379,10 @@ public struct ModelsControlsContainer: View {
     }
     
     public var body: some View {
-        Group {
+        VStack(alignment: .center, spacing: 0) {
+            Text("AI Model")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
             ModelSwitcher(persona: persona)
                 .task {
                     Task { @MainActor in
@@ -394,7 +397,6 @@ public struct ModelsControlsContainer: View {
 //                        viewModel.refreshModelItems()
                     }
                 }
-            
             if let downloadable = viewModel.selectedDownloadable {
                 ModelControls(viewModel: viewModel, persona: persona, downloadable: downloadable)
 //                Text(downloadable.debugUUID.uuidString.prefix(3))

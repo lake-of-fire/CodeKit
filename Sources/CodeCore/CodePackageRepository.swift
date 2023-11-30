@@ -503,7 +503,7 @@ public extension CodePackageRepository {
     
     @MainActor
     func build(codeExtension: CodeExtension) async throws {
-        print("### BUILD \(codeExtension.nameWithOwner)")
+//        print("### BUILD \(codeExtension.nameWithOwner)")
         guard let codeCoreViewModel = codeCoreViewModel else {
             print("No codeCoreViewModel on CodePackageRepository")
             return
@@ -512,6 +512,7 @@ public extension CodePackageRepository {
         
         safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
             codeExtension.isBuilding = true
+            codeExtension.lastBuildRequestedAt = Date()
         }
         
         if let package = codeExtension.package {
@@ -547,7 +548,6 @@ public extension CodePackageRepository {
             let fileChanged = try await store(codeExtension: codeExtension, buildResultHTML: resultPageHTML, forSources: sourcePackage)
             safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
                 codeExtension.buildRequested = false
-                codeExtension.lastBuildRequestedAt = Date()
                 codeExtension.isBuilding = false
 //                if fileChanged {
                 // Triggers re-run.

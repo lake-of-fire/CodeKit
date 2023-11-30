@@ -66,7 +66,7 @@ public struct PersonaStyleButton: View {
     let action: (() -> Void)
     
     let borderGapWidth: CGFloat = 3
-    let borderWidth: CGFloat = 1
+    let borderWidth: CGFloat = 1.5
     
     var buttonLabel: some View {
         ZStack {

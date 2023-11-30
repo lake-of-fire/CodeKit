@@ -17,15 +17,11 @@ public struct ModelPickerView: View {
     }
     
     public var body: some View {
-        Group {
-            if viewModel.selectedModel != nil {
-                Picker("Model", selection: $viewModel.selectedModel) {
-                    ForEach(viewModel.modelItems, id: \.0) { modelItem in
-                        let (id, modelDisplayName) = modelItem
-                        Text(modelDisplayName).tag(id as UUID?)
-                            .bold()
-                    }
-                }
+        Picker("Model", selection: $viewModel.selectedModel) {
+            ForEach(viewModel.selectedModel == nil ? [] : viewModel.modelItems, id: \.0) { modelItem in
+                let (id, modelDisplayName) = modelItem
+                Text(modelDisplayName).tag(id as UUID?)
+                    .bold()
             }
         }
         .onChange(of: persona.modifiedAt) { _ in
@@ -44,7 +40,5 @@ public struct ModelPickerView: View {
                 personaLastModifiedAt = persona.modifiedAt
             }
         }
-            
     }
-   
 }

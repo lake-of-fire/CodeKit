@@ -220,12 +220,12 @@ class ModelsControlsViewModel: ObservableObject {
         let realm = try! Realm()
         
 #if os(macOS)
-        var safelyAvailableMemory = UInt64(0.8 * Double(MTLCopyAllDevices().sorted {
+        var safelyAvailableMemory = UInt64(1 * Double(MTLCopyAllDevices().sorted {
             $0.recommendedMaxWorkingSetSize > $1.recommendedMaxWorkingSetSize
         } .first?.recommendedMaxWorkingSetSize ?? 0))
 #else
         let metalDevice = MTLCreateSystemDefaultDevice()
-        var safelyAvailableMemory = UInt64(0.8 * Double(metalDevice?.recommendedMaxWorkingSetSize ?? 0))
+        var safelyAvailableMemory = UInt64(1 * Double(metalDevice?.recommendedMaxWorkingSetSize ?? 0))
 #endif
         
         if LLMModel.shared.state != .none {
@@ -380,9 +380,6 @@ public struct ModelsControlsContainer: View {
     
     public var body: some View {
         VStack(alignment: .center, spacing: 0) {
-            Text("AI Model")
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
             ModelSwitcher(persona: persona)
                 .task {
                     Task { @MainActor in
@@ -398,7 +395,12 @@ public struct ModelsControlsContainer: View {
                     }
                 }
             if let downloadable = viewModel.selectedDownloadable {
-                ModelControls(viewModel: viewModel, persona: persona, downloadable: downloadable)
+                HStack(alignment: .center) {
+                    Text("AI Model")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                    ModelControls(viewModel: viewModel, persona: persona, downloadable: downloadable)
+                }
 //                Text(downloadable.debugUUID.uuidString.prefix(3))
 //                Text(downloadable.isActive.description)
             }

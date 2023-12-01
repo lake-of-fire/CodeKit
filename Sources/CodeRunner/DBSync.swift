@@ -407,6 +407,7 @@ public class DBSync: ObservableObject {
         
         if let firstObject = objects.first {
             let collectionName = type(of: firstObject).dbCollectionName()
+            print(jsonStr.prefix(300))
             _ = try await asyncJavaScriptCaller?("window.chat.parentBridge.syncDocsFromCanonical(collectionName, \(jsonStr))", [
                 "collectionName": collectionName,
             ], nil, .page)

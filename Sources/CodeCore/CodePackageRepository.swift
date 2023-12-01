@@ -382,24 +382,17 @@ public extension CodePackageRepository {
         guard let package = package.thaw() else { return }
         package.codeExtensions
             .where { !$0.buildRequested }
-            .changesetPublisher(keyPaths: ["name", "package", "isDeleted"])
+            .collectionPublisher(keyPaths: ["name", "package", "isDeleted"])
+            .freeze()
+            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
+            .removeDuplicates()
             .receive(on: DispatchQueue.main)
-            .sink { changeset in
-                switch changeset {
-                case .initial(let results):
-                    Task { @MainActor [weak self] in
-                        try await self?.requestBuildsIfNeeded()
-                        self?.refreshCodeExtensionDirectoryMonitors()
-                    }
-                case .update(let results, let deletions, let insertions, let modifications):
-                    Task { @MainActor [weak self] in
-                        try await self?.requestBuildsIfNeeded()
-                        self?.refreshCodeExtensionDirectoryMonitors()
-                    }
-                case .error(let error):
-                    print("Error: \(error)")
+            .sink(receiveCompletion: { _ in }, receiveValue: { _ in
+                Task { @MainActor [weak self] in
+                    try await self?.requestBuildsIfNeeded()
+                    self?.refreshCodeExtensionDirectoryMonitors()
                 }
-            }
+            })
             .store(in: &cancellables)
         
         package.codeExtensions
@@ -549,10 +542,10 @@ public extension CodePackageRepository {
             safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
                 codeExtension.buildRequested = false
                 codeExtension.isBuilding = false
-//                if fileChanged {
-                // Triggers re-run.
+                if fileChanged {
+                    // Triggers re-run.
                     codeExtension.lastBuiltAt = Date()
-//                }
+                }
             }
         } catch {
             safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
@@ -648,24 +641,26 @@ public extension CodePackageRepository {
  
         let sources = try await readSources(codeExtension: codeExtension)
         let buildHash = try await Self.buildHash(sourcePackage: sources)
-        safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
-            codeExtension.desiredBuildHash = buildHash
+        if codeExtension.desiredBuildHash != buildHash {
+            safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
+                codeExtension.desiredBuildHash = buildHash
+            }
         }
         
         if let storageURL = codeExtension.buildResultStorageURL(forBuildHash: buildHash) {
             let buildExists = try await workspaceStorage.fileExists(at: storageURL)
-            if buildExists {
+            if buildExists && codeExtension.latestBuildHashAvailable != buildHash {
                 safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
                     codeExtension.latestBuildHashAvailable = buildHash
                 }
             } else if let latestBuildHashAvailable = codeExtension.latestBuildHashAvailable, let oldStorageURL = codeExtension.buildResultStorageURL(forBuildHash: latestBuildHashAvailable) {
                 let oldBuildExists = try await workspaceStorage.fileExists(at: oldStorageURL)
-                if !oldBuildExists {
+                if !oldBuildExists && codeExtension.latestBuildHashAvailable != nil {
                     safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
                         codeExtension.latestBuildHashAvailable = nil
                     }
                 }
-            } else {
+            } else if codeExtension.latestBuildHashAvailable != nil {
                 safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
                     codeExtension.latestBuildHashAvailable = nil
                 }

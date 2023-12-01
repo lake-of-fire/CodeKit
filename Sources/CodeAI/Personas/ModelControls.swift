@@ -99,8 +99,10 @@ struct ModelControls: View {
     
     @EnvironmentObject private var blockableMessagingViewModel: BlockableMessagingViewModel
     
+    @AppStorage("downloadLLMModels") var downloadModels: [String] = []
+    
     var body: some View {
-        DownloadControls(downloadable: downloadable, downloadURLs: $viewModel.downloadModels)
+        DownloadControls(downloadable: downloadable, downloadURLs: $downloadModels)
             .task {
                 Task { @MainActor in
                     viewModel.blockableMessagingViewModel = blockableMessagingViewModel
@@ -173,14 +175,16 @@ class ModelsControlsViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .removeDuplicates()
             .sink { [weak self] selectedModel in
-                guard let self = self, let persona = persona else { return }
-                let realm = try! Realm()
-                let toRemove = realm.objects(LLMConfiguration.self).where { !$0.isDeleted && $0.usedByPersona.id == persona.id }.filter { $0.id != selectedModel }
-                for llm in toRemove {
-                    safeWrite(llm) { _, llm in llm.usedByPersona = nil }
-                }
-                if let llm = realm.object(ofType: LLMConfiguration.self, forPrimaryKey: selectedModel) {
-                    safeWrite(llm) { _, llm in llm.usedByPersona = (persona.isFrozen ? persona.thaw() : persona) }
+                Task { @MainActor [weak self] in
+                    guard let self = self, let selectedModel = selectedModel, let persona = persona else { return }
+                    let realm = try! Realm()
+                    let toRemove = realm.objects(LLMConfiguration.self).where { !$0.isDeleted && $0.usedByPersona.id == persona.id }.filter { $0.id != selectedModel }
+                    for llm in toRemove {
+                        safeWrite(llm) { _, llm in llm.usedByPersona = nil }
+                    }
+                    if let llm = realm.object(ofType: LLMConfiguration.self, forPrimaryKey: selectedModel) {
+                        safeWrite(llm) { _, llm in llm.usedByPersona = (persona.isFrozen ? persona.thaw() : persona) }
+                    }
                 }
             }
             .store(in: &cancellables)

@@ -17,7 +17,7 @@ final public class LLMModel: ObservableObject {
         LLMModel()
     }()
     
-    enum State {
+    public enum State {
         case none
         case loading
         case completed
@@ -36,7 +36,7 @@ final public class LLMModel: ObservableObject {
 
     //    public var title:String = ""
     
-    @Published var state: State = .none
+    @Published public var state: State = .none
 //    @Published var text = ""
     
     public enum LLMError: Error {

@@ -101,15 +101,12 @@ public struct CodeRunner: View {
         
         codeCoreViewModel.onLoadSuccess = {
             codeCoreViewModel.onLoadSuccess = {
-                safeWrite(codeExtension) { _, codeExtension in
-                    codeExtension.lastRunStartedAt = Date()
-                }
-                
                 if let syncedTypes = syncedTypes, let asyncJavaScriptCaller = codeCoreViewModel.asyncJavaScriptCaller {
                     guard let realm = codeExtension.realm else {
                         print("No Realm found for CodeExtension in CodeRunner")
                         return
                     }
+                    let ref = ThreadSafeReference(to: codeExtension)
                     await dbSync.initialize(
                         realmConfiguration: realm.configuration,
                         syncedTypes: syncedTypes,
@@ -118,6 +115,11 @@ public struct CodeRunner: View {
                         asyncJavaScriptCaller: asyncJavaScriptCaller,
                         codeExtension: codeExtension) {
                             await beforeRun?()
+                            
+                            guard let codeExtension = try! await Realm().resolve(ref) else { return }
+                            safeWrite(codeExtension) { _, codeExtension in
+                                codeExtension.lastRunStartedAt = Date()
+                            }
                         }
                 }
             }

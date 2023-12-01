@@ -127,12 +127,7 @@ public extension CodePackage {
         }
         // We want ./private prefix because all other files have it
         //    var dir = URL.documentsDirectory
-#if os(iOS)
-        let documentsPathURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
-#else
-        let documentsPathURL = Optional(URL.documentsDirectory)
-#endif
-        if let documentsPathURL = documentsPathURL {
+        if let documentsPathURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true) {
             if (!FileManager.default.fileExists(atPath: documentsPathURL.path)) {
                 do {
                     try FileManager.default.createDirectory(at: documentsPathURL, withIntermediateDirectories: true, attributes: nil)
@@ -162,7 +157,7 @@ public extension CodePackage {
 #endif
 #endif
         } else {
-            fatalError("Could not locate iCloud Documents Directory")
+            fatalError("Could not open Documents Directory")
         }
     }
 }

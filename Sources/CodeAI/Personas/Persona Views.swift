@@ -63,6 +63,7 @@ public struct PersonaStyleButton: View {
     let tint: Color
     var isFilled = true
     var hasBorder = true
+    var borderColor = Color.secondary
     let action: (() -> Void)
     
     let borderGapWidth: CGFloat = 3
@@ -91,7 +92,7 @@ public struct PersonaStyleButton: View {
                             .padding(borderGapWidth)
                             .overlay {
                                 Circle()
-                                    .stroke(Color.accentColor.opacity(0.9), lineWidth: borderWidth)
+                                    .stroke(borderColor.opacity(0.9), lineWidth: borderWidth)
                             }
                     } else {
                         buttonLabel
@@ -103,13 +104,15 @@ public struct PersonaStyleButton: View {
         .buttonStyle(.plain)
     }
     
-    public init(title: String, iconSymbol: String? = nil, sfSymbol: String? = nil, size: CGFloat = 21, tint: Color, isFilled: Bool = true, action: @escaping () -> Void) {
+    public init(title: String, iconSymbol: String? = nil, sfSymbol: String? = nil, size: CGFloat = 21, tint: Color, isFilled: Bool = true, hasBorder: Bool = true, borderColor: Color = .secondary, action: @escaping () -> Void) {
         self.title = title
         self.iconSymbol = iconSymbol
         self.sfSymbol = sfSymbol
         self.size = size
         self.tint = tint
         self.isFilled = isFilled
+        self.hasBorder = hasBorder
+        self.borderColor = borderColor
         self.action = action
     }
 }
@@ -175,16 +178,20 @@ public struct PersonaIcon: View, PersonaIconProtocol {
 public struct PersonaButton: View, PersonaIconProtocol {
     @ObservedRealmObject public var persona: Persona
     let size: CGFloat
+    let hasBorder: Bool
+    let borderColor: Color
     let action: (() -> Void)
     
     public var body: some View {
-        PersonaStyleButton(title: persona.name, iconSymbol: symbol, size: size, tint: personaTint, action: action)
+        PersonaStyleButton(title: persona.name, iconSymbol: symbol, size: size, tint: personaTint, hasBorder: hasBorder, borderColor: borderColor, action: action)
     }
     
-    public init(persona: Persona, size: CGFloat = 21, action: @escaping () -> Void) {
+    public init(persona: Persona, size: CGFloat = 21, hasBorder: Bool = true, borderColor: Color = Color.accentColor, action: @escaping () -> Void) {
         self.persona = persona
         self.action = action
         self.size = size
+        self.hasBorder = hasBorder
+        self.borderColor = borderColor
     }
 }
 

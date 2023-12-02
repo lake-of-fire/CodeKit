@@ -387,7 +387,7 @@ public extension CodePackageRepository {
             .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
-            .sink(receiveCompletion: { _ in }, receiveValue: { _ in
+            .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] _ in
                 Task { @MainActor [weak self] in
                     try await self?.requestBuildsIfNeeded()
                     self?.refreshCodeExtensionDirectoryMonitors()
@@ -403,7 +403,7 @@ public extension CodePackageRepository {
             .removeDuplicates()
             .threadSafeReference()
             .receive(on: DispatchQueue.main)
-            .sink(receiveCompletion: { _ in }, receiveValue: { results in
+            .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] results in
                 let ref = ThreadSafeReference(to: results)
                 Task { @MainActor [weak self] in
                     guard let self = self, let realm = try? await Realm(), let results = realm.resolve(ref) else { return }

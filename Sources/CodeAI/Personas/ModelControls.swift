@@ -136,7 +136,7 @@ class ModelsControlsViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] results in
                 Task { @MainActor [weak self] in
-                    await self?.refreshModelItems()
+                    self?.refreshModelItems()
                     await self?.refreshDownloads()
                 }
             })
@@ -289,7 +289,7 @@ class ModelsControlsViewModel: ObservableObject {
     
     @MainActor
     private func refreshDownloads(downloadModels: [String]? = nil) async {
-        var downloadModels = downloadModels ?? self.downloadModels
+        var downloadModels = downloadModels ?? Array(self.downloadModels)
         let realm = try! await Realm()
         
         let selectedLLM = realm.objects(LLMConfiguration.self).where {

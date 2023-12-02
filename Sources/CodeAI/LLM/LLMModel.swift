@@ -78,7 +78,7 @@ final public class LLMModel: ObservableObject {
 //        model_context_param.useMMap = true
         
         let threads = Int32(min(4, ProcessInfo().processorCount))
-        let model_context_param = ModelAndContextParams(context: Int32(llm.context ?? 1024), parts: ModelAndContextParams.default.parts, seed: ModelAndContextParams.default.seed, numberOfThreads: threads, n_batch: Int32(llm.nBatch ?? 512), f16Kv: ModelAndContextParams.default.f16Kv, logitsAll: ModelAndContextParams.default.logitsAll, vocabOnly: ModelAndContextParams.default.vocabOnly, useMlock: false, useMMap: true, useMetal: llm.canUseMetal, embedding: ModelAndContextParams.default.embedding)
+        let model_context_param = ModelAndContextParams(context: Int32(llm.context ?? 1024), parts: ModelAndContextParams.default.parts, seed: ModelAndContextParams.default.seed, numberOfThreads: threads, n_batch: Int32(llm.nBatch ?? 512), f16Kv: ModelAndContextParams.default.f16Kv, logitsAll: ModelAndContextParams.default.logitsAll, vocabOnly: ModelAndContextParams.default.vocabOnly, useMlock: true, useMMap: true, useMetal: llm.canUseMetal, embedding: ModelAndContextParams.default.embedding)
         
         do {
             if llm.modelInference == "llama" {

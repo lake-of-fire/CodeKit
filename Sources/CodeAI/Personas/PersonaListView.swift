@@ -20,7 +20,7 @@ public class PersonaListViewModel: ObservableObject {
             .removeDuplicates()
             .threadSafeReference()
             .receive(on: DispatchQueue.main)
-            .sink(receiveCompletion: { _ in }, receiveValue: { results in
+            .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] results in
                 let ref = ThreadSafeReference(to: results)
                 Task { @MainActor [weak self] in
                     if let realm = try? await Realm(), let personas = realm.resolve(ref) {

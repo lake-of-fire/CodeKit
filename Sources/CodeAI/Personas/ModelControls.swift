@@ -132,13 +132,16 @@ class ModelsControlsViewModel: ObservableObject {
             .where { !$0.isDeleted }
             .collectionPublisher
             .freeze()
+            .removeDuplicates()
             .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
             .threadSafeReference()
             .receive(on: DispatchQueue.main)
+            .print("!!llmConf")
             .sink(receiveCompletion: { _ in }, receiveValue: { results in
                 Task { [weak self] in
-                    await self?.refreshModelItems()
-                    await self?.refreshDownloads(downloadModels: Array(results.map { $0.modelDownloadURL }))
+                    guard let self = self else { return }
+                    await refreshModelItems()
+                    await refreshDownloads(downloadModels: downloadModels)
                 }
             })
             .store(in: &cancellables)
@@ -156,6 +159,7 @@ class ModelsControlsViewModel: ObservableObject {
         $downloadModels.publisher
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
+            .print("!!dlModels")
             .sink { [weak self] downloadModels in
                 Task { @MainActor [weak self] in
                     await self?.refreshDownloads(downloadModels: downloadModels)
@@ -290,7 +294,11 @@ class ModelsControlsViewModel: ObservableObject {
     
     @MainActor
     private func refreshDownloads(downloadModels: [String]? = nil) async {
+        print("old dl models")
+        print(self.downloadModels)
         var downloadModels = downloadModels ?? self.downloadModels
+        print("new dl models")
+        print(downloadModels)
         let realm = try! await Realm()
         
         let selectedLLM = realm.objects(LLMConfiguration.self).where {
@@ -300,6 +308,7 @@ class ModelsControlsViewModel: ObservableObject {
         // Queue downloads
         var downloads = [Downloadable]()
         self.downloadModels = downloadModels
+        var toRemove = [String]()
         for modelURL in downloadModels {
             var download = realm.objects(LLMConfiguration.self).where {
                 !$0.isDeleted && !$0.providedByExtension.isDeleted
@@ -315,11 +324,14 @@ class ModelsControlsViewModel: ObservableObject {
             if let download = download, selectedDownloadable == nil || selectedDownloadable?.url != download.url, selectedLLM == nil || download.url == selectedLLM?.downloadable?.url {
                 selectedDownloadable = download
             }
-            if let download = download {
+            if let download = download, !downloads.contains(where: { $0.url.absoluteString == modelURL }) {
                 downloads.append(download)
             } else {
-                downloadModels.removeAll(where: { $0 == modelURL })
+                toRemove.append(modelURL)
             }
+        }
+        for modelURL in toRemove {
+            downloadModels.removeAll(where: { $0 == modelURL })
         }
         await DownloadController.shared.ensureDownloaded(Set(downloads))
         

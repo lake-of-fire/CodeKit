@@ -130,25 +130,17 @@ class ModelsControlsViewModel: ObservableObject {
         let realm = try! Realm()
         realm.objects(LLMConfiguration.self)
             .where { !$0.isDeleted }
-            .changesetPublisher
+            .collectionPublisher
+            .freeze()
             .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
+            .threadSafeReference()
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] changeset in
-                switch changeset {
-                case .initial(let results):
-                    Task { [weak self] in
-                        await self?.refreshModelItems()
-                        await self?.refreshDownloads()
-                    }
-                case .update(let results, let deletions, let insertions, let modifications):
-                    Task { [weak self] in
-                        await self?.refreshModelItems()
-                        await self?.refreshDownloads()
-                    }
-                case .error(let error):
-                    print("Error: \(error)")
+            .sink(receiveCompletion: { _ in }, receiveValue: { results in
+                Task { [weak self] in
+                    await self?.refreshModelItems()
+                    await self?.refreshDownloads(downloadModels: Array(results.map { $0.modelDownloadURL }))
                 }
-            }
+            })
             .store(in: &cancellables)
         
         $blockableMessagingViewModel

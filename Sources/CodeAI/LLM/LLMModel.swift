@@ -55,7 +55,7 @@ final public class LLMModel: ObservableObject {
 //    }
     
     private func refreshModelSampleParams(llm: LLMConfiguration) async {
-        let model_sample_params = ModelSampleParams(n_batch: Int32(llm.nBatch ?? 512), temp: Float(llm.temperature), top_k: Int32(llm.topK ?? 40), top_p: Float(llm.topP ?? 0.95), tfs_z: ModelSampleParams.default.tfs_z, typical_p: ModelSampleParams.default.typical_p, repeat_penalty: Float(llm.repeatPenalty ?? 1.1), repeat_last_n: Int32(llm.repeatLastN ?? 64), frequence_penalty: ModelSampleParams.default.frequence_penalty, presence_penalty: ModelSampleParams.default.presence_penalty, mirostat: ModelSampleParams.default.mirostat, mirostat_tau: ModelSampleParams.default.mirostat_tau, mirostat_eta: ModelSampleParams.default.mirostat_eta, penalize_nl: ModelSampleParams.default.penalize_nl)
+        let model_sample_params = ModelSampleParams(n_batch: Int32(llm.nBatch ?? 512), temp: Float(llm.temperature), top_k: Int32(llm.topK ?? 40), top_p: Float(llm.topP ?? 0.95), tfs_z: ModelSampleParams.default.tfs_z, typical_p: ModelSampleParams.default.typical_p, repeat_penalty: Float(llm.repeatPenalty ?? 1.1), repeat_last_n: Int32(llm.repeatLastN ?? 64), frequence_penalty: ModelSampleParams.default.frequence_penalty, presence_penalty: ModelSampleParams.default.presence_penalty, mirostat: ModelSampleParams.default.mirostat, mirostat_tau: ModelSampleParams.default.mirostat_tau, mirostat_eta: ModelSampleParams.default.mirostat_eta, penalize_nl: false)
         await chat?.model.sampleParams = model_sample_params
     }
     
@@ -186,10 +186,11 @@ final public class LLMModel: ObservableObject {
         predicting = true
         start_predicting_time = DispatchTime.now()
         
-        try await chat?.reinitializeSystemPrompt(systemPrompt)
-        if !messageHistory.isEmpty {
-            try await chat?.conversationHistory(allMessages: messageHistory)
-        }
+//        try await chat?.reinitializeSystemPrompt(systemPrompt)
+        try await chat?.reinitialize(systemPrompt: nil)
+//        if !messageHistory.isEmpty {
+//            try await chat?.conversationHistory(allMessages: messageHistory)
+//        }
         
         let stopWords = Array(llm.stopWords)
         let resp = try await chat?.conversation(inputText, { [weak self] str, textSoFar, time in

@@ -38,14 +38,32 @@ public struct PersonaDetailsView: View {
                 ModelPickerView(persona: persona)
                     .environmentObject(modelsControlsViewModel)
                 LabeledContent {
-                    Slider(value: $modelTemperature, in: 0.0...2.0)
+                    Slider(value: $modelTemperature, in: 0.0...2.0)  {
+                        EmptyView()
+                    } minimumValueLabel: {
+                        Text("0")
+                    } maximumValueLabel: {
+                        Text("2")
+                    }
                 } label: {
-                    Text("Temperature")
+                    Text("Temperature / Creativity")
+                }
+                .task {
+                    Task { @MainActor in
+                    }
                 }
                 .onChange(of: modelTemperature, debounceTime: .seconds((0.2))) { modelTemperature in
                     Task { @MainActor in
                         guard modelTemperature != persona.modelTemperature else { return }
                         safeWrite(persona) { _, persona in persona.modelTemperature = modelTemperature }
+                        safeWrite { realm in
+                            for llm in realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == persona.id }) {
+                                llm.temperature = Float(modelTemperature)
+                            }
+//                            if let llm = realm.objects(LLMConfiguration.self) {
+//                                safeWrite(ext) { _, ext in ext.modelTemperature = modelTemperature }
+//                            }
+                        }
                     }
                 }
 

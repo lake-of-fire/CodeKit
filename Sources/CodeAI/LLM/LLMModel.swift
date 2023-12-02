@@ -186,11 +186,11 @@ final public class LLMModel: ObservableObject {
         predicting = true
         start_predicting_time = DispatchTime.now()
         
-//        try await chat?.reinitializeSystemPrompt(systemPrompt)
-        try await chat?.reinitialize(systemPrompt: nil)
-//        if !messageHistory.isEmpty {
-//            try await chat?.conversationHistory(allMessages: messageHistory)
-//        }
+        try await chat?.reinitialize(systemPrompt: systemPrompt)
+//        try await chat?.reinitialize(systemPrompt: nil)
+        if !messageHistory.isEmpty {
+            try await chat?.conversationHistory(allMessages: messageHistory)
+        }
         
         let stopWords = Array(llm.stopWords)
         let resp = try await chat?.conversation(inputText, { [weak self] str, textSoFar, time in

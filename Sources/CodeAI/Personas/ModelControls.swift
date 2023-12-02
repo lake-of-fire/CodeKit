@@ -99,10 +99,8 @@ struct ModelControls: View {
     
     @EnvironmentObject private var blockableMessagingViewModel: BlockableMessagingViewModel
     
-    @AppStorage("downloadLLMModels") var downloadModels: [String] = []
-    
     var body: some View {
-        DownloadControls(downloadable: downloadable, downloadURLs: $downloadModels)
+        DownloadControls(downloadable: downloadable, downloadURLs: $viewModel.downloadModels)
             .task {
                 Task { @MainActor in
                     viewModel.blockableMessagingViewModel = blockableMessagingViewModel
@@ -114,6 +112,7 @@ struct ModelControls: View {
 class ModelsControlsViewModel: ObservableObject {
     @Published var selectedDownloadable: Downloadable?
     @PublishingAppStorage("downloadLLMModels") var downloadModels: [String] = []
+//    @Published var downloadModels: [String] = []
     @Published var persona: Persona? = nil
     @Published var modelItems: [(UUID, String)] = []
     @Published var selectedModel: LLMConfiguration.ID?
@@ -134,14 +133,11 @@ class ModelsControlsViewModel: ObservableObject {
             .freeze()
             .removeDuplicates()
             .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
-            .threadSafeReference()
             .receive(on: DispatchQueue.main)
-            .print("!!llmConf")
-            .sink(receiveCompletion: { _ in }, receiveValue: { results in
-                Task { [weak self] in
-                    guard let self = self else { return }
-                    await refreshModelItems()
-                    await refreshDownloads(downloadModels: downloadModels)
+            .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] results in
+                Task { @MainActor [weak self] in
+                    await self?.refreshModelItems()
+                    await self?.refreshDownloads()
                 }
             })
             .store(in: &cancellables)
@@ -159,7 +155,6 @@ class ModelsControlsViewModel: ObservableObject {
         $downloadModels.publisher
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
-            .print("!!dlModels")
             .sink { [weak self] downloadModels in
                 Task { @MainActor [weak self] in
                     await self?.refreshDownloads(downloadModels: downloadModels)
@@ -207,7 +202,7 @@ class ModelsControlsViewModel: ObservableObject {
             }
             .store(in: &cancellables)
     }
-   
+    
     @MainActor
     func refreshModelItems(modelOptions: [String]? = nil) {
         guard let persona = (persona?.isFrozen ?? false ? persona?.thaw() : persona) else {
@@ -294,11 +289,7 @@ class ModelsControlsViewModel: ObservableObject {
     
     @MainActor
     private func refreshDownloads(downloadModels: [String]? = nil) async {
-        print("old dl models")
-        print(self.downloadModels)
         var downloadModels = downloadModels ?? self.downloadModels
-        print("new dl models")
-        print(downloadModels)
         let realm = try! await Realm()
         
         let selectedLLM = realm.objects(LLMConfiguration.self).where {
@@ -356,12 +347,12 @@ class ModelsControlsViewModel: ObservableObject {
                 blockableMessagingViewModel?.messageSubmissionBlockMessage = nil
                 blockableMessagingViewModel?.messageSubmissionBlockedAction = nil
             } else if let downloadable = llm.downloadable {
-                if !downloadModels.contains(downloadable.id) {
+                if !downloadModels.contains(downloadable.url.absoluteString) {
                     blockableMessagingViewModel?.messageSubmissionBlockMessage = "Download"
                     blockableMessagingViewModel?.messageSubmissionBlockedAction = {
                         Task { @MainActor [weak self] in
                             guard let self = self else { return }
-                            downloadModels = Array(Set(downloadModels).union(Set([downloadable.id])))
+                            downloadModels = Array(Set(downloadModels).union(Set([downloadable.url.absoluteString])))
                         }
                     }
                 } else {

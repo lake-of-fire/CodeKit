@@ -5,7 +5,7 @@ import CodeAI
 import LakeOfFire
 
 public enum RealmConfigurer {
-    static let schemaVersion: UInt64 = 91
+    static let schemaVersion: UInt64 = 93
     
     public static var configuration: Realm.Configuration {
         guard let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.chatonmac.shared")?.appendingPathComponent("chat-shared.realm") ?? Self.applicationDocumentsDirectory()?.appendingPathComponent("chat.realm") else {
@@ -35,6 +35,7 @@ public enum RealmConfigurer {
                 Event.self,
                 Persona.self,
                 Link.self,
+                LLMConfiguration.self,
             ]
             + (LakeOfFire.DefaultRealmConfiguration.configuration.objectTypes ?? [])
         )

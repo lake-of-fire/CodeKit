@@ -111,7 +111,7 @@ struct ModelControls: View {
 
 class ModelsControlsViewModel: ObservableObject {
     @Published var selectedDownloadable: Downloadable?
-    @PublishingAppStorage("downloadLLMModels") var downloadModels: [String] = []
+    @PublishedAppStorage("downloadLLMModels") var downloadModels: [String] = []
 //    @Published var downloadModels: [String] = []
     @Published var persona: Persona? = nil
     @Published var modelItems: [(UUID, String)] = []
@@ -152,7 +152,7 @@ class ModelsControlsViewModel: ObservableObject {
             }
             .store(in: &cancellables)
         
-        $downloadModels.publisher
+        $downloadModels
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] downloadModels in
@@ -198,6 +198,7 @@ class ModelsControlsViewModel: ObservableObject {
                     selectedModel = realm.objects(LLMConfiguration.self)
                         .where { !$0.isDeleted && $0.usedByPersona.id == personaID }
                         .first?.id
+                    await refreshDownloads()
                 }
             }
             .store(in: &cancellables)
@@ -288,8 +289,24 @@ class ModelsControlsViewModel: ObservableObject {
     }
     
     @MainActor
+    private func updateDownloadsLastCheckedAt() {
+        if let persona = persona, let codeExtension = persona.providedByExtension, persona.downloadsLastCheckedAt == nil || (codeExtension.lastRunStartedAt ?? .distantPast > persona.downloadsLastCheckedAt ?? .distantPast) {
+            print(codeExtension.lastRunStartedAt)
+            print(persona.downloadsLastCheckedAt)
+            print(persona)
+            safeWrite(persona) { _, persona in
+                persona.downloadsLastCheckedAt = Date()
+            }
+            print("wrote persona")
+        }
+    }
+    
+    @MainActor
     private func refreshDownloads(downloadModels: [String]? = nil) async {
-        var downloadModels = downloadModels ?? Array(self.downloadModels)
+        let inputDownloadModels = downloadModels
+        var downloadModels = [String]()
+        // To avoid parallel access to read/write PublishingAppStorage
+        downloadModels.append(contentsOf: inputDownloadModels ?? self.downloadModels)
         let realm = try! await Realm()
         
         let selectedLLM = realm.objects(LLMConfiguration.self).where {
@@ -324,18 +341,29 @@ class ModelsControlsViewModel: ObservableObject {
         for modelURL in toRemove {
             downloadModels.removeAll(where: { $0 == modelURL })
         }
-        await DownloadController.shared.ensureDownloaded(Set(downloads))
+        
+        let ensureTask = Task { @MainActor in
+            await DownloadController.shared.ensureDownloaded(Set(downloads))
+        }
         
         if let selectedDownload = DownloadController.shared.assuredDownloads.first(where: { $0.url == selectedLLM?.downloadable?.url }) {
             if selectedDownloadable?.id != selectedDownload.id {
                 selectedDownloadable = selectedDownload
-                if selectedDownload.fileSize == nil {
-                    await selectedDownload.fetchRemoteFileSize()
-                }
             }
         } else if let download = selectedLLM?.downloadable, selectedDownloadable?.url != download.url {
             selectedDownloadable = download
         }
+        
+        if let selectedDownloadable = selectedDownloadable, selectedDownloadable.fileSize == nil {
+            Task { @MainActor in
+                await selectedDownloadable.fetchRemoteFileSize()
+                updateDownloadsLastCheckedAt()
+            }
+        } else {
+            updateDownloadsLastCheckedAt()
+        }
+        
+        await ensureTask.value
         
         refreshDownloadMessage()
     }

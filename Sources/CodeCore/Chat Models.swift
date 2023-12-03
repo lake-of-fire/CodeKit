@@ -99,6 +99,7 @@ public class Persona: Object, UnownedSyncableObject {
     }
     
     @Persisted public var online = false
+    @Persisted public var lastSeenOnline: Date?
     @Persisted public var name = ""
     @Persisted public var iconSymbol: String?
     @Persisted public var tint: PersonaTint = .gray
@@ -121,6 +122,7 @@ public class Persona: Object, UnownedSyncableObject {
     @Persisted public var homepage: URL?
     @Persisted public var providedByExtension: CodeExtension?
     
+    @Persisted public var downloadsLastCheckedAt: Date?
     @Persisted public var isTyping = false
     
     // Bot params
@@ -142,6 +144,7 @@ public class Persona: Object, UnownedSyncableObject {
         case online
         case homepage
         case isTyping
+        case lastSeenOnline
         case providedByExtension
         case modelOptions
         case modelTemperature
@@ -160,6 +163,7 @@ public class Persona: Object, UnownedSyncableObject {
         try container.encode(iconSymbol, forKey: .iconSymbol)
         try container.encode(tint, forKey: .tint)
         try container.encode(isTyping, forKey: .isTyping)
+        try container.encodeIfPresent(lastSeenOnline, forKey: .lastSeenOnline)
         try container.encodeIfPresent(homepage, forKey: .homepage)
         try container.encodeIfPresent(providedByExtension?.id, forKey: .providedByExtension)
         try container.encode(modelOptions, forKey: .modelOptions)

@@ -85,7 +85,7 @@ public class DBSync: ObservableObject {
     
     @Published public var isSynchronizing = false
     
-    lazy var dateFormatter: DateFormatter = {
+    public static var dateFormatter: DateFormatter = {
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
@@ -508,7 +508,7 @@ public class DBSync: ObservableObject {
                     }
                 case .date:
                     guard let value = value as? [String: String] else { continue }
-                    let new = Self.sortDictionaryValuesByIntegerKeys(value).compactMap { dateFormatter.date(from: $0) }
+                    let new = Self.sortDictionaryValuesByIntegerKeys(value).compactMap { Self.dateFormatter.date(from: $0) }
                     if let existing = targetObj.value(forKey: key) as? RealmSwift.List<Date>, Array(existing) != new {
                         existing.removeAll()
                         existing.append(objectsIn: new)
@@ -554,7 +554,7 @@ public class DBSync: ObservableObject {
                     targetObj.setValue(new, forKey: key)
                 case .date:
                     guard let value = value as? [String: String] else { continue }
-                    let dates = value.values.compactMap { dateFormatter.date(from: $0) }
+                    let dates = value.values.compactMap { Self.dateFormatter.date(from: $0) }
                     let new = RealmSwift.MutableSet<Date>()
                     new.insert(objectsIn: dates)
                     targetObj.setValue(new, forKey: key)

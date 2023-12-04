@@ -168,13 +168,17 @@ class ModelsControlsViewModel: ObservableObject {
             .sink { [weak self] selectedModel in
                 Task { @MainActor [weak self] in
                     guard let self = self, let selectedModel = selectedModel, let persona = persona else { return }
-                    let realm = try! Realm()
+                    let realm = try! await Realm()
                     let toRemove = realm.objects(LLMConfiguration.self).where { !$0.isDeleted && $0.usedByPersona.id == persona.id }.filter { $0.id != selectedModel }
                     for llm in toRemove {
-                        safeWrite(llm) { _, llm in llm.usedByPersona = nil }
+                        safeWrite(llm) { _, llm in
+                            llm.usedByPersona = nil
+                        }
                     }
                     if let llm = realm.object(ofType: LLMConfiguration.self, forPrimaryKey: selectedModel) {
-                        safeWrite(llm) { _, llm in llm.usedByPersona = (persona.isFrozen ? persona.thaw() : persona) }
+                        safeWrite(llm) { _, llm in
+                            llm.usedByPersona = (persona.isFrozen ? persona.thaw() : persona)
+                        }
                     }
                 }
             }
@@ -198,7 +202,7 @@ class ModelsControlsViewModel: ObservableObject {
                     selectedModel = realm.objects(LLMConfiguration.self)
                         .where { !$0.isDeleted && $0.usedByPersona.id == personaID }
                         .first?.id
-                    await refreshDownloads()
+                    await refreshDownloads(persona: persona)
                 }
             }
             .store(in: &cancellables)
@@ -219,6 +223,8 @@ class ModelsControlsViewModel: ObservableObject {
         var safelyAvailableMemory = UInt64(1 * Double(MTLCopyAllDevices().sorted {
             $0.recommendedMaxWorkingSetSize > $1.recommendedMaxWorkingSetSize
         } .first?.recommendedMaxWorkingSetSize ?? 0))
+#elseif DEBUG
+        var safelyAvailableMemory = UInt64.max
 #else
         let metalDevice = MTLCreateSystemDefaultDevice()
         var safelyAvailableMemory = UInt64(1 * Double(metalDevice?.recommendedMaxWorkingSetSize ?? 0))
@@ -289,20 +295,17 @@ class ModelsControlsViewModel: ObservableObject {
     }
     
     @MainActor
-    private func updateDownloadsLastCheckedAt() {
-        if let persona = persona, let codeExtension = persona.providedByExtension, persona.downloadsLastCheckedAt == nil || (codeExtension.lastRunStartedAt ?? .distantPast > persona.downloadsLastCheckedAt ?? .distantPast) {
-            print(codeExtension.lastRunStartedAt)
-            print(persona.downloadsLastCheckedAt)
-            print(persona)
+    private func updateDownloadsLastCheckedAt(persona: Persona) {
+        if let codeExtension = persona.providedByExtension, persona.downloadsLastCheckedAt == nil || (codeExtension.lastRunStartedAt ?? .distantPast > persona.downloadsLastCheckedAt ?? .distantPast) {
             safeWrite(persona) { _, persona in
                 persona.downloadsLastCheckedAt = Date()
             }
-            print("wrote persona")
         }
     }
     
     @MainActor
-    private func refreshDownloads(downloadModels: [String]? = nil) async {
+    private func refreshDownloads(downloadModels: [String]? = nil, persona: Persona? = nil) async {
+        let persona = persona ?? self.persona
         let inputDownloadModels = downloadModels
         var downloadModels = [String]()
         // To avoid parallel access to read/write PublishingAppStorage
@@ -354,13 +357,19 @@ class ModelsControlsViewModel: ObservableObject {
             selectedDownloadable = download
         }
         
-        if let selectedDownloadable = selectedDownloadable, selectedDownloadable.fileSize == nil {
-            Task { @MainActor in
-                await selectedDownloadable.fetchRemoteFileSize()
-                updateDownloadsLastCheckedAt()
+        if let persona = persona ?? self.persona {
+            if let selectedDownloadable = selectedDownloadable, selectedDownloadable.fileSize == nil {
+                Task { @MainActor in
+                    do {
+                        try await selectedDownloadable.fetchRemoteFileSize()
+                        updateDownloadsLastCheckedAt(persona: persona)
+                    } catch {
+                        updateDownloadsLastCheckedAt(persona: persona)
+                    }
+                }
+            } else {
+                updateDownloadsLastCheckedAt(persona: persona)
             }
-        } else {
-            updateDownloadsLastCheckedAt()
         }
         
         await ensureTask.value
@@ -406,7 +415,7 @@ public struct ModelsControlsContainer: View {
     }
     
     public var body: some View {
-        VStack(alignment: .center, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             ModelSwitcher(persona: persona)
                 .task {
                     Task { @MainActor in
@@ -415,21 +424,27 @@ public struct ModelsControlsContainer: View {
                 }
                 .onChange(of: persona) { persona in
                     Task { @MainActor in
-                        if viewModel.persona?.id != persona.id {
+                        if viewModel.persona != persona {
                             viewModel.persona = persona.freeze()
                         }
 //                        viewModel.refreshModelItems()
                     }
                 }
+            
             if let downloadable = viewModel.selectedDownloadable {
                 HStack(alignment: .center) {
-                    Text("AI Model")
+                    Text("\(persona.name.truncate(20)) AI Model")
                         .font(.caption.bold())
                         .foregroundStyle(.secondary)
                     ModelControls(viewModel: viewModel, persona: persona, downloadable: downloadable)
                 }
-//                Text(downloadable.debugUUID.uuidString.prefix(3))
-//                Text(downloadable.isActive.description)
+#if os(macOS)
+                .padding(.leading, 3)
+                .padding(.top, 2)
+#else
+                .padding(.leading, 12)
+                .padding(.bottom, 2)
+#endif
             }
         }
         .environmentObject(viewModel)

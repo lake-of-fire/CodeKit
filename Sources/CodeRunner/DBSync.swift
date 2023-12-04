@@ -428,7 +428,11 @@ public class DBSync: ObservableObject {
         let surrogateMaps = syncFromSurrogateMap?.filter { $0.0 == objectType }.map { $0.1 } ?? []
 //        print("SURR doc incoming:")
 //        print(changedDocs.debugDescription)
-        safeWrite { realm in
+        
+        let realm = try! Realm()
+        realm.writeAsync { [weak self] in
+            guard let self = self else { return }
+//        safeWrite { realm in
             for doc in changedDocs {
                 guard let rawUUID = doc["id"] as? String, let uuid = UUID(uuidString: rawUUID), let rawModifiedAt = doc["modifiedAt"] as? Int64 else {
                     print("ERROR: Missing or malformed uuid and/or modifiedAt in changedDocs object")

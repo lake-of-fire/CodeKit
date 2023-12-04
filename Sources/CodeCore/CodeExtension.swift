@@ -23,6 +23,7 @@ public class CodeExtension: Object, UnownedSyncableObject, ObjectKeyIdentifiable
     @Persisted public var lastBuildRequestedAt: Date?
     @Persisted public var isBuilding = false
     @Persisted public var lastBuiltAt: Date?
+    @Persisted public var lastBuildChangedAt: Date?
     @Persisted public var desiredBuildHash: String? = nil
     @Persisted public var latestBuildHashAvailable: String? = nil
     

@@ -62,8 +62,8 @@ public struct CodeRunner: View {
                     try? await run()
                 }
             }
-            .onChange(of: codeExtension.lastBuiltAt) { lastBuiltAt in
-                guard lastBuiltAt != nil else { return }
+            .onChange(of: codeExtension.lastBuildChangedAt) { lastBuildChangedAt in
+                guard lastBuildChangedAt != nil else { return }
                 Task { @MainActor in try? await run() }
             }
     }
@@ -116,9 +116,11 @@ public struct CodeRunner: View {
                         codeExtension: codeExtension) {
                             await beforeRun?()
                             
-                            guard let codeExtension = try! await Realm().resolve(ref) else { return }
-                            safeWrite(codeExtension) { _, codeExtension in
-                                codeExtension.lastRunStartedAt = Date()
+                            Task { @MainActor in
+                                guard let codeExtension = try! await Realm().resolve(ref) else { return }
+                                safeWrite(codeExtension) { _, codeExtension in
+                                    codeExtension.lastRunStartedAt = Date()
+                                }
                             }
                         }
                 }

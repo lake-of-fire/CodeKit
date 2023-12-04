@@ -50,6 +50,7 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
                                 safeWrite(package, configuration: package.realm?.configuration) { _, package in
                                     for ext in package.codeExtensions.where({ !$0.isDeleted }) {
                                         ext.buildRequested = true
+                                print("### REQ BUILD.")
                                         ext.lastBuildRequestedAt = Date()
                                     }
                                 }
@@ -399,8 +400,8 @@ public extension CodePackageRepository {
             .where { $0.buildRequested }
             .collectionPublisher(keyPaths: ["buildRequested"])
             .freeze()
-            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
             .removeDuplicates()
+            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
             .threadSafeReference()
             .receive(on: DispatchQueue.main)
             .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] results in
@@ -488,6 +489,7 @@ public extension CodePackageRepository {
         try await refreshBuildStatus(codeExtension: codeExtension)
         if codeExtension.desiredBuildHash != codeExtension.latestBuildHashAvailable && !codeExtension.buildRequested && (codeExtension.package?.isEnabled ?? false) && !(codeExtension.package?.isDeleted ?? true) {
             safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
+                                print("### REQ BUILD 2.")
                 codeExtension.buildRequested = true
                 codeExtension.lastBuildRequestedAt = Date()
             }
@@ -542,9 +544,10 @@ public extension CodePackageRepository {
             safeWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
                 codeExtension.buildRequested = false
                 codeExtension.isBuilding = false
+                codeExtension.lastBuiltAt = Date()
                 if fileChanged {
                     // Triggers re-run.
-                    codeExtension.lastBuiltAt = Date()
+                    codeExtension.lastBuildChangedAt = Date()
                 }
             }
         } catch {

@@ -1,11 +1,35 @@
 import SwiftUI
 import CodeCore
 import RealmSwift
+import Combine
+
+//class CodeCIViewModel: ObservableObject {
+//    @Published var packages: [CodePackage]? = nil
+//    
+//    private var cancellables = Set<AnyCancellable>()
+//    
+//    init() {
+//        let realm = try! Realm()
+//        realm.objects(CodePackage.self)
+//            .where { !$0.isDeleted && $0.isEnabled }
+//            .collectionPublisher
+//            .freeze()
+//            .removeDuplicates()
+//            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
+//            .receive(on: DispatchQueue.main)
+//            .sink(receiveValue: { [weak self] results in
+//                Task { @MainActor [weak self] in
+//                    self?.packages = Array(results)
+//                }
+//            })
+//            .store(in: &cancellables)
+//    }
+//}
 
 public struct CodeCI: View {
     @ObservedObject public var ciActor: CodeCIActor
     
-    @ObservedResults(CodePackage.self, where: { !$0.isDeleted && $0.isEnabled }) private var packages
+//    @StateObject private var viewModel = CodeCIViewModel()
     
     public var body: some View {
         CodeCoreView(

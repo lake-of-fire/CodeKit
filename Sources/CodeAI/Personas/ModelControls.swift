@@ -380,7 +380,7 @@ class ModelsControlsViewModel: ObservableObject {
     private func refreshDownloadMessage() {
         let realm = try! Realm()
         if let persona = persona, let llm = realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == persona.id }).first {
-            if llm.isModelInstalled {
+            if llm.isModelInstalled && blockableMessagingViewModel?.messageSubmissionBlockMessage == "Download" {
                 blockableMessagingViewModel?.messageSubmissionBlockMessage = nil
                 blockableMessagingViewModel?.messageSubmissionBlockedAction = nil
             } else if let downloadable = llm.downloadable {

@@ -190,7 +190,7 @@ public extension CodePackageRepository {
             }
             
             if ext.package != package {
-                try? await Realm.asyncWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
+                try? await Realm.asyncWrite(ext, configuration: package.realm?.configuration) { _, codeExtension in
                     codeExtension.package = package
                 }
             }

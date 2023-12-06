@@ -1,6 +1,7 @@
 import SwiftUI
 import RealmSwift
 import RealmSwiftGaps
+import BigSyncKit
 import CodeCore
 import SwiftUIDownloads
 @_spi(Advanced) import SwiftUIIntrospect
@@ -138,6 +139,7 @@ class ModelsControlsViewModel: ObservableObject {
                 Task { @MainActor [weak self] in
                     self?.refreshModelItems()
                     await self?.refreshDownloads()
+                    self?.refreshDownloadMessage()
                 }
             })
             .store(in: &cancellables)
@@ -158,6 +160,7 @@ class ModelsControlsViewModel: ObservableObject {
             .sink { [weak self] downloadModels in
                 Task { @MainActor [weak self] in
                     await self?.refreshDownloads(downloadModels: downloadModels)
+                    self?.refreshDownloadMessage()
                 }
             }
             .store(in: &cancellables)
@@ -166,17 +169,22 @@ class ModelsControlsViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .removeDuplicates()
             .sink { [weak self] selectedModel in
-                Task { @MainActor [weak self] in
-                    guard let self = self, let selectedModel = selectedModel, let persona = persona else { return }
-                    let realm = try! await Realm()
+                guard let persona = self?.persona else { return }
+                let personaRef = ThreadSafeReference(to: persona)
+                Task { @RealmBackgroundActor in
+                    guard let selectedModel = selectedModel else { return }
+                    let realm = try! await Realm(actor: RealmBackgroundActor.shared)
+                    guard let persona = realm.resolve(personaRef) else { return }
                     let toRemove = realm.objects(LLMConfiguration.self).where { !$0.isDeleted && $0.usedByPersona.id == persona.id }.filter { $0.id != selectedModel }
                     for llm in toRemove {
-                        safeWrite(llm) { _, llm in
+                        try? await realm.asyncWrite {
+                            //                        safeWrite(llm) { _, llm in
                             llm.usedByPersona = nil
                         }
                     }
                     if let llm = realm.object(ofType: LLMConfiguration.self, forPrimaryKey: selectedModel) {
-                        safeWrite(llm) { _, llm in
+                        try? await realm.asyncWrite {
+//                        safeWrite(llm) { _, llm in
                             llm.usedByPersona = (persona.isFrozen ? persona.thaw() : persona)
                         }
                     }

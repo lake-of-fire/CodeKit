@@ -71,6 +71,11 @@ struct SyncCheckpoint {
     let id: String
 }
 
+@globalActor
+actor DBSyncActor {
+    static var shared = DBSyncActor()
+}
+
 public class DBSync: ObservableObject {
     private var realmConfiguration: Realm.Configuration? = nil
 //    private var syncedTypes: [Object.Type] = []
@@ -310,7 +315,6 @@ public class DBSync: ObservableObject {
         guard let realmConfiguration = realmConfiguration, asyncJavaScriptCaller != nil, let codeExtension = codeExtension else {
             fatalError("Incomplete configuration.")
         }
-        let realm = try await Realm(configuration: realmConfiguration)
         
         for objectType in syncedTypes {
 //            guard let realmSchema = realm.schema[objectType.className()] else {
@@ -318,25 +322,29 @@ public class DBSync: ObservableObject {
 //            }
             
             let rawCheckpoint = try await asyncJavaScriptCaller?("window[`${collectionName}LastCheckpoint`]", ["collectionName": objectType.dbCollectionName()], nil, .page) as? [String: Any]
-            var checkpoint: SyncCheckpoint?
-            if let rawCheckpoint = rawCheckpoint, let rawModifiedAt = rawCheckpoint["modifiedAt"] as? Int64, let id = rawCheckpoint["id"] as? String {
-                let modifiedAt = Date(timeIntervalSince1970: Double(rawModifiedAt) / 1000.0)
-                checkpoint = SyncCheckpoint(modifiedAt: modifiedAt, id: id)
-            }
             
-            @ThreadSafe var objects = realm.objects(objectType)
-                .sorted(by: [
-                    SortDescriptor(keyPath: "modifiedAt", ascending: true),
-                    SortDescriptor(keyPath: "id", ascending: true),
-                ])
-            if let checkpoint = checkpoint {
-                objects = objects?.filter(
-                    "modifiedAt >= %@ && (modifiedAt > %@ || id > %@)",
-                    checkpoint.modifiedAt, checkpoint.modifiedAt, checkpoint.id)
-            }
-            
-            if let objects = objects {
-                for chunk in Array(objects).chunked(into: 50) {
+            try await Task.detached { @DBSyncActor [weak self] in
+                guard let self = self else { return }
+//                let realm = try await Realm(configuration: realmConfiguration)
+                let realm = try await Realm(configuration: realmConfiguration, actor: DBSyncActor.shared)
+                var objects = realm.objects(objectType)
+                    .sorted(by: [
+                        SortDescriptor(keyPath: "modifiedAt", ascending: true),
+                        SortDescriptor(keyPath: "id", ascending: true),
+                    ])
+                
+                var checkpoint: SyncCheckpoint?
+                if let rawCheckpoint = rawCheckpoint, let rawModifiedAt = rawCheckpoint["modifiedAt"] as? Int64, let id = rawCheckpoint["id"] as? String {
+                    let modifiedAt = Date(timeIntervalSince1970: Double(rawModifiedAt) / 1000.0)
+                    checkpoint = SyncCheckpoint(modifiedAt: modifiedAt, id: id)
+                }
+                if let checkpoint = checkpoint {
+                    objects = objects.filter(
+                        "modifiedAt >= %@ && (modifiedAt > %@ || id > %@)",
+                        checkpoint.modifiedAt, checkpoint.modifiedAt, checkpoint.id)
+                }
+ 
+                for chunk in Array(objects).chunked(into: 150) {
                     guard var objects = chunk as? [any DBSyncableObject] else {
                         print("ERROR Couldn't cast chunk to DBSyncableObject")
                         continue
@@ -366,11 +374,11 @@ public class DBSync: ObservableObject {
                         try await syncTo(objects: objects, overrides: overrides)
                     }
                 }
-            }
+            }.value
         }
     }
     
-    @MainActor
+    @DBSyncActor
     private func jsonDictionaryFor(object: some DBSyncableObject, overrides: [String: Any]?) async throws -> String? {
         let jsonEncoder = JSONEncoder()
         jsonEncoder.dateEncodingStrategy = .custom { date, encoder in
@@ -392,7 +400,7 @@ public class DBSync: ObservableObject {
         return jsonStr
     }
     
-    @MainActor
+    @DBSyncActor
     private func syncTo(objects: [any DBSyncableObject], overrides: [String: [String: Any]]) async throws {
         var jsonStr = "["
         for object in objects {
@@ -409,9 +417,13 @@ public class DBSync: ObservableObject {
             let collectionName = type(of: firstObject).dbCollectionName()
             // TODO: Lots n lots to optimize by peeking at this...
             //            print(jsonStr.prefix(300))
-            _ = try await asyncJavaScriptCaller?("window.chat.parentBridge.syncDocsFromCanonical(collectionName, \(jsonStr))", [
-                "collectionName": collectionName,
-            ], nil, .page)
+            let jsonToSend = jsonStr
+            try await Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                _ = try await asyncJavaScriptCaller?("window.chat.parentBridge.syncDocsFromCanonical(collectionName, " + jsonToSend + ")", [
+                    "collectionName": collectionName,
+                ], nil, .page)
+            }.value
         }
     }
     

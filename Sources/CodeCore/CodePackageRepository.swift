@@ -47,6 +47,7 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
                             Task { [weak self] in
                                 guard let self = self else { return }
                                 try await loadRepository()
+//                                print("## workspace trig build")
                                 try? await Realm.asyncWrite(package, configuration: package.realm?.configuration) { _, package in
                                     for ext in package.codeExtensions.where({ !$0.isDeleted }) {
                                         ext.buildRequested = true

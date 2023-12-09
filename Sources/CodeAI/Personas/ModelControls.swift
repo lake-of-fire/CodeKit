@@ -140,7 +140,7 @@ class ModelsControlsViewModel: ObservableObject {
                 Task { @MainActor [weak self] in
                     self?.refreshModelItems()
                     await self?.refreshDownloads()
-                    self?.refreshDownloadMessage()
+//                    self?.refreshDownloadMessage()
                 }
             })
             .store(in: &cancellables)
@@ -161,8 +161,18 @@ class ModelsControlsViewModel: ObservableObject {
             .sink { [weak self] downloadModels in
                 Task { @MainActor [weak self] in
                     await self?.refreshDownloads(downloadModels: downloadModels)
-                    self?.refreshDownloadMessage()
+//                    self?.refreshDownloadMessage()
                 }
+            }
+            .store(in: &cancellables)
+        
+        $selectedDownloadable
+            .compactMap { $0 }
+            .removeDuplicates()
+            .flatMap { $0.$isFinishedDownloading }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isFinishedDownloading in
+                self?.refreshDownloadMessage()
             }
             .store(in: &cancellables)
         
@@ -171,8 +181,14 @@ class ModelsControlsViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] selectedModel in
                 guard let persona = self?.persona else { return }
+                
+                Task { @MainActor [weak self] in
+                    // Reset until it's loaded back in.
+                    self?.selectedDownloadable = nil
+                }
+                
                 let personaRef = ThreadSafeReference(to: persona)
-                Task { @RealmBackgroundActor in
+                Task { @RealmBackgroundActor [weak self] in
                     guard let selectedModel = selectedModel else { return }
                     let realm = try! await Realm(actor: RealmBackgroundActor.shared)
                     guard let persona = realm.resolve(personaRef) else { return }
@@ -184,6 +200,12 @@ class ModelsControlsViewModel: ObservableObject {
                         }
                     }
                     if let llm = realm.object(ofType: LLMConfiguration.self, forPrimaryKey: selectedModel) {
+                        let modelDownloadURL = llm.modelDownloadURL
+                        Task { @MainActor [weak self] in
+                            if self?.selectedDownloadable?.url.absoluteString != modelDownloadURL {
+                                self?.selectedDownloadable = nil
+                            }
+                        }
                         try? await realm.asyncWrite {
 //                        safeWrite(llm) { _, llm in
                             llm.usedByPersona = (persona.isFrozen ? persona.thaw() : persona)
@@ -229,14 +251,14 @@ class ModelsControlsViewModel: ObservableObject {
         let realm = try! Realm()
         
 #if os(macOS)
-        var safelyAvailableMemory = UInt64(1 * Double(MTLCopyAllDevices().sorted {
+        var safelyAvailableMemory = UInt64(0.95 * Double(MTLCopyAllDevices().sorted {
             $0.recommendedMaxWorkingSetSize > $1.recommendedMaxWorkingSetSize
         } .first?.recommendedMaxWorkingSetSize ?? 0))
 #elseif DEBUG
         var safelyAvailableMemory: UInt64 = 8_000_000_000
 #else
         let metalDevice = MTLCreateSystemDefaultDevice()
-        var safelyAvailableMemory = UInt64(1 * Double(metalDevice?.recommendedMaxWorkingSetSize ?? 0))
+        var safelyAvailableMemory = UInt64(0.8 * Double(metalDevice?.recommendedMaxWorkingSetSize ?? 0))
 #endif
         
         if LLMModel.shared.state != .none {
@@ -356,7 +378,7 @@ class ModelsControlsViewModel: ObservableObject {
         }
         
         let ensureTask = Task { @MainActor in
-            await DownloadController.shared.ensureDownloaded(Set(downloads))
+            await DownloadController.shared.ensureDownloaded(Set(downloads), deletingOrphansIn: [LLMConfiguration.downloadDirectory])
         }
         
         if let selectedDownload = DownloadController.shared.assuredDownloads.first(where: { $0.url == selectedLLM?.downloadable?.url }) {
@@ -382,8 +404,8 @@ class ModelsControlsViewModel: ObservableObject {
             }
         }
         
+        refreshDownloadMessage()
         await ensureTask.value
-        
         refreshDownloadMessage()
     }
     
@@ -426,6 +448,7 @@ public struct ModelsControlsContainer: View {
     
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            Text(viewModel.selectedDownloadable?.url.absoluteString ?? "_none_")
             ModelSwitcher(persona: persona)
                 .task {
                     Task { @MainActor in

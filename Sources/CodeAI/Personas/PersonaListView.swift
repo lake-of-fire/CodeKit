@@ -74,6 +74,7 @@ public struct PersonaListItems: View {
     public let maxRanks: [String: Int]
     
     public var body: some View {
+//        Text(Array(personas).map { $0.persona.name }.joined(separator: ";"))
         ForEach(personas, id: \.persona) { persona in
             if maxRanks[persona.rankedName] == persona.rank {
                 Label(personas.contains(where: { $0.rankedName == persona.rankedName && $0.rank != persona.rank }) ? "Add New \(persona.rankedName)" : persona.rankedName, systemImage: "plus")

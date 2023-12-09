@@ -40,12 +40,14 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
     
     public var needsSyncToServer: Bool { false }
     
+    public static var downloadDirectory: DownloadDirectory {
+        DownloadDirectory.local(parentDirectoryName: "Downloads/llm-models", groupIdentifier:  Self.securityApplicationGroupIdentifier)
+    }
     public var downloadable: Downloadable? {
         guard let url = URL(string: modelDownloadURL) else { return nil }
         return Downloadable(
             name: name,
-            groupIdentifier: Self.securityApplicationGroupIdentifier,
-            parentDirectoryName: "Downloads/llm-models",
+            destination: Self.downloadDirectory,
             filename: url.lastPathComponent,
             downloadMirrors: [url])
     }

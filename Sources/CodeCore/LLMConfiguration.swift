@@ -53,6 +53,10 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
     }
     
     public var canUseMetal: Bool {
+#if os(iOS)
+        return MTLCreateSystemDefaultDevice()?.supportsFamily(.apple4) ?? false
+#else
+        guard MTLCreateSystemDefaultDevice()?.supportsFamily(.mac2) ?? false else { return false }
         var systeminfo = utsname()
         uname(&systeminfo)
         let machine = withUnsafeBytes(of: &systeminfo.machine) {bufPtr->String in
@@ -64,6 +68,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
             }
         }
         return machine == "arm64"
+#endif
     }
     
     public var isModelInstalled: Bool {

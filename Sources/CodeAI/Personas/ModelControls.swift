@@ -298,7 +298,7 @@ class ModelsControlsViewModel: ObservableObject {
             let llms = Array(realm.objects(LLMConfiguration.self)
                 .where({ !$0.isDeleted && $0.usedByPersona == nil })
                 .sorted(by: \.defaultPriority, ascending: false))
-            if let llm = llms.filter({ $0.memoryRequirement == nil || (Int64($0.memoryRequirement ?? 0)) <= Int64(safelyAvailableMemory) }).first {
+            if let llm = llms.filter({ $0.supports(safelyAvailableMemory: safelyAvailableMemory) }).first {
                 try await Realm.asyncWrite(llm) { _, llm in
                     llm.usedByPersona = persona
                 }
@@ -339,7 +339,7 @@ class ModelsControlsViewModel: ObservableObject {
                    let memoryRequirement = llm.memoryRequirement {
                     return safelyAvailableMemory >= memoryRequirement
                 } else if LLMModel.shared.state != .none, (llm.memoryRequirement ?? 0) > 0 {
-                    return safelyAvailableMemory >= llm.memoryRequirement ?? 0
+                    return llm.supports(safelyAvailableMemory: safelyAvailableMemory)
                 }
                 return true
             }

@@ -33,6 +33,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
     @Persisted public var systemPromptTemplate = ""
     @Persisted public var promptFormat = ""
     @Persisted public var stopWords = RealmSwift.List<String>()
+//    @Persisted public var supportsCPUInference = true
     @Persisted public var temperature: Float = 0.75
     @Persisted public var topP: Float?
     @Persisted public var repeatLastN: Int?
@@ -50,6 +51,17 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
             destination: Self.downloadDirectory,
             filename: url.lastPathComponent,
             downloadMirrors: [url])
+    }
+    
+    public func supports(safelyAvailableMemory: UInt64) -> Bool {
+        if !supportsCPU && !canUseMetal {
+            return false
+        }
+        return memoryRequirement == nil || (Int64(memoryRequirement ?? 0) <= Int64(safelyAvailableMemory))
+    }
+    
+    public var supportsCPU: Bool {
+        return modelDownloadURL.isEmpty || Double(memoryRequirement ?? 0) <= 2.1
     }
     
     public var canUseMetal: Bool {

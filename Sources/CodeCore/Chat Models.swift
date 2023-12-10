@@ -50,23 +50,28 @@ public class Room: Object, UnownedSyncableObject {
         try container.encode(isDeleted, forKey: .isDeleted)
     }
     
-    public static func create() -> Room {
+    @RealmBackgroundActor
+    public static func create() async throws -> Room {
         let room = Room()
-        safeWrite { realm in
+        let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
+        try await realm.asyncWrite {
             realm.add(room)
         }
         return room
     }
     
     @discardableResult
-    public func submitUserMessage(text: String, directlyAddressing: Set<Persona> = Set()) -> Event? {
+    @RealmBackgroundActor
+    public func submitUserMessage(text: String, directlyAddressing: Set<Persona> = Set()) async throws -> Event? {
 //        guard let realm = realm?.thaw() else { return }
 //        try! realm.write {
         var event: Event?
-        safeWrite { realm in
+        let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
+        let sender = try await Persona.getOrCreateUser()
+        try await realm.asyncWrite {
             event = realm.create(Event.self, value: [
                 "room": self,
-                "sender": Persona.getOrCreateUser(),
+                "sender": sender,
                 "type": "message",
                 "directlyAddresses": directlyAddressing,
                 "content": text,
@@ -174,15 +179,16 @@ public class Persona: Object, UnownedSyncableObject {
         try container.encode(isDeleted, forKey: .isDeleted)
     }
     
-    public static func getOrCreateUser() -> Persona {
-        let realm = try! Realm()
+    @RealmBackgroundActor
+    public static func getOrCreateUser() async throws -> Persona {
+        let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
         if let user = realm.objects(Persona.self).where({ $0.personaType == .user && !$0.isDeleted }).first {
             return user
         }
         let user = Persona()
         user.name = "User"
         user.personaType = .user
-        safeWrite { realm in
+        try await realm.asyncWrite {
             realm.add(user)
         }
         return user
@@ -256,7 +262,7 @@ public class Event: Object, UnownedSyncableObject {
         guard !retryablePersonaFailures.isEmpty && retried == nil && sender?.personaType == .user else {
             return
         }
-        if let retriedEvent = room?.submitUserMessage(text: content, directlyAddressing: Set(retryablePersonaFailures)) {
+        if let retriedEvent = try await room?.submitUserMessage(text: content, directlyAddressing: Set(retryablePersonaFailures)) {
             try await Realm.asyncWrite(self) { _, event in
                 event.retried = retriedEvent
                 event.retryablePersonaFailures.removeAll()

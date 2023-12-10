@@ -183,7 +183,7 @@ public extension CodePackageRepository {
         let allExisting = realm.objects(CodeExtension.self).where { $0.repositoryURL == repositoryURL && !$0.isDeleted }
         for ext in allExisting {
             guard extensionNames.contains(ext.name) else {
-                try! realm.write {
+                try! await realm.asyncWrite {
                     ext.isDeleted = true
                 }
                 try await removeAllExtensionBuildsFromStorage(codeExtension: ext)
@@ -200,7 +200,7 @@ public extension CodePackageRepository {
         let existingNames = Set(allExisting.map { $0.name })
         let newNames = extensionNames.subtracting(existingNames)
         if !newNames.isEmpty {
-            try! realm.write {
+            try! await realm.asyncWrite {
                 for name in newNames {
                     realm.create(CodeExtension.self, value: [
                         "id": CodeExtension.makeCompoundKey(repositoryURL: repositoryURL, name: name),
@@ -429,14 +429,14 @@ public extension CodePackageRepository {
                     return
                 }
                 
-                Task { @MainActor [weak self] in
+                Task { @RealmBackgroundActor [weak self] in
                     do { try Task.checkCancellation() } catch {
                         continuation.resume(throwing: CodeError.unknownError)
                         return
                     }
                     
                     do {
-                        let realm = try await Realm()
+                        let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
                         guard let self = self, let package = realm.resolve(ref) else {
                             continuation.resume(throwing: CodeError.unknownError)
                             return

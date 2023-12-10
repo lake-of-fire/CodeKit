@@ -58,12 +58,16 @@ public struct PersonaDetailsView: View {
                         try await Realm.asyncWrite(persona) { _, persona in
                             persona.modelTemperature = modelTemperature
                         }
-                        let realm = try await Realm()
-                        for llm in realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == persona.id }) {
-                            try await realm.asyncWrite {
-                                llm.temperature = Float(modelTemperature)
+                        let personaID = persona.id
+                        
+                        try await Task { @RealmBackgroundActor in
+                            let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
+                            for llm in realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == personaID }) {
+                                try await realm.asyncWrite {
+                                    llm.temperature = Float(modelTemperature)
+                                }
                             }
-                        }
+                        }.value
 //                            if let llm = realm.objects(LLMConfiguration.self) {
 //                                safeWrite(ext) { _, ext in ext.modelTemperature = modelTemperature }
 //                            }

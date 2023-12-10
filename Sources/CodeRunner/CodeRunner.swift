@@ -116,15 +116,17 @@ public struct CodeRunner: View {
                         codeExtension: codeExtension) {
                             await beforeRun?()
                             
-                            do {
-                                let realm = try await Realm()
-                                guard let codeExtension = realm.resolve(ref) else { return }
-                                try await Realm.asyncWrite(codeExtension) { realm, codeExtension in
-                                    codeExtension.lastRunStartedAt = Date()
+                            await Task { @RealmBackgroundActor in
+                                do {
+                                    let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
+                                    guard let codeExtension = realm.resolve(ref) else { return }
+                                    try await Realm.asyncWrite(codeExtension) { realm, codeExtension in
+                                        codeExtension.lastRunStartedAt = Date()
+                                    }
+                                } catch {
+                                    print(error)
                                 }
-                            } catch {
-                                print(error)
-                            }
+                            }.value
                         }
                 }
             }

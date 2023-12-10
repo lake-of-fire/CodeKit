@@ -270,7 +270,7 @@ class ModelsControlsViewModel: ObservableObject {
         }
         
         let modelOptions = modelOptions ?? self.modelOptions
-        let realm = try await Realm()
+        let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
         
 #if os(macOS)
         var safelyAvailableMemory = UInt64(0.95 * Double(MTLCopyAllDevices().sorted {
@@ -299,7 +299,7 @@ class ModelsControlsViewModel: ObservableObject {
                 .where({ !$0.isDeleted && $0.usedByPersona == nil })
                 .sorted(by: \.defaultPriority, ascending: false))
             if let llm = llms.filter({ $0.supports(safelyAvailableMemory: safelyAvailableMemory) }).first {
-                try await Realm.asyncWrite(llm) { _, llm in
+                try await realm.asyncWrite {
                     llm.usedByPersona = persona
                 }
                 selectedModel = llm.id
@@ -373,7 +373,7 @@ class ModelsControlsViewModel: ObservableObject {
         var downloadModels = [String]()
         // To avoid parallel access to read/write PublishingAppStorage
         downloadModels.append(contentsOf: inputDownloadModels ?? self.downloadModels)
-        let realm = try! await Realm()
+        let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
         
         let selectedLLM = realm.objects(LLMConfiguration.self).where {
             !$0.isDeleted && $0.usedByPersona.id == (persona?.id ?? UUID())

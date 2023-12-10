@@ -60,7 +60,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
     }
     
     public var supportsCPU: Bool {
-        return modelDownloadURL.isEmpty || Double(memoryRequirement ?? 0) <= 2.1
+        return modelDownloadURL.isEmpty || Double(memoryRequirement ?? 0) <= 2_150_000_000
     }
     
     public var canUseMetal: Bool {

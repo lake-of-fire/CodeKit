@@ -33,7 +33,11 @@ public struct ModelPickerView: View {
             if personaLastModifiedAt != persona.modifiedAt {
                 Task { @MainActor in
                     viewModel.persona = persona
-                    viewModel.refreshModelItems(modelOptions: Array(persona.modelOptions))
+                    do {
+                        try await viewModel.refreshModelItems(modelOptions: Array(persona.modelOptions))
+                    } catch {
+                        print("ERROR \(error)")
+                    }
                     personaLastModifiedAt = persona.modifiedAt
                 }
             }
@@ -41,7 +45,11 @@ public struct ModelPickerView: View {
         .task {
             Task { @MainActor in
                 viewModel.persona = persona
-                viewModel.refreshModelItems()
+                do {
+                    try await viewModel.refreshModelItems()
+                } catch {
+                    print("ERROR \(error)")
+                }
                 personaLastModifiedAt = persona.modifiedAt
             }
         }

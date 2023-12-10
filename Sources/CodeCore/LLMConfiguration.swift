@@ -54,7 +54,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
     
     public var canUseMetal: Bool {
 #if os(iOS)
-        return MTLCreateSystemDefaultDevice()?.supportsFamily(.apple4) ?? false
+        return MTLCreateSystemDefaultDevice()?.supportsFamily(.apple7) ?? false
 #else
         guard MTLCreateSystemDefaultDevice()?.supportsFamily(.mac2) ?? false else { return false }
         var systeminfo = utsname()

@@ -211,11 +211,13 @@ public struct PersonaListView: View {
                         .safeAreaInset(edge: .bottom) {
                             HStack {
                                 Button {
-                                    safeWrite(room) { realm, room in
-                                        guard let matchPersona = realm?.object(ofType: Persona.self, forPrimaryKey: persona.id) else { return }
-                                        room.participants.insert(matchPersona)
+                                    Task { @MainActor in
+                                        try await Realm.asyncWrite(room) { realm, room in
+                                            guard let matchPersona = realm.object(ofType: Persona.self, forPrimaryKey: persona.id) else { return }
+                                            room.participants.insert(matchPersona)
+                                        }
+                                        onSelected(persona)
                                     }
-                                    onSelected(persona)
                                 } label: {
                                     HStack {
                                         Spacer()

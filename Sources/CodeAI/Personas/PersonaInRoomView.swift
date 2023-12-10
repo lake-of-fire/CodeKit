@@ -17,11 +17,13 @@ public struct PersonaInRoomView: View {
             .safeAreaInset(edge: .bottom) {
                 HStack {
                     Button {
-                        safeWrite(room) { realm, room in
-                            guard let matchPersona = realm?.object(ofType: Persona.self, forPrimaryKey: persona.id) else { return }
-                            room.participants.remove(matchPersona)
+                        Task { @MainActor in
+                            try await Realm.asyncWrite(room) { realm, room in
+                                guard let matchPersona = realm.object(ofType: Persona.self, forPrimaryKey: persona.id) else { return }
+                                room.participants.remove(matchPersona)
+                            }
+                            onRemoved()
                         }
-                        onRemoved()
                     } label: {
                         HStack {
                             Spacer()

@@ -147,8 +147,12 @@ class ModelsControlsViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] results in
                 Task { @MainActor [weak self] in
-                    self?.refreshModelItems()
-                    await self?.refreshDownloads()
+                    do {
+                        try await self?.refreshModelItems()
+                        try await self?.refreshDownloads()
+                    } catch {
+                        print("ERROR LLMConfiguration refresh: \(error)")
+                    }
 //                    self?.refreshDownloadMessage()
                 }
             })
@@ -169,7 +173,11 @@ class ModelsControlsViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] downloadModels in
                 Task { @MainActor [weak self] in
-                    await self?.refreshDownloads(downloadModels: downloadModels)
+                    do {
+                        try await self?.refreshDownloads(downloadModels: downloadModels)
+                    } catch {
+                        print("ERROR downloadModels refresh: \(error)")
+                    }
 //                    self?.refreshDownloadMessage()
                 }
             }
@@ -238,19 +246,23 @@ class ModelsControlsViewModel: ObservableObject {
                 }
                 Task { @MainActor [weak self] in
                     guard let self = self else { return }
-                    let realm = try! await Realm()
-                    refreshModelItems()
-                    selectedModel = realm.objects(LLMConfiguration.self)
-                        .where { !$0.isDeleted && $0.usedByPersona.id == personaID }
-                        .first?.id
-                    await refreshDownloads(persona: persona)
+                    do {
+                        let realm = try await Realm()
+                        try await refreshModelItems()
+                        selectedModel = realm.objects(LLMConfiguration.self)
+                            .where { !$0.isDeleted && $0.usedByPersona.id == personaID }
+                            .first?.id
+                        try await refreshDownloads(persona: persona)
+                    } catch {
+                        print("ERROR RefreshDownloads \(error)")
+                    }
                 }
             }
             .store(in: &cancellables)
     }
     
     @MainActor
-    func refreshModelItems(modelOptions: [String]? = nil) {
+    func refreshModelItems(modelOptions: [String]? = nil) async throws {
         guard let persona = (persona?.isFrozen ?? false ? persona?.thaw() : persona) else {
             modelItems = []
             selectedModel = nil
@@ -258,7 +270,7 @@ class ModelsControlsViewModel: ObservableObject {
         }
         
         let modelOptions = modelOptions ?? self.modelOptions
-        let realm = try! Realm()
+        let realm = try await Realm()
         
 #if os(macOS)
         var safelyAvailableMemory = UInt64(0.95 * Double(MTLCopyAllDevices().sorted {
@@ -287,7 +299,7 @@ class ModelsControlsViewModel: ObservableObject {
                 .where({ !$0.isDeleted && $0.usedByPersona == nil })
                 .sorted(by: \.defaultPriority, ascending: false))
             if let llm = llms.filter({ $0.memoryRequirement == nil || (Int64($0.memoryRequirement ?? 0)) <= Int64(safelyAvailableMemory) }).first {
-                safeWrite(llm) { _, llm in
+                try await Realm.asyncWrite(llm) { _, llm in
                     llm.usedByPersona = persona
                 }
                 selectedModel = llm.id
@@ -337,16 +349,16 @@ class ModelsControlsViewModel: ObservableObject {
     }
     
     @MainActor
-    private func updateDownloadsLastCheckedAt(persona: Persona) {
+    private func updateDownloadsLastCheckedAt(persona: Persona) async throws {
         if let codeExtension = persona.providedByExtension, persona.downloadsLastCheckedAt == nil || (codeExtension.lastRunStartedAt ?? .distantPast > persona.downloadsLastCheckedAt ?? .distantPast) {
-            safeWrite(persona) { _, persona in
+            try await Realm.asyncWrite(persona) { _, persona in
                 persona.downloadsLastCheckedAt = Date()
             }
         }
     }
     
     @MainActor
-    private func refreshDownloads(downloadModels: [String]? = nil, persona: Persona? = nil) async {
+    private func refreshDownloads(downloadModels: [String]? = nil, persona: Persona? = nil) async throws {
         let persona = persona ?? self.persona
         let inputDownloadModels = downloadModels
         var downloadModels = [String]()
@@ -404,13 +416,13 @@ class ModelsControlsViewModel: ObservableObject {
                 Task { @MainActor in
                     do {
                         try await selectedDownloadable.fetchRemoteFileSize()
-                        updateDownloadsLastCheckedAt(persona: persona)
+                        try await updateDownloadsLastCheckedAt(persona: persona)
                     } catch {
-                        updateDownloadsLastCheckedAt(persona: persona)
+                        try await updateDownloadsLastCheckedAt(persona: persona)
                     }
                 }
             } else {
-                updateDownloadsLastCheckedAt(persona: persona)
+                try await updateDownloadsLastCheckedAt(persona: persona)
             }
         }
         

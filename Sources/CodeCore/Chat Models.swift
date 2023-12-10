@@ -251,12 +251,13 @@ public class Event: Object, UnownedSyncableObject {
         })
     }
     
-    public func retry() {
+    @MainActor
+    public func retry() async throws {
         guard !retryablePersonaFailures.isEmpty && retried == nil && sender?.personaType == .user else {
             return
         }
         if let retriedEvent = room?.submitUserMessage(text: content, directlyAddressing: Set(retryablePersonaFailures)) {
-            safeWrite(self) { _, event in
+            try await Realm.asyncWrite(self) { _, event in
                 event.retried = retriedEvent
                 event.retryablePersonaFailures.removeAll()
             }

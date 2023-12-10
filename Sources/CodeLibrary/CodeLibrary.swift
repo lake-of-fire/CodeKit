@@ -202,8 +202,10 @@ struct CodeLibraryNavigationItemMenuButtons: View {
                 }
                 Divider()
                 Button(role: .destructive) {
-                    safeWrite(package) { _, package in
-                        package.isDeleted = true
+                    Task { @MainActor in
+                        try await Realm.asyncWrite(package) { _, package in
+                            package.isDeleted = true
+                        }
                     }
                 } label: { Label("Delete", systemImage: "trash") }
             }
@@ -221,20 +223,24 @@ struct CodeLibraryNavigationItemMenuButtons: View {
         ForEach(packageCollections) { packageCollection in
             if !package.packageCollection.isEmpty {
                 Button("No Collection") {
-                    safeWrite(package) { _, package in
-                        for existing in package.packageCollection {
-                            existing.packages.remove(package)
+                    Task { @MainActor in
+                        try await Realm.asyncWrite(package) { _, package in
+                            for existing in package.packageCollection {
+                                existing.packages.remove(package)
+                            }
                         }
                     }
                 }
             }
             if !package.packageCollection.contains(where: { $0.id == packageCollection.id }) {
                 Button(packageCollection.name) {
-                    safeWrite(package) { _, package in
-                        for existing in package.packageCollection {
-                            existing.packages.remove(package)
+                    Task { @MainActor in
+                        try await Realm.asyncWrite(package) { realm, package in
+                            for existing in package.packageCollection {
+                                existing.packages.remove(package)
+                            }
+                            packageCollection.thaw()?.packages.insert(package)
                         }
-                        packageCollection.thaw()?.packages.insert(package)
                     }
                 }
             }
@@ -315,8 +321,10 @@ public struct CodeLibraryView: View {
                             .contextMenu {
                                 if collection.isUserEditable {
                                     Button(role: .destructive) {
-                                        safeWrite(collection) { _, collection in
-                                            collection.isDeleted = true
+                                        Task { @MainActor in
+                                            try await Realm.asyncWrite(collection) { _, collection in
+                                                collection.isDeleted = true
+                                            }
                                         }
                                     } label: { Label("Delete", systemImage: "trash") }
                                 }

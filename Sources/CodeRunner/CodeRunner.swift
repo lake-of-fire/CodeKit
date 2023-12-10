@@ -116,11 +116,14 @@ public struct CodeRunner: View {
                         codeExtension: codeExtension) {
                             await beforeRun?()
                             
-                            Task { @MainActor in
-                                guard let codeExtension = try! await Realm().resolve(ref) else { return }
-                                safeWrite(codeExtension) { _, codeExtension in
+                            do {
+                                let realm = try await Realm()
+                                guard let codeExtension = realm.resolve(ref) else { return }
+                                try await Realm.asyncWrite(codeExtension) { realm, codeExtension in
                                     codeExtension.lastRunStartedAt = Date()
                                 }
+                            } catch {
+                                print(error)
                             }
                         }
                 }

@@ -333,11 +333,9 @@ class ModelsControlsViewModel: ObservableObject {
             .values
             .filter { (llm: LLMConfiguration) -> Bool in
                 if llm.usedByPersona?.id == persona.id {
-                    return true
-                }
-                if LLMModel.shared.state == .none || LLMModel.shared.modelURL == llm.downloadable?.localDestination.path,
-                   let memoryRequirement = llm.memoryRequirement {
-                    return safelyAvailableMemory >= memoryRequirement
+                    return llm.supports(safelyAvailableMemory: UInt64(Double(safelyAvailableMemory) * 1.5)) // Buffer to avoid deselecting when in-use.
+                } else if LLMModel.shared.state == .none || LLMModel.shared.modelURL == llm.downloadable?.localDestination.path {
+                    return llm.supports(safelyAvailableMemory: safelyAvailableMemory)
                 } else if LLMModel.shared.state != .none, (llm.memoryRequirement ?? 0) > 0 {
                     return llm.supports(safelyAvailableMemory: safelyAvailableMemory)
                 }

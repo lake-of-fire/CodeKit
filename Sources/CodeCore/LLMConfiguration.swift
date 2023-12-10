@@ -33,7 +33,6 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
     @Persisted public var systemPromptTemplate = ""
     @Persisted public var promptFormat = ""
     @Persisted public var stopWords = RealmSwift.List<String>()
-//    @Persisted public var supportsCPUInference = true
     @Persisted public var temperature: Float = 0.75
     @Persisted public var topP: Float?
     @Persisted public var repeatLastN: Int?

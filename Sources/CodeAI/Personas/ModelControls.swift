@@ -84,10 +84,19 @@ struct ModelSwitcher: View {
 }
 
 open class BlockableMessagingViewModel: ObservableObject {
+    @Published public var messageSubmissionBlockID: String?
+    @Published public var messageSubmissionBlocked = false
     @Published public var messageSubmissionBlockMessage: String?
     @Published public var messageSubmissionBlockedAction: (() -> Void)?
     
     public init() { }
+    
+    public func resetSubmissionBlock() {
+        messageSubmissionBlocked = false
+        messageSubmissionBlockID = nil
+        messageSubmissionBlockMessage = nil
+        messageSubmissionBlockedAction = nil
+    }
 }
 
 struct ModelControls: View {
@@ -130,12 +139,12 @@ class ModelsControlsViewModel: ObservableObject {
         let realm = try! Realm()
         realm.objects(LLMConfiguration.self)
             .where { !$0.isDeleted }
-            .collectionPublisher
+            .collectionPublisher(keyPaths: [
+                "id", "modelDownloadURL", "name", "memoryRequirement", "modelInference", "defaultPriority"])
             .freeze()
             .removeDuplicates()
             .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
             .receive(on: DispatchQueue.main)
-//            .print("##")
             .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] results in
                 Task { @MainActor [weak self] in
                     self?.refreshModelItems()
@@ -170,6 +179,7 @@ class ModelsControlsViewModel: ObservableObject {
             .compactMap { $0 }
             .removeDuplicates()
             .flatMap { $0.$isFinishedDownloading }
+            .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isFinishedDownloading in
                 self?.refreshDownloadMessage()
@@ -254,11 +264,11 @@ class ModelsControlsViewModel: ObservableObject {
         var safelyAvailableMemory = UInt64(0.95 * Double(MTLCopyAllDevices().sorted {
             $0.recommendedMaxWorkingSetSize > $1.recommendedMaxWorkingSetSize
         } .first?.recommendedMaxWorkingSetSize ?? 0))
-#elseif DEBUG
+#elseif targetEnvironment(simulator)
         var safelyAvailableMemory: UInt64 = 8_000_000_000
 #else
         let metalDevice = MTLCreateSystemDefaultDevice()
-        var safelyAvailableMemory = UInt64(0.8 * Double(metalDevice?.recommendedMaxWorkingSetSize ?? 0))
+        var safelyAvailableMemory = UInt64(0.9 * Double(metalDevice?.recommendedMaxWorkingSetSize ?? 0))
 #endif
         
         if LLMModel.shared.state != .none {
@@ -412,11 +422,24 @@ class ModelsControlsViewModel: ObservableObject {
     private func refreshDownloadMessage() {
         let realm = try! Realm()
         if let persona = persona, let llm = realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == persona.id }).first {
-            if llm.isModelInstalled && blockableMessagingViewModel?.messageSubmissionBlockMessage == "Download" {
-                blockableMessagingViewModel?.messageSubmissionBlockMessage = nil
-                blockableMessagingViewModel?.messageSubmissionBlockedAction = nil
+            print("refresh DL msg:")
+            print(llm.displayName)
+            print(llm.isModelInstalled.description)
+            if let downloadable = llm.downloadable {
+                print(downloadModels.contains(downloadable.url.absoluteString).description)
+                print(downloadable.url.absoluteString)
+                print("file exists?")
+                print(downloadable.localDestination.path)
+                print(FileManager.default.fileExists(atPath: downloadable.localDestination.path))
+            }
+            if (llm.downloadable == nil || llm.isModelInstalled) && blockableMessagingViewModel?.messageSubmissionBlockID == "llm-models" {
+                blockableMessagingViewModel?.resetSubmissionBlock()
             } else if let downloadable = llm.downloadable {
+                blockableMessagingViewModel?.resetSubmissionBlock()
+                blockableMessagingViewModel?.messageSubmissionBlockID = "llm-models"
+                blockableMessagingViewModel?.messageSubmissionBlocked = true
                 if !downloadModels.contains(downloadable.url.absoluteString) {
+                    blockableMessagingViewModel?.messageSubmissionBlockMessage = "Download"
                     blockableMessagingViewModel?.messageSubmissionBlockMessage = "Download"
                     blockableMessagingViewModel?.messageSubmissionBlockedAction = {
                         Task { @MainActor [weak self] in
@@ -424,9 +447,6 @@ class ModelsControlsViewModel: ObservableObject {
                             downloadModels = Array(Set(downloadModels).union(Set([downloadable.url.absoluteString])))
                         }
                     }
-                } else {
-                    blockableMessagingViewModel?.messageSubmissionBlockMessage = "Download"
-                    blockableMessagingViewModel?.messageSubmissionBlockedAction = nil
                 }
             }
         }
@@ -448,7 +468,6 @@ public struct ModelsControlsContainer: View {
     
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(viewModel.selectedDownloadable?.url.absoluteString ?? "_none_")
             ModelSwitcher(persona: persona)
                 .task {
                     Task { @MainActor in
@@ -457,28 +476,29 @@ public struct ModelsControlsContainer: View {
                 }
                 .onChange(of: persona) { persona in
                     Task { @MainActor in
+                        let persona = persona.freeze()
                         if viewModel.persona != persona {
-                            viewModel.persona = persona.freeze()
+                            viewModel.persona = persona
                         }
 //                        viewModel.refreshModelItems()
                     }
                 }
             
-            if let downloadable = viewModel.selectedDownloadable {
-                HStack(alignment: .center) {
-                    Text("\(persona.name.truncate(20)) AI Model")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
+            HStack(alignment: .center) {
+                Text("\(persona.name.truncate(20)) AI Model")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                if let downloadable = viewModel.selectedDownloadable {
                     ModelControls(viewModel: viewModel, persona: persona, downloadable: downloadable)
                 }
-#if os(macOS)
-                .padding(.leading, 3)
-                .padding(.top, 2)
-#else
-                .padding(.leading, 12)
-                .padding(.bottom, 2)
-#endif
             }
+#if os(macOS)
+            .padding(.leading, 3)
+            .padding(.top, 2)
+#else
+            .padding(.leading, 12)
+            .padding(.bottom, 2)
+#endif
         }
         .environmentObject(viewModel)
     }

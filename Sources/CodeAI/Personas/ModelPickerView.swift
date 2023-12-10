@@ -17,11 +17,16 @@ public struct ModelPickerView: View {
     }
     
     public var body: some View {
-        Picker("Model", selection: $viewModel.selectedModel) {
-            ForEach(viewModel.selectedModel == nil ? [] : viewModel.modelItems, id: \.0) { modelItem in
-                let (id, modelDisplayName) = modelItem
-                Text(modelDisplayName).tag(id as UUID?)
-                    .bold()
+        Group {
+            if let modelID = viewModel.selectedModel, viewModel.modelItems.contains(where: { $0.0 == modelID }) {
+                Picker("Model", selection: $viewModel.selectedModel) {
+                    ForEach(viewModel.selectedModel == nil ? [] : viewModel.modelItems, id: \.0) { modelItem in
+                        let (id, modelDisplayName) = modelItem
+                        Text(modelDisplayName)
+                            .bold()
+                            .tag(id as UUID?)
+                    }
+                }
             }
         }
         .onChange(of: persona.modifiedAt) { _ in

@@ -67,7 +67,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
     }
     
     public var isModelInstalled: Bool {
-        guard let downloadable = downloadable else { return false }
+        guard !isDeleted, let downloadable = downloadable else { return false }
         return FileManager.default.fileExists(atPath: downloadable.localDestination.path)
     }
     

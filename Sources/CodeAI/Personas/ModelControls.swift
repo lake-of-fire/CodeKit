@@ -422,7 +422,18 @@ class ModelsControlsViewModel: ObservableObject {
     private func refreshDownloadMessage() {
         let realm = try! Realm()
         if let persona = persona, let llm = realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == persona.id }).first {
-            if (llm.downloadable == nil || llm.isModelInstalled) && blockableMessagingViewModel?.messageSubmissionBlockID == "llm-models" {
+//            print("refresh DL msg:")
+//            print(llm.displayName)
+//            print(llm.isModelInstalled.description)
+//            if let downloadable = llm.downloadable {
+//                print(downloadModels.contains(downloadable.url.absoluteString).description)
+//                print(downloadable.url.absoluteString)
+//                print("file exists?")
+//                print(downloadable.localDestination.path)
+//                print(FileManager.default.fileExists(atPath: downloadable.localDestination.path))
+//                print(blockableMessagingViewModel?.messageSubmissionBlockID ?? "no msg block id set")
+//            }
+            if (llm.downloadable == nil || llm.isModelInstalled) && (blockableMessagingViewModel?.messageSubmissionBlockID == "llm-models" || blockableMessagingViewModel?.messageSubmissionBlockID == nil) {
                 blockableMessagingViewModel?.resetSubmissionBlock()
             } else if let downloadable = llm.downloadable {
                 blockableMessagingViewModel?.resetSubmissionBlock()

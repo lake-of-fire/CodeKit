@@ -56,7 +56,7 @@ public class LLMConfiguration: Object, UnownedSyncableObject {
         if !supportsCPU && !canUseMetal {
             return false
         }
-        return memoryRequirement == nil || (Int64(memoryRequirement ?? 0) <= Int64(safelyAvailableMemory))
+        return memoryRequirement == nil || (Int64(memoryRequirement ?? 0) <= UInt64(safelyAvailableMemory))
     }
     
     public var supportsCPU: Bool {

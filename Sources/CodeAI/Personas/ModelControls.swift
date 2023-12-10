@@ -306,7 +306,7 @@ class ModelsControlsViewModel: ObservableObject {
             }
         }
         
-        let modelItems: [(UUID, String)] = realm.objects(LLMConfiguration.self)
+        self.modelItems = realm.objects(LLMConfiguration.self)
             .where {
                 $0.name.in(modelOptions) && !$0.isDeleted && ($0.usedByPersona.id == persona.id || $0.usedByPersona == nil)
             }
@@ -343,7 +343,18 @@ class ModelsControlsViewModel: ObservableObject {
             }
             .sorted { $0.displayName < $1.displayName }
             .map { (llm: LLMConfiguration) -> (UUID, String) in (llm.id, llm.displayName) }
-        self.modelItems = Array(modelItems)
+        if !modelItems.contains(where: { $0.0 == selectedModel }) {
+            // Get a new default if the old selection is no longer available.
+            let llms = Array(realm.objects(LLMConfiguration.self)
+                .where({ $0.id.in(modelItems.map { $0.0 }) })
+                .sorted(by: \.defaultPriority, ascending: false))
+            if let llm = llms.filter({ $0.supports(safelyAvailableMemory: safelyAvailableMemory) }).first {
+                try await Realm.asyncWrite(llm) { _, llm in
+                    llm.usedByPersona = persona
+                }
+                selectedModel = llm.id
+            }
+        }
     }
     
     @MainActor

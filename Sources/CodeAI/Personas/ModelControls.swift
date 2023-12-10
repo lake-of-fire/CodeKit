@@ -349,7 +349,7 @@ class ModelsControlsViewModel: ObservableObject {
                 .where({ $0.id.in(modelItems.map { $0.0 }) })
                 .sorted(by: \.defaultPriority, ascending: false))
             if let llm = llms.filter({ $0.supports(safelyAvailableMemory: safelyAvailableMemory) }).first {
-                try await Realm.asyncWrite(llm) { _, llm in
+                try await realm.asyncWrite {
                     llm.usedByPersona = persona
                 }
                 selectedModel = llm.id

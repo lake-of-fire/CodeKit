@@ -50,14 +50,18 @@ public class Room: Object, UnownedSyncableObject {
         try container.encode(isDeleted, forKey: .isDeleted)
     }
     
-    @RealmBackgroundActor
-    public static func create() async throws -> Room {
-        let room = Room()
-        let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
-        try await realm.asyncWrite {
-            realm.add(room)
-        }
-        return room
+    @MainActor
+    public static func create() async throws -> Room? {
+        let roomRef = try await Task { @RealmBackgroundActor in
+            let room = Room()
+            let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
+            try await realm.asyncWrite {
+                realm.add(room)
+            }
+            return ThreadSafeReference(to: room)
+        }.value
+        let realm = try await Realm()
+        return realm.resolve(roomRef)
     }
     
     @discardableResult

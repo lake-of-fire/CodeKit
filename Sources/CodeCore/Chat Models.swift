@@ -263,7 +263,7 @@ public class Event: Object, UnownedSyncableObject {
             return
         }
         if let retriedEvent = try await room?.submitUserMessage(text: content, directlyAddressing: Set(retryablePersonaFailures)) {
-            try await Realm.asyncWrite(self) { _, event in
+            try await Realm.asyncWrite(ThreadSafeReference(to: self)) { _, event in
                 event.retried = retriedEvent
                 event.retryablePersonaFailures.removeAll()
             }

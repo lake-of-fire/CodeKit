@@ -48,10 +48,11 @@ public class CodePackageRepository: ObservableObject, GitRepositoryProtocol {
                                 guard let self = self else { return }
                                 try await loadRepository()
 //                                print("## workspace trig build")
-                                try? await Realm.asyncWrite(package, configuration: package.realm?.configuration) { _, package in
+                                try? await Realm.asyncWrite(ThreadSafeReference(to: package), configuration: package.realm?.configuration) { _, package in
                                     for ext in package.codeExtensions.where({ !$0.isDeleted }) {
                                         ext.buildRequested = true
                                         ext.lastBuildRequestedAt = Date()
+                                        ext.modifiedAt = Date()
                                     }
                                 }
                             }
@@ -191,8 +192,9 @@ public extension CodePackageRepository {
             }
             
             if ext.package != package {
-                try? await Realm.asyncWrite(ext, configuration: package.realm?.configuration) { _, codeExtension in
+                try? await Realm.asyncWrite(ThreadSafeReference(to: ext), configuration: package.realm?.configuration) { _, codeExtension in
                     codeExtension.package = package
+                    codeExtension.modifiedAt = Date()
                 }
             }
         }
@@ -450,7 +452,7 @@ public extension CodePackageRepository {
                             }
                             
                             if forceBuild {
-                                try? await Realm.asyncWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
+                                try await realm.asyncWrite {
                                     codeExtension.buildRequested = true
                                     codeExtension.lastBuildRequestedAt = Date()
                                 }
@@ -519,6 +521,7 @@ public extension CodePackageRepository {
             try? await realm.asyncWrite {
                 codeExtension.isBuilding = true
                 codeExtension.lastBuildRequestedAt = Date()
+                codeExtension.modifiedAt = Date()
             }
         }.value
         
@@ -563,6 +566,7 @@ public extension CodePackageRepository {
                     codeExtension.buildRequested = false
                     codeExtension.isBuilding = false
                     codeExtension.lastBuiltAt = Date()
+                    codeExtension.modifiedAt = Date()
                     if fileChanged {
                         // Triggers re-run.
                         codeExtension.lastBuildChangedAt = Date()
@@ -578,6 +582,7 @@ public extension CodePackageRepository {
                 guard let codeExtension = realm.resolve(ref) else { return }
                 try? await realm.asyncWrite {
                     codeExtension.isBuilding = false
+                    codeExtension.modifiedAt = Date()
                 }
             }.value
             throw error
@@ -661,9 +666,10 @@ public extension CodePackageRepository {
     @MainActor
     func refreshBuildStatus(codeExtension: CodeExtension) async throws {
         guard let workspaceStorage = workspaceStorage else {
-            try? await Realm.asyncWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
+            try? await Realm.asyncWrite(ThreadSafeReference(to: codeExtension), configuration: package.realm?.configuration) { _, codeExtension in
                 codeExtension.desiredBuildHash = nil
                 codeExtension.latestBuildHashAvailable = nil
+                codeExtension.modifiedAt = Date()
             }
             return
         }
@@ -671,27 +677,31 @@ public extension CodePackageRepository {
         let sources = try await readSources(codeExtension: codeExtension)
         let buildHash = try await Self.buildHash(sourcePackage: sources)
         if codeExtension.desiredBuildHash != buildHash {
-            try? await Realm.asyncWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
+            try? await Realm.asyncWrite(ThreadSafeReference(to: codeExtension), configuration: package.realm?.configuration) { _, codeExtension in
                 codeExtension.desiredBuildHash = buildHash
+                codeExtension.modifiedAt = Date()
             }
         }
         
         if let storageURL = codeExtension.buildResultStorageURL(forBuildHash: buildHash) {
             let buildExists = try await workspaceStorage.fileExists(at: storageURL)
             if buildExists && codeExtension.latestBuildHashAvailable != buildHash {
-                try? await Realm.asyncWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
+                try? await Realm.asyncWrite(ThreadSafeReference(to: codeExtension), configuration: package.realm?.configuration) { _, codeExtension in
                     codeExtension.latestBuildHashAvailable = buildHash
+                    codeExtension.modifiedAt = Date()
                 }
             } else if let latestBuildHashAvailable = codeExtension.latestBuildHashAvailable, let oldStorageURL = codeExtension.buildResultStorageURL(forBuildHash: latestBuildHashAvailable) {
                 let oldBuildExists = try await workspaceStorage.fileExists(at: oldStorageURL)
                 if !oldBuildExists && codeExtension.latestBuildHashAvailable != nil {
-                    try? await Realm.asyncWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
+                    try? await Realm.asyncWrite(ThreadSafeReference(to: codeExtension), configuration: package.realm?.configuration) { _, codeExtension in
                         codeExtension.latestBuildHashAvailable = nil
+                        codeExtension.modifiedAt = Date()
                     }
                 }
             } else if codeExtension.latestBuildHashAvailable != nil {
-                try? await Realm.asyncWrite(codeExtension, configuration: package.realm?.configuration) { _, codeExtension in
+                try? await Realm.asyncWrite(ThreadSafeReference(to: codeExtension), configuration: package.realm?.configuration) { _, codeExtension in
                     codeExtension.latestBuildHashAvailable = nil
+                    codeExtension.modifiedAt = Date()
                 }
             }
         }

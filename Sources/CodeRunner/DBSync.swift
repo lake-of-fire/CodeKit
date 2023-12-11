@@ -599,7 +599,7 @@ public class DBSync: ObservableObject {
             } else if property.type == .date, let rawDate = value as? Int64 {
                 let date = Date(timeIntervalSince1970: Double(rawDate) / 1000.0)
                 targetObj.setValue(date, forKey: key)
-            } else if value != nil || property.isOptional {
+            } else if value != nil || (property.isOptional && doc.keys.contains(key)) {
                 targetObj.setValue(value, forKey: key)
             }
         }

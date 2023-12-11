@@ -24,8 +24,9 @@ public struct PersonaDetailsView: View {
                 .onChange(of: name, debounceTime: .seconds(0.2)) { name in
                     Task { @MainActor in
                         guard name != persona.name else { return }
-                        try await Realm.asyncWrite(persona) { _, persona in
+                        try await Realm.asyncWrite(ThreadSafeReference(to: persona)) { _, persona in
                             persona.name = name
+                            persona.modifiedAt = Date()
                         }
                     }
                 }
@@ -55,8 +56,9 @@ public struct PersonaDetailsView: View {
                 .onChange(of: modelTemperature, debounceTime: .seconds((0.2))) { modelTemperature in
                     Task { @MainActor in
                         guard modelTemperature != persona.modelTemperature else { return }
-                        try await Realm.asyncWrite(persona) { _, persona in
+                        try await Realm.asyncWrite(ThreadSafeReference(to: persona)) { _, persona in
                             persona.modelTemperature = modelTemperature
+                            persona.modifiedAt = Date()
                         }
                         let personaID = persona.id
                         
@@ -65,6 +67,7 @@ public struct PersonaDetailsView: View {
                             for llm in realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == personaID }) {
                                 try await realm.asyncWrite {
                                     llm.temperature = Float(modelTemperature)
+                                    llm.modifiedAt = Date()
                                 }
                             }
                         }.value
@@ -82,8 +85,9 @@ public struct PersonaDetailsView: View {
                     .onChange(of: customInstructionForContext, debounceTime: .seconds(0.2)) { customInstructionForContext in
                         Task { @MainActor in
                             guard name != persona.customInstructionForContext else { return }
-                            try await Realm.asyncWrite(persona) { _, persona in
+                            try await Realm.asyncWrite(ThreadSafeReference(to: persona)) { _, persona in
                                 persona.customInstructionForContext = customInstructionForContext
+                                persona.modifiedAt = Date()
                             }
                         }
                     }
@@ -96,8 +100,9 @@ public struct PersonaDetailsView: View {
                     .onChange(of: customInstructionForResponses, debounceTime: .seconds(0.2)) { customInstructionForResponses in
                         Task { @MainActor in
                             guard name != persona.customInstructionForResponses else { return }
-                            try await Realm.asyncWrite(persona) { _, persona in
+                            try await Realm.asyncWrite(ThreadSafeReference(to: persona)) { _, persona in
                                 persona.customInstructionForResponses = customInstructionForResponses
+                                persona.modifiedAt = Date()
                             }
                         }
                     }

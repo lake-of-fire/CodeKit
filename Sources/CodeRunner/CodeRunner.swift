@@ -120,7 +120,7 @@ public struct CodeRunner: View {
                                 do {
                                     let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
                                     guard let codeExtension = realm.resolve(ref) else { return }
-                                    try await Realm.asyncWrite(codeExtension) { realm, codeExtension in
+                                    try await Realm.asyncWrite(ThreadSafeReference(to: codeExtension)) { realm, codeExtension in
                                         codeExtension.lastRunStartedAt = Date()
                                     }
                                 } catch {

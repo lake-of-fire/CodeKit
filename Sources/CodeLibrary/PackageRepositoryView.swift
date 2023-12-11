@@ -139,7 +139,7 @@ struct CodePackageCommands: View {
                     try? await repository.pull()
                 }
                 
-                try await Realm.asyncWrite(package) { _, package in
+                try await Realm.asyncWrite(ThreadSafeReference(to: package)) { _, package in
                     for codeExtension in package.codeExtensions.where({ !$0.isDeleted }) {
                         codeExtension.buildRequested = true
                         codeExtension.lastBuildRequestedAt = Date()

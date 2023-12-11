@@ -146,7 +146,9 @@ public struct CodeLibraryDataButtons: View {
         .fileImporter(isPresented: $isOPMLImportPresented, allowedContentTypes: OPMLFile.readableContentTypes, allowsMultipleSelection: false) { results in
             switch results {
             case .success(let fileurls):
-                CodeLibraryConfiguration.shared.importOPML(fileURLs: fileurls)
+                Task {
+                    await CodeLibraryConfiguration.shared.importOPML(fileURLs: fileurls)
+                }
             case .failure(let error):
                 print(error)
             }
@@ -203,7 +205,7 @@ struct CodeLibraryNavigationItemMenuButtons: View {
                 Divider()
                 Button(role: .destructive) {
                     Task { @MainActor in
-                        try await Realm.asyncWrite(package) { _, package in
+                        try await Realm.asyncWrite(ThreadSafeReference(to: package)) { _, package in
                             package.isDeleted = true
                         }
                     }
@@ -224,7 +226,7 @@ struct CodeLibraryNavigationItemMenuButtons: View {
             if !package.packageCollection.isEmpty {
                 Button("No Collection") {
                     Task { @MainActor in
-                        try await Realm.asyncWrite(package) { _, package in
+                        try await Realm.asyncWrite(ThreadSafeReference(to: package)) { _, package in
                             for existing in package.packageCollection {
                                 existing.packages.remove(package)
                             }
@@ -235,7 +237,7 @@ struct CodeLibraryNavigationItemMenuButtons: View {
             if !package.packageCollection.contains(where: { $0.id == packageCollection.id }) {
                 Button(packageCollection.name) {
                     Task { @MainActor in
-                        try await Realm.asyncWrite(package) { realm, package in
+                        try await Realm.asyncWrite(ThreadSafeReference(to: package)) { realm, package in
                             for existing in package.packageCollection {
                                 existing.packages.remove(package)
                             }
@@ -322,7 +324,7 @@ public struct CodeLibraryView: View {
                                 if collection.isUserEditable {
                                     Button(role: .destructive) {
                                         Task { @MainActor in
-                                            try await Realm.asyncWrite(collection) { _, collection in
+                                            try await Realm.asyncWrite(ThreadSafeReference(to: collection)) { _, collection in
                                                 collection.isDeleted = true
                                             }
                                         }
@@ -425,7 +427,7 @@ public struct CodeLibraryView: View {
         .navigationSplitViewStyle(.prominentDetail)
 #endif
 //        .environmentObject(viewModel)
-        .task {
+        .task { @MainActor in
             if let jsonData = navigationData {
                 navigationModel.jsonData = jsonData
             }

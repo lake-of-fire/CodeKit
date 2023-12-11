@@ -270,7 +270,7 @@ class ModelsControlsViewModel: ObservableObject {
         }
         
         let modelOptions = modelOptions ?? self.modelOptions
-        let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
+        let realm = try await Realm()
         
 #if os(macOS)
         var safelyAvailableMemory = UInt64(0.95 * Double(MTLCopyAllDevices().sorted {
@@ -301,6 +301,7 @@ class ModelsControlsViewModel: ObservableObject {
             if let llm = llms.filter({ $0.supports(safelyAvailableMemory: safelyAvailableMemory) }).first {
                 try await realm.asyncWrite {
                     llm.usedByPersona = persona
+                    llm.modifiedAt = Date()
                 }
                 selectedModel = llm.id
             }
@@ -351,6 +352,7 @@ class ModelsControlsViewModel: ObservableObject {
             if let llm = llms.filter({ $0.supports(safelyAvailableMemory: safelyAvailableMemory) }).first {
                 try await realm.asyncWrite {
                     llm.usedByPersona = persona
+                    llm.modifiedAt = Date()
                 }
                 selectedModel = llm.id
             }
@@ -360,8 +362,9 @@ class ModelsControlsViewModel: ObservableObject {
     @MainActor
     private func updateDownloadsLastCheckedAt(persona: Persona) async throws {
         if let codeExtension = persona.providedByExtension, persona.downloadsLastCheckedAt == nil || (codeExtension.lastRunStartedAt ?? .distantPast > persona.downloadsLastCheckedAt ?? .distantPast) {
-            try await Realm.asyncWrite(persona) { _, persona in
+            try await Realm.asyncWrite(ThreadSafeReference(to: persona)) { _, persona in
                 persona.downloadsLastCheckedAt = Date()
+                persona.modifiedAt = Date()
             }
         }
     }
@@ -373,7 +376,7 @@ class ModelsControlsViewModel: ObservableObject {
         var downloadModels = [String]()
         // To avoid parallel access to read/write PublishingAppStorage
         downloadModels.append(contentsOf: inputDownloadModels ?? self.downloadModels)
-        let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
+        let realm = try await Realm()
         
         let selectedLLM = realm.objects(LLMConfiguration.self).where {
             !$0.isDeleted && $0.usedByPersona.id == (persona?.id ?? UUID())
@@ -407,10 +410,7 @@ class ModelsControlsViewModel: ObservableObject {
         for modelURL in toRemove {
             downloadModels.removeAll(where: { $0 == modelURL })
         }
-        
-        let ensureTask = Task { @MainActor in
-            await DownloadController.shared.ensureDownloaded(Set(downloads), deletingOrphansIn: [LLMConfiguration.downloadDirectory])
-        }
+        let downloadsSet = Set(downloads)
         
         if let selectedDownload = DownloadController.shared.assuredDownloads.first(where: { $0.url == selectedLLM?.downloadable?.url }) {
             if selectedDownloadable?.id != selectedDownload.id {
@@ -435,8 +435,11 @@ class ModelsControlsViewModel: ObservableObject {
             }
         }
         
+        
         refreshDownloadMessage()
-        await ensureTask.value
+        await Task { @MainActor in
+            await DownloadController.shared.ensureDownloaded(downloadsSet, deletingOrphansIn: [LLMConfiguration.downloadDirectory])
+        }.value
         refreshDownloadMessage()
     }
     

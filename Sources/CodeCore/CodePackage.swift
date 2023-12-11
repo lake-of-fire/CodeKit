@@ -96,18 +96,25 @@ public extension CodePackage {
         }
     }
     
-    static func importOPML(entry: OPMLEntry) -> Self? {
+    @RealmBackgroundActor
+    static func importOPML(entry: OPMLEntry) async throws -> Self? {
         guard entry.attributeStringValue("type") == "CodeKit.CodePackage" else { return nil }
         guard let uuid = entry.attributeUUIDValue("id") else { return nil }
+        let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
         var obj: Self?
-        safeWrite { realm in
-            if let match = realm.object(ofType: Self.self, forPrimaryKey: uuid) {
-                obj = match
-            } else {
-                obj = Self()
-                obj?.id = uuid
+        if let match = realm.object(ofType: Self.self, forPrimaryKey: uuid) {
+            obj = match
+        } else {
+            obj = Self()
+            obj?.id = uuid
+            if let obj = obj {
+                try await realm.asyncWrite {
+                    realm.add(obj)
+                }
             }
-            guard let obj = obj else { return }
+        }
+        guard let obj = obj else { return nil }
+        try await realm.asyncWrite {
             obj.repositoryURL = entry.attributeStringValue("repositoryURL") ?? obj.repositoryURL
             obj.isEnabled = entry.attributeBoolValue("isEnabled") ?? obj.isEnabled
             obj.allowAllHosts = entry.attributeBoolValue("allowAllHosts") ?? false

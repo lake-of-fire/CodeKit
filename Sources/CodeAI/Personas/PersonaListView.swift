@@ -212,7 +212,7 @@ public struct PersonaListView: View {
                             HStack {
                                 Button {
                                     Task { @MainActor in
-                                        try await Realm.asyncWrite(room) { realm, room in
+                                        try await Realm.asyncWrite(ThreadSafeReference(to: room)) { realm, room in
                                             guard let matchPersona = realm.object(ofType: Persona.self, forPrimaryKey: persona.id) else { return }
                                             room.participants.insert(matchPersona)
                                         }

@@ -34,18 +34,18 @@ public class CodeLibraryConfiguration: ObservableObject {
         // TODO: Optimize a lil by only importing changed downloads, not reapplying all downloads on any one changing. Tho it's nice to ensure DLs continuously correctly placed.
         DownloadController.shared.$finishedDownloads
             .removeDuplicates()
-            .sink(receiveValue: { [weak self] downloads in
-                Task.detached { [weak self] in
+            .sink(receiveValue: { downloads in
+                Task.detached { @RealmBackgroundActor in
                     for download in downloads.filter({ $0.url.lastPathComponent.hasSuffix(".opml") }) {
                         do {
                             let opml = try OPML(Data(contentsOf: download.localDestination))
                             for entry in opml.entries {
-                                if let collection = try PackageCollection.importOPML(entry: entry) {
-                                    safeWrite(collection) { _, collection in
+                                if let collection = try await PackageCollection.importOPML(entry: entry) {
+                                    try await Realm.asyncWrite(ThreadSafeReference(to: collection)) { _, collection in
                                         collection.isUserEditable = false
                                     }
                                 } else {
-                                    CodePackage.importOPML(entry: entry)
+                                    try await CodePackage.importOPML(entry: entry)
                                 }
                             }
                         } catch {
@@ -57,24 +57,24 @@ public class CodeLibraryConfiguration: ObservableObject {
             .store(in: &cancellables)
     }
         
-    public func importOPML(fileURLs: [URL]) {
+    public func importOPML(fileURLs: [URL]) async {
         for fileURL in fileURLs {
             do {
-                try Self.importOPML(fileURL: fileURL)
+                try await try Self.importOPML(fileURL: fileURL)
             } catch {
                 print("Failed to import OPML from local file \(fileURL.absoluteString). Error: \(error.localizedDescription)")
             }
         }
     }
     
-    public static func importOPML(fileURL: URL) throws {
+    public static func importOPML(fileURL: URL) async throws {
         let text = try String(contentsOf: fileURL)
         let opml = try OPML(Data(text.utf8))
         for entry in opml.entries {
             if entry.attributeStringValue("type") == "CodeKit.PackageCollection" {
-                PackageCollection.importOPML(entry: entry)
+                try await PackageCollection.importOPML(entry: entry)
             } else if entry.attributeStringValue("type") == "CodeKit.CodePackage" {
-                _ = CodePackage.importOPML(entry: entry)
+                _ = try await CodePackage.importOPML(entry: entry)
             }
         }
 //        var allImportedFeeds = OrderedSet<Feed>()

@@ -104,34 +104,38 @@ public class PackageCollection: Object, UnownedSyncableObject, ObjectKeyIdentifi
         }
     }
     
-    public static func importOPML(entry: OPMLEntry) -> PackageCollection? {
+    @RealmBackgroundActor
+    public static func importOPML(entry: OPMLEntry) async throws -> PackageCollection? {
         guard entry.attributeStringValue("type") == "CodeKit.PackageCollection" else { return nil }
         guard let uuid = entry.attributeUUIDValue("id") else { return nil }
         var obj: PackageCollection?
-        safeWrite { realm in
-            if let match = realm.object(ofType: Self.self, forPrimaryKey: uuid) {
-                obj = match
-            } else {
-                obj = PackageCollection()
-                obj?.id = uuid
-                if let obj = obj {
+        let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
+        if let match = realm.object(ofType: Self.self, forPrimaryKey: uuid) {
+            obj = match
+        } else {
+            obj = PackageCollection()
+            obj?.id = uuid
+            if let obj = obj {
+                try await realm.asyncWrite {
                     realm.add(obj)
                 }
             }
-            guard let obj = obj else { return }
+        }
+        guard let obj = obj else { return nil }
+        try await realm.asyncWrite {
             obj.name = entry.title ?? entry.text
             obj.modifiedAt = Date()
-            for entry in entry.children ?? [] {
-                if let package = CodePackage.importOPML(entry: entry) {
+        }
+        for entry in entry.children ?? [] {
+            if let package = try await CodePackage.importOPML(entry: entry) {
+                try await realm.asyncWrite {
                     obj.packages.insert(package)
                 }
             }
         }
-        if let obj = obj {
-            safeWrite(obj) { _, obj in
-                for removeObj in Array(obj.packages).filter({ !$0.isDeleted && !((entry.children ?? []).compactMap({ $0.attributeUUIDValue("id") }).contains($0.id)) }) {
-                    removeObj.isDeleted = true
-                }
+        for removeObj in Array(obj.packages).filter({ !$0.isDeleted && !((entry.children ?? []).compactMap({ $0.attributeUUIDValue("id") }).contains($0.id)) }) {
+            try await realm.asyncWrite {
+                removeObj.isDeleted = true
             }
         }
         return obj

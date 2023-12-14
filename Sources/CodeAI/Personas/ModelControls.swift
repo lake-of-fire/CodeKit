@@ -114,27 +114,30 @@ class ModelsControlsViewModel: ObservableObject {
     }
 
     init() {
-        let realm = try! Realm()
-        realm.objects(LLMConfiguration.self)
-            .where { !$0.isDeleted }
-            .collectionPublisher(keyPaths: [
-                "id", "modelDownloadURL", "name", "memoryRequirement", "modelInference", "defaultPriority"])
-            .freeze()
-            .removeDuplicates()
-            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
-            .receive(on: DispatchQueue.main)
-            .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] results in
-                Task { @MainActor [weak self] in
-                    do {
-                        try await self?.refreshModelItems()
-                        try await self?.refreshDownloads()
-                    } catch {
-                        print("ERROR LLMConfiguration refresh: \(error)")
+        Task.detached { @RealmBackgroundActor [weak self] in
+            guard let self = self else { return }
+            let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
+            realm.objects(LLMConfiguration.self)
+                .where { !$0.isDeleted }
+                .collectionPublisher(keyPaths: [
+                    "id", "modelDownloadURL", "name", "memoryRequirement", "modelInference", "defaultPriority"])
+                .freeze()
+                .removeDuplicates()
+                .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
+                .receive(on: DispatchQueue.main)
+                .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] results in
+                    Task { @MainActor [weak self] in
+                        do {
+                            try await self?.refreshModelItems()
+                            try await self?.refreshDownloads()
+                        } catch {
+                            print("ERROR LLMConfiguration refresh: \(error)")
+                        }
+                        //                    self?.refreshDownloadMessage()
                     }
-//                    self?.refreshDownloadMessage()
-                }
-            })
-            .store(in: &cancellables)
+                })
+                .store(in: &cancellables)
+        }
         
         $blockableMessagingViewModel
             .compactMap { $0 }
@@ -184,7 +187,7 @@ class ModelsControlsViewModel: ObservableObject {
                 }
                 
                 let personaRef = ThreadSafeReference(to: persona)
-                Task { @RealmBackgroundActor [weak self] in
+                Task.detached { @RealmBackgroundActor [weak self] in
                     guard let selectedModel = selectedModel else { return }
                     let realm = try! await Realm(actor: RealmBackgroundActor.shared)
                     guard let persona = realm.resolve(personaRef) else { return }
@@ -239,16 +242,18 @@ class ModelsControlsViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    @MainActor
+    @RealmBackgroundActor
     func refreshModelItems(modelOptions: [String]? = nil) async throws {
         guard let persona = (persona?.isFrozen ?? false ? persona?.thaw() : persona) else {
-            modelItems = []
-            selectedModel = nil
+            await Task { @MainActor in
+                modelItems = []
+                selectedModel = nil
+            }.value
             return
         }
         
         let modelOptions = modelOptions ?? self.modelOptions
-        let realm = try await Realm()
+        let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
         
 #if os(macOS)
         var safelyAvailableMemory = UInt64(0.95 * Double(MTLCopyAllDevices().sorted {
@@ -261,10 +266,11 @@ class ModelsControlsViewModel: ObservableObject {
         var safelyAvailableMemory = UInt64(0.9 * Double(metalDevice?.recommendedMaxWorkingSetSize ?? 0))
 #endif
         
-        if LLMModel.shared.state != .none {
+        if await LLMModel.shared.state != .none {
+            let llmModelURL = await LLMModel.shared.modelURL
             let active = realm.objects(LLMConfiguration.self).where({
                 !$0.isDeleted && $0.usedByPersona != nil
-            }).filter({ $0.downloadable?.localDestination.path == LLMModel.shared.modelURL })
+            }).filter({ $0.downloadable?.localDestination.path == llmModelURL })
             let activeMemory = UInt64(active.compactMap { $0.memoryRequirement }.reduce(0, +))
             safelyAvailableMemory += activeMemory
         }
@@ -284,6 +290,9 @@ class ModelsControlsViewModel: ObservableObject {
                 selectedModel = llm.id
             }
         }
+        
+        let llmIsNone = await LLMModel.shared.state == .none
+        let localLLMFileSelected = await LLMModel.shared.state == .none
         
         self.modelItems = realm.objects(LLMConfiguration.self)
             .where {
@@ -313,9 +322,9 @@ class ModelsControlsViewModel: ObservableObject {
             .filter { (llm: LLMConfiguration) -> Bool in
                 if llm.usedByPersona?.id == persona.id {
                     return llm.supports(safelyAvailableMemory: UInt64(Double(safelyAvailableMemory) * 1.5)) // Buffer to avoid deselecting when in-use.
-                } else if LLMModel.shared.state == .none || LLMModel.shared.modelURL == llm.downloadable?.localDestination.path {
+                } else if llmIsNone || localLLMFileSelected {
                     return llm.supports(safelyAvailableMemory: safelyAvailableMemory)
-                } else if LLMModel.shared.state != .none, (llm.memoryRequirement ?? 0) > 0 {
+                } else if !llmIsNone, (llm.memoryRequirement ?? 0) > 0 {
                     return llm.supports(safelyAvailableMemory: safelyAvailableMemory)
                 }
                 return true
@@ -463,7 +472,7 @@ public class PersonaViewModel: ObservableObject {
         self.persona = persona
         
         let ref = ThreadSafeReference(to: persona)
-        Task { @RealmBackgroundActor [weak self] in
+        Task.detached { @RealmBackgroundActor [weak self] in
             guard let self = self else { return }
             let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
             guard let persona = realm.resolve(ref) else { return }
@@ -483,7 +492,7 @@ public class PersonaViewModel: ObservableObject {
     }
     
     deinit {
-        Task { @RealmBackgroundActor [weak self] in
+        Task.detached { @RealmBackgroundActor [weak self] in
             self?.objectNotificationToken?.invalidate()
         }
     }

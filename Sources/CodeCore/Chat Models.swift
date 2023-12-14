@@ -52,7 +52,7 @@ public class Room: Object, UnownedSyncableObject {
     
     @MainActor
     public static func create() async throws -> Room? {
-        let roomRef = try await Task { @RealmBackgroundActor in
+        let roomRef = try await Task.detached { @RealmBackgroundActor in
             let room = Room()
             let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
             try await realm.asyncWrite {

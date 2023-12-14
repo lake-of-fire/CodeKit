@@ -431,7 +431,7 @@ public extension CodePackageRepository {
                     return
                 }
                 
-                Task { @RealmBackgroundActor [weak self] in
+                Task.detached { @RealmBackgroundActor [weak self] in
                     do { try Task.checkCancellation() } catch {
                         continuation.resume(throwing: CodeError.unknownError)
                         return

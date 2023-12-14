@@ -18,7 +18,7 @@ public class CodeCoreViewModel: ObservableObject {
 //    internal var asyncJavaScriptCaller: ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?, ((Result<Any, any Error>) -> Void)?) async -> Void)? = nil
     internal var load: ((Data, String, String, URL) -> Void)? = nil
     public var asyncJavaScriptCaller: ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?)? = nil
-    public var surrogateDocumentChanges: ((String, [[String: Any]]) -> Void)? = nil
+    public var surrogateDocumentChanges: ((String, [[String: Any]]) async throws -> Void)? = nil
 
 //    @Published public var  = false
 //    @Published public var darkMode = false

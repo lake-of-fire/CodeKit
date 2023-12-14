@@ -120,7 +120,7 @@ public struct CodeRunner: View {
                         codeExtension: codeExtension) {
                             await beforeRun?()
                             
-                            await Task { @RealmBackgroundActor in
+                            await Task.detached { @RealmBackgroundActor in
                                 do {
                                     let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
                                     guard let codeExtension = realm.resolve(ref) else { return }

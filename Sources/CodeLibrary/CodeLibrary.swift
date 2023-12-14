@@ -20,7 +20,7 @@ fileprivate class CodePackageWithRepositoryViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     init() {
-        Task { @RealmBackgroundActor in
+        Task.detached { @RealmBackgroundActor in
             let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
             realm.objects(Persona.self)
                 .where { !$0.isDeleted && $0.providedByExtension != nil && $0.personaType == .bot && $0.online }

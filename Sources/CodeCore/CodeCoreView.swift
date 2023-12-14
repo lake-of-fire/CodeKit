@@ -226,7 +226,9 @@ extension Coordinator: WKScriptMessageHandler {
                 print("ERROR: failed to decode surrogateDocumentChanges message")
                 return
             }
-            surrogateDocumentChanges(collectionName, changedDocs)
+            Task {
+                try await surrogateDocumentChanges(collectionName, changedDocs)
+            }
         case ScriptMessageName.consoleMessage:
             print("CONSOLE: \(message.body)")
         default:

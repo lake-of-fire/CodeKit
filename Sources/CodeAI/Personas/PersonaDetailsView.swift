@@ -66,7 +66,7 @@ public struct PersonaDetailsView: View {
                         }
                         let personaID = persona.id
                         
-                        try await Task { @RealmBackgroundActor in
+                        try await Task.detached { @RealmBackgroundActor in
                             let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
                             for llm in realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == personaID }) {
                                 try await realm.asyncWrite {

@@ -71,11 +71,6 @@ struct SyncCheckpoint {
     let id: String
 }
 
-@globalActor
-actor DBSyncActor {
-    static var shared = DBSyncActor()
-}
-
 public class DBSync: ObservableObject {
     private var realmConfiguration: Realm.Configuration? = nil
 //    private var syncedTypes: [Object.Type] = []
@@ -323,10 +318,10 @@ public class DBSync: ObservableObject {
             
             let rawCheckpoint = try await asyncJavaScriptCaller?("window[`${collectionName}LastCheckpoint`]", ["collectionName": objectType.dbCollectionName()], nil, .page) as? [String: Any]
             
-            try await Task.detached { @DBSyncActor [weak self] in
+            try await Task.detached { @RealmBackgroundActor [weak self] in
                 guard let self = self else { return }
 //                let realm = try await Realm(configuration: realmConfiguration)
-                let realm = try await Realm(configuration: realmConfiguration, actor: DBSyncActor.shared)
+                let realm = try await Realm(configuration: realmConfiguration, actor: RealmBackgroundActor.shared)
                 var objects = realm.objects(objectType)
                     .sorted(by: [
                         SortDescriptor(keyPath: "modifiedAt", ascending: true),
@@ -349,7 +344,7 @@ public class DBSync: ObservableObject {
                         print("ERROR Couldn't cast chunk to DBSyncableObject")
                         continue
                     }
-                    let surrogateMaps = syncToSurrogateMap?.filter { $0.0 == objectType }.map { $0.1 } ?? []
+                    let surrogateMaps = syncToSurrogateMap?.lazy.filter { $0.0 == objectType }.map { $0.1 } ?? []
                     var overrides = [String: [String: Any]]()
                     for surrogateMap in surrogateMaps {
                         objects = objects.compactMap { object in
@@ -378,7 +373,7 @@ public class DBSync: ObservableObject {
         }
     }
     
-    @DBSyncActor
+    @RealmBackgroundActor
     private func jsonDictionaryFor(object: some DBSyncableObject, overrides: [String: Any]?) async throws -> String? {
         let jsonEncoder = JSONEncoder()
         jsonEncoder.dateEncodingStrategy = .custom { date, encoder in
@@ -400,7 +395,7 @@ public class DBSync: ObservableObject {
         return jsonStr
     }
     
-    @DBSyncActor
+    @RealmBackgroundActor
     private func syncTo(objects: [any DBSyncableObject], overrides: [String: [String: Any]]) async throws {
         var jsonStr = "["
         for object in objects {
@@ -427,8 +422,9 @@ public class DBSync: ObservableObject {
         }
     }
     
-    public func surrogateDocumentChanges(collectionName: String, changedDocs: [[String: Any]]) {
-        var changedDocs = changedDocs
+    @RealmBackgroundActor
+    public func surrogateDocumentChanges(collectionName: String, changedDocs: [[String: Any]]) async throws {
+//        var changedDocs = changedDocs
         guard let objectType: any DBSyncableObject.Type = syncedTypes.first(where: { $0.dbCollectionName() == collectionName }) else {
             print("ERROR syncFrom received invalid collection name")
             return
@@ -438,13 +434,12 @@ public class DBSync: ObservableObject {
         }
         
         let surrogateMaps = syncFromSurrogateMap?.filter { $0.0 == objectType }.map { $0.1 } ?? []
-//        print("SURR doc incoming:")
-//        print(changedDocs.debugDescription)
+        //        print("SURR doc incoming:")
+        //        print(changedDocs.debugDescription)
         
-        let realm = try! Realm()
-        realm.writeAsync { [weak self] in
-            guard let self = self else { return }
-//        safeWrite { realm in
+        let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
+        //        safeWrite { realm in
+        try await realm.asyncWrite {
             for doc in changedDocs {
                 guard let rawUUID = doc["id"] as? String, let uuid = UUID(uuidString: rawUUID), let rawModifiedAt = doc["modifiedAt"] as? Int64 else {
                     print("ERROR: Missing or malformed uuid and/or modifiedAt in changedDocs object")
@@ -473,7 +468,6 @@ public class DBSync: ObservableObject {
                     realm.add(newObject)
                 }
             }
-            
             applyPendingRelationships(realm: realm)
         }
     }
@@ -622,7 +616,7 @@ public class DBSync: ObservableObject {
             var entity: (any DBSyncableObject)?
             if let entityUUID = UUID(uuidString: relationship.entityID) {
                 guard let matchedEntity = realm.object(ofType: objectType, forPrimaryKey: entityUUID) as? any DBSyncableObject else {
-                    print("Entity \(relationship.entityType) with ID \(relationship.entityID) not found for sync")
+                    print("Entity \(relationship.entityType) with UUID ID \(relationship.entityID) not found for sync")
                     continue
                 }
                 entity = matchedEntity
@@ -650,7 +644,7 @@ public class DBSync: ObservableObject {
             }
             if let targetUUID = UUID(uuidString: relationship.targetID) {
                 guard let target = realm.object(ofType: targetObjectType, forPrimaryKey: targetUUID) as? any DBSyncableObject else {
-                    print("Target \(targetObjectType) with ID \(relationship.entityID) not found for sync")
+                    print("Target \(targetObjectType) with UUID ID \(relationship.entityID) not found for sync")
                     continue
                 }
                 applyPendingRelationshipUUID(entity: entity, target: target, relationshipName: relationship.relationshipName)

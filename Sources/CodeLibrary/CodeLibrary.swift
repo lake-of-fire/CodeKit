@@ -14,7 +14,7 @@ import CodeCore
 import CodeCI
 import CodeAI
 
-fileprivate class CodePackageWithRepositoryViewwModel: ObservableObject {
+fileprivate class CodePackageWithRepositoryViewModel: ObservableObject {
     @Published var allOnlinePersonas: [Persona]? = nil
     
     private var cancellables = Set<AnyCancellable>()
@@ -40,7 +40,7 @@ fileprivate class CodePackageWithRepositoryViewwModel: ObservableObject {
 public struct CodePackageWithRepositoryView: View {
     let package: CodePackage
     
-    @StateObject private var viewModel = CodePackageWithRepositoryViewwModel()
+    @StateObject private var viewModel = CodePackageWithRepositoryViewModel()
     
     @State private var repository: CodePackageRepository? = nil
     @State private var personas: [Persona] = []

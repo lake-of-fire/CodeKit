@@ -242,108 +242,118 @@ class ModelsControlsViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    @RealmBackgroundActor
+    @MainActor
     func refreshModelItems(modelOptions: [String]? = nil) async throws {
-        guard let persona = (persona?.isFrozen ?? false ? persona?.thaw() : persona) else {
-            await Task { @MainActor in
-                modelItems = []
-                selectedModel = nil
-            }.value
+        guard let persona = persona else {
+            modelItems = []
+            selectedModel = nil
             return
         }
+        let personaRef = ThreadSafeReference(to: persona)
         
-        let modelOptions = modelOptions ?? self.modelOptions
-        let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
-        
+        try await Task.detached { @RealmBackgroundActor [weak self] in
+            guard let self = self else { return }
+            let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
+            guard let persona = realm.resolve(personaRef) else {
+                await Task { @MainActor [weak self] in
+                    self?.modelItems = []
+                    self?.selectedModel = nil
+                }.value
+                return
+            }
+            
+            let modelOptions = modelOptions ?? self.modelOptions
+            
 #if os(macOS)
-        var safelyAvailableMemory = UInt64(0.95 * Double(MTLCopyAllDevices().sorted {
-            $0.recommendedMaxWorkingSetSize > $1.recommendedMaxWorkingSetSize
-        } .first?.recommendedMaxWorkingSetSize ?? 0))
+            var safelyAvailableMemory = UInt64(0.95 * Double(MTLCopyAllDevices().sorted {
+                $0.recommendedMaxWorkingSetSize > $1.recommendedMaxWorkingSetSize
+            } .first?.recommendedMaxWorkingSetSize ?? 0))
 #elseif targetEnvironment(simulator)
-        var safelyAvailableMemory: UInt64 = 8_000_000_000
+            var safelyAvailableMemory: UInt64 = 8_000_000_000
 #else
-        let metalDevice = MTLCreateSystemDefaultDevice()
-        var safelyAvailableMemory = UInt64(0.9 * Double(metalDevice?.recommendedMaxWorkingSetSize ?? 0))
+            let metalDevice = MTLCreateSystemDefaultDevice()
+            var safelyAvailableMemory = UInt64(0.9 * Double(metalDevice?.recommendedMaxWorkingSetSize ?? 0))
 #endif
-        
-        if await LLMModel.shared.state != .none {
-            let llmModelURL = await LLMModel.shared.modelURL
-            let active = realm.objects(LLMConfiguration.self).where({
-                !$0.isDeleted && $0.usedByPersona != nil
-            }).filter({ $0.downloadable?.localDestination.path == llmModelURL })
-            let activeMemory = UInt64(active.compactMap { $0.memoryRequirement }.reduce(0, +))
-            safelyAvailableMemory += activeMemory
-        }
-        
-        // Default model
-        if let llm = realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == persona.id }).first {
-            selectedModel = llm.id
-        } else {
-            let llms = Array(realm.objects(LLMConfiguration.self)
-                .where({ !$0.isDeleted && $0.usedByPersona == nil })
-                .sorted(by: \.defaultPriority, ascending: false))
-            if let llm = llms.filter({ $0.supports(safelyAvailableMemory: safelyAvailableMemory) }).first {
-                try await realm.asyncWrite {
-                    llm.usedByPersona = persona
-                    llm.modifiedAt = Date()
-                }
+            
+            if await LLMModel.shared.state != .none {
+                let llmModelURL = await LLMModel.shared.modelURL
+                let active = realm.objects(LLMConfiguration.self).where({
+                    !$0.isDeleted && $0.usedByPersona != nil
+                }).filter({ $0.downloadable?.localDestination.path == llmModelURL })
+                let activeMemory = UInt64(active.compactMap { $0.memoryRequirement }.reduce(0, +))
+                safelyAvailableMemory += activeMemory
+            }
+            
+            // Default model
+            if let llm = realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == persona.id }).first {
                 selectedModel = llm.id
-            }
-        }
-        
-        let llmIsNone = await LLMModel.shared.state == .none
-        let localLLMFileSelected = await LLMModel.shared.state == .none
-        
-        self.modelItems = realm.objects(LLMConfiguration.self)
-            .where {
-                $0.name.in(modelOptions) && !$0.isDeleted && ($0.usedByPersona.id == persona.id || $0.usedByPersona == nil)
-            }
-            .sorted {
-                if $0.name == $1.name {
-                    if $0.usedByPersona?.id == persona.id {
-                        return $1.usedByPersona?.id == persona.id ? $0.id.uuidString < $1.id.uuidString : true
-                    } else if $1.usedByPersona?.id == persona.id {
-                        return false
-                    } else if $0.usedByPersona != nil, $1.usedByPersona == nil {
-                        return false
-                    } else if $0.usedByPersona == nil, $1.usedByPersona != nil {
-                        return true
-                    } else if $0.usedByPersona == nil, $1.usedByPersona == nil {
-                        return $0.createdAt < $1.createdAt
+            } else {
+                let llms = Array(realm.objects(LLMConfiguration.self)
+                    .where({ !$0.isDeleted && $0.usedByPersona == nil })
+                    .sorted(by: \.defaultPriority, ascending: false))
+                if let llm = llms.filter({ $0.supports(safelyAvailableMemory: safelyAvailableMemory) }).first {
+                    try await realm.asyncWrite {
+                        llm.usedByPersona = persona
+                        llm.modifiedAt = Date()
                     }
+                    selectedModel = llm.id
                 }
-                return $0.name < $1.name
             }
-            .reduce(into: [String: LLMConfiguration]()) { result, llmConfig in
-                // Keep the first occurrence of each name
-                result[llmConfig.name] = result[llmConfig.name] ?? llmConfig
-            }
-            .values
-            .filter { (llm: LLMConfiguration) -> Bool in
-                if llm.usedByPersona?.id == persona.id {
-                    return llm.supports(safelyAvailableMemory: UInt64(Double(safelyAvailableMemory) * 1.5)) // Buffer to avoid deselecting when in-use.
-                } else if llmIsNone || localLLMFileSelected {
-                    return llm.supports(safelyAvailableMemory: safelyAvailableMemory)
-                } else if !llmIsNone, (llm.memoryRequirement ?? 0) > 0 {
-                    return llm.supports(safelyAvailableMemory: safelyAvailableMemory)
+            
+            let llmIsNone = await LLMModel.shared.state == .none
+            let localLLMFileSelected = await LLMModel.shared.state == .none
+            
+            self.modelItems = realm.objects(LLMConfiguration.self)
+                .where {
+                    $0.name.in(modelOptions) && !$0.isDeleted && ($0.usedByPersona.id == persona.id || $0.usedByPersona == nil)
                 }
-                return true
-            }
-            .sorted { $0.displayName < $1.displayName }
-            .map { (llm: LLMConfiguration) -> (UUID, String) in (llm.id, llm.displayName) }
-        if !modelItems.contains(where: { $0.0 == selectedModel }) {
-            // Get a new default if the old selection is no longer available.
-            let llms = Array(realm.objects(LLMConfiguration.self)
-                .where({ $0.id.in(modelItems.map { $0.0 }) })
-                .sorted(by: \.defaultPriority, ascending: false))
-            if let llm = llms.filter({ $0.supports(safelyAvailableMemory: safelyAvailableMemory) }).first {
-                try await realm.asyncWrite {
-                    llm.usedByPersona = persona
-                    llm.modifiedAt = Date()
+                .sorted {
+                    if $0.name == $1.name {
+                        if $0.usedByPersona?.id == persona.id {
+                            return $1.usedByPersona?.id == persona.id ? $0.id.uuidString < $1.id.uuidString : true
+                        } else if $1.usedByPersona?.id == persona.id {
+                            return false
+                        } else if $0.usedByPersona != nil, $1.usedByPersona == nil {
+                            return false
+                        } else if $0.usedByPersona == nil, $1.usedByPersona != nil {
+                            return true
+                        } else if $0.usedByPersona == nil, $1.usedByPersona == nil {
+                            return $0.createdAt < $1.createdAt
+                        }
+                    }
+                    return $0.name < $1.name
                 }
-                selectedModel = llm.id
+                .reduce(into: [String: LLMConfiguration]()) { result, llmConfig in
+                    // Keep the first occurrence of each name
+                    result[llmConfig.name] = result[llmConfig.name] ?? llmConfig
+                }
+                .values
+                .filter { (llm: LLMConfiguration) -> Bool in
+                    if llm.usedByPersona?.id == persona.id {
+                        return llm.supports(safelyAvailableMemory: UInt64(Double(safelyAvailableMemory) * 1.5)) // Buffer to avoid deselecting when in-use.
+                    } else if llmIsNone || localLLMFileSelected {
+                        return llm.supports(safelyAvailableMemory: safelyAvailableMemory)
+                    } else if !llmIsNone, (llm.memoryRequirement ?? 0) > 0 {
+                        return llm.supports(safelyAvailableMemory: safelyAvailableMemory)
+                    }
+                    return true
+                }
+                .sorted { $0.displayName < $1.displayName }
+                .map { (llm: LLMConfiguration) -> (UUID, String) in (llm.id, llm.displayName) }
+            if !modelItems.contains(where: { $0.0.uuidString == self.selectedModel?.uuidString }) {
+                // Get a new default if the old selection is no longer available.
+                let llms = Array(realm.objects(LLMConfiguration.self)
+                    .where({ $0.id.in(self.modelItems.map { $0.0 }) })
+                    .sorted(by: \.defaultPriority, ascending: false))
+                if let llm = llms.filter({ $0.supports(safelyAvailableMemory: safelyAvailableMemory) }).first {
+                    try await realm.asyncWrite {
+                        llm.usedByPersona = persona
+                        llm.modifiedAt = Date()
+                    }
+                    selectedModel = llm.id
+                }
             }
-        }
+        }.value
     }
     
     @MainActor
@@ -514,9 +524,6 @@ public struct ModelsControlsContainer: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ModelSwitcher(personaViewModel: personaViewModel)
-                .task { @MainActor in
-                    viewModel.persona = personaViewModel.persona.freeze()
-                }
                 .onChange(of: personaViewModel.persona) { persona in
                     Task { @MainActor in
                         let persona = persona.freeze()
@@ -544,5 +551,8 @@ public struct ModelsControlsContainer: View {
 #endif
         }
         .environmentObject(viewModel)
+        .task { @MainActor in
+            viewModel.persona = personaViewModel.persona.freeze()
+        }
     }
 }

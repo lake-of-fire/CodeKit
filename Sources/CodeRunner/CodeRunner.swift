@@ -101,9 +101,7 @@ public struct CodeRunner: View {
             baseURL: URL(string: "about:blank")!)
         
         codeCoreViewModel.onLoadSuccess = {
-            print("### RUN 1 \(url.absoluteString)")
             codeCoreViewModel.onLoadSuccess = {
-            print("### RUN 2 \(url.absoluteString)")
                 if let syncedTypes = syncedTypes, let asyncJavaScriptCaller = codeCoreViewModel.asyncJavaScriptCaller {
                     guard let realm = codeExtension.realm else {
                         print("No Realm found for CodeExtension in CodeRunner")

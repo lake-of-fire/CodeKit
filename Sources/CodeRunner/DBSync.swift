@@ -94,9 +94,9 @@ public class DBSync: ObservableObject {
     
     public init() { }
     
-    @MainActor
+    @RealmBackgroundActor
     public func initialize(realmConfiguration: Realm.Configuration, syncedTypes: [any DBSyncableObject.Type], syncFromSurrogateMap: [((any DBSyncableObject.Type), ([String: Any], (any DBSyncableObject)?, CodeExtension) -> [String: Any]?)]? = nil, syncToSurrogateMap: [((any DBSyncableObject.Type), (any DBSyncableObject, CodeExtension) -> ((any DBSyncableObject)?, [String: Any]?))]? = nil, asyncJavaScriptCaller: @escaping ((String, [String: Any]?, WKFrameInfo?, WKContentWorld?) async throws -> Any?), codeExtension: CodeExtension, beforeFinalizing: (() async -> Void)? = nil) async {
-        deinitialize()
+        await deinitialize()
         
         self.realmConfiguration = realmConfiguration
         self.syncedTypes = syncedTypes
@@ -105,7 +105,7 @@ public class DBSync: ObservableObject {
         self.asyncJavaScriptCaller = asyncJavaScriptCaller
         self.codeExtension = codeExtension
         
-        let realm = try! await Realm(configuration: realmConfiguration)
+        let realm = try! await Realm(configuration: realmConfiguration, actor: RealmBackgroundActor.shared)
         
         #warning("TODO: setupChildrenRelationshipsLookup")
         #warning("TODO: conflict res, merge policy == .custom")
@@ -124,7 +124,9 @@ public class DBSync: ObservableObject {
                     case .initial(_):
                         break
                     case .update(_, deletions: _, insertions: _, modifications: _):
-                        Task { [weak self] in await self?.syncIfNeeded() }
+                        Task { [weak self] in
+                            await self?.syncIfNeeded()
+                        }
                     case .error(let error):
                         print(error.localizedDescription)
                     }

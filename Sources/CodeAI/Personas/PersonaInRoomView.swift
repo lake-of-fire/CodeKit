@@ -9,35 +9,44 @@ public struct PersonaInRoomView: View {
     let room: Room
     let onRemoved: () -> Void
     
+    @State private var personaModelOptionsViewModel: PersonaModelOptionsViewModel?
+    
     @ScaledMetric(relativeTo: .body) private var idealWidth = 370
     @ScaledMetric(relativeTo: .body) private var idealHeight = 390
     
     public var body: some View {
-        PersonaDetailsView(persona: persona)
-            .safeAreaInset(edge: .bottom) {
-                HStack {
-                    Button {
-                        Task { @MainActor in
-                            try await Realm.asyncWrite(ThreadSafeReference(to: room)) { realm, room in
-                                guard let matchPersona = realm.object(ofType: Persona.self, forPrimaryKey: persona.id) else { return }
-                                room.participants.remove(matchPersona)
-                            }
-                            onRemoved()
-                        }
-                    } label: {
+        Group {
+            if let personaModelOptionsViewModel = personaModelOptionsViewModel {
+                PersonaDetailsView(personaModelOptionsViewModel: personaModelOptionsViewModel)
+                    .safeAreaInset(edge: .bottom) {
                         HStack {
-                            Spacer()
-                            Text("Remove from Room")
-                            Spacer()
+                            Button {
+                                Task { @MainActor in
+                                    try await Realm.asyncWrite(ThreadSafeReference(to: room)) { realm, room in
+                                        guard let matchPersona = realm.object(ofType: Persona.self, forPrimaryKey: persona.id) else { return }
+                                        room.participants.remove(matchPersona)
+                                    }
+                                    onRemoved()
+                                }
+                            } label: {
+                                HStack {
+                                    Spacer()
+                                    Text("Remove from Room")
+                                    Spacer()
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                            .padding(10)
                         }
+                        .background(.ultraThinMaterial)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
-                    .padding(10)
-                }
-                .background(.ultraThinMaterial)
+                    .frame(idealWidth: idealWidth, idealHeight: idealHeight)
             }
-            .frame(idealWidth: idealWidth, idealHeight: idealHeight)
+        }
+        .task { @MainActor in
+            personaModelOptionsViewModel = PersonaModelOptionsViewModel(persona: persona)
+        }
     }
     
     public init(persona: Persona, room: Room, onRemoved: @escaping () -> Void) {

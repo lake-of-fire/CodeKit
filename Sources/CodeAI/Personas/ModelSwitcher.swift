@@ -6,14 +6,41 @@ import CodeCore
 import Metal
 import Combine
 
+struct ModelSwitcher: View {
+    @ObservedObject var personaModelOptionsViewModel: PersonaModelOptionsViewModel
+    
+    var body: some View {
+        Group {
+            if personaModelOptionsViewModel.persona.modelOptions.count > 4 || personaModelOptionsViewModel.persona.modelOptions.isEmpty {
+                ModelPickerView(personaModelOptionsViewModel: personaModelOptionsViewModel)
+                    .pickerStyle(.menu)
+#if os(macOS)
+                    .introspect(.picker(style: .menu), on: .macOS(.v12...)) { picker in
+                        picker.isBordered = false
+                    }
+#endif
+                    .fixedSize()
+            } else {
+                ModelPickerView(personaModelOptionsViewModel: personaModelOptionsViewModel)
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+            }
+        }
+    }
+}
+
 public struct ModelPickerView: View {
-    @ObservedRealmObject var persona: Persona
+    @ObservedObject var personaModelOptionsViewModel: PersonaModelOptionsViewModel
     @EnvironmentObject private var viewModel: ModelsControlsViewModel
     
     @State private var personaLastModifiedAt: Date?
     
-    public init(persona: Persona) {
-        self._persona = ObservedRealmObject(wrappedValue: persona)
+    public init(personaModelOptionsViewModel: PersonaModelOptionsViewModel) {
+        self.personaModelOptionsViewModel = personaModelOptionsViewModel
+    }
+    
+    var persona: Persona {
+        return personaModelOptionsViewModel.persona
     }
     
     public var body: some View {

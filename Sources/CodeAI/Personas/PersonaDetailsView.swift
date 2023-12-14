@@ -5,7 +5,7 @@ import DebouncedOnChange
 import CodeCore
 
 public struct PersonaDetailsView: View {
-    @ObservedRealmObject public var persona: Persona
+    @ObservedObject public var personaModelOptionsViewModel: PersonaModelOptionsViewModel
 
     @State private var name: String = ""
     @State private var modelTemperature = 0.5
@@ -36,7 +36,7 @@ public struct PersonaDetailsView: View {
             }
 
             Section("Configuration") {
-                ModelPickerView(persona: persona)
+                ModelPickerView(personaModelOptionsViewModel: personaModelOptionsViewModel)
                     .environmentObject(modelsControlsViewModel)
                 LabeledContent {
                     Slider(value: $modelTemperature, in: 0.0...2.0)  {
@@ -131,7 +131,7 @@ public struct PersonaDetailsView: View {
         }
     }
 
-    public init(persona: Persona) {
-        self.persona = persona
+    public init(personaModelOptionsViewModel: PersonaModelOptionsViewModel) {
+        self.personaModelOptionsViewModel = personaModelOptionsViewModel
     }
 }

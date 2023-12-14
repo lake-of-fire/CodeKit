@@ -202,35 +202,44 @@ public struct PersonaListView: View {
     @ScaledMetric(relativeTo: .body) private var idealWidth = 320
     @ScaledMetric(relativeTo: .body) private var idealHeight = 360
     
+    @State private var personaModelOptionsViewModel: PersonaModelOptionsViewModel?
+    
     public var body: some View {
         NavigationStack {
             PersonaList(room: room)
                 .frame(idealWidth: idealWidth, idealHeight: idealHeight)
                 .navigationDestination(for: Persona.self) { persona in
-                    PersonaDetailsView(persona: persona)
-                        .safeAreaInset(edge: .bottom) {
-                            HStack {
-                                Button {
-                                    Task { @MainActor in
-                                        try await Realm.asyncWrite(ThreadSafeReference(to: room)) { realm, room in
-                                            guard let matchPersona = realm.object(ofType: Persona.self, forPrimaryKey: persona.id) else { return }
-                                            room.participants.insert(matchPersona)
-                                        }
-                                        onSelected(persona)
-                                    }
-                                } label: {
+                    Group {
+                        if let personaModelOptionsViewModel = personaModelOptionsViewModel {
+                            PersonaDetailsView(personaModelOptionsViewModel: personaModelOptionsViewModel)
+                                .safeAreaInset(edge: .bottom) {
                                     HStack {
-                                        Spacer()
-                                        Text("Add to Room")
-                                        Spacer()
+                                        Button {
+                                            Task { @MainActor in
+                                                try await Realm.asyncWrite(ThreadSafeReference(to: room)) { realm, room in
+                                                    guard let matchPersona = realm.object(ofType: Persona.self, forPrimaryKey: persona.id) else { return }
+                                                    room.participants.insert(matchPersona)
+                                                }
+                                                onSelected(persona)
+                                            }
+                                        } label: {
+                                            HStack {
+                                                Spacer()
+                                                Text("Add to Room")
+                                                Spacer()
+                                            }
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .padding(10)
                                     }
+                                    .background(.ultraThinMaterial)
                                 }
-                                .buttonStyle(.borderedProminent)
-                                .padding(10)
-                            }
-                            .background(.ultraThinMaterial)
+                                .navigationTitle(persona.name)
                         }
-                        .navigationTitle(persona.name)
+                    }
+                    .task { @MainActor in
+                        personaModelOptionsViewModel = PersonaModelOptionsViewModel(persona: persona)
+                    }
                 }
         }
     }

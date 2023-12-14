@@ -328,6 +328,8 @@ public struct CodeLibraryView: View {
     @SceneStorage("navigation") private var navigationData: Data?
     @Environment(\.dismiss) private var dismiss
     
+    @State private var personaModelOptionsViewModel: PersonaModelOptionsViewModel?
+    
     func packageCell(package: CodePackage) -> some View {
 //        CodeLibraryPackageCell(package: package, personas: Array(allOnlinePersonas.where({ $0.providedByExtension.package == package })), navigationModel: navigationModel)
         CodeLibraryPackageCell(package: package)
@@ -440,8 +442,15 @@ public struct CodeLibraryView: View {
                     }
                 }
                 .navigationDestination(for: Persona.self) { persona in
-                    PersonaDetailsView(persona: persona)
-                        .navigationTitle(persona.name)
+                    Group {
+                        if let personaModelOptionsViewModel = personaModelOptionsViewModel {
+                            PersonaDetailsView(personaModelOptionsViewModel: personaModelOptionsViewModel)
+                        }
+                    }
+                    .task { @MainActor in
+                        personaModelOptionsViewModel = PersonaModelOptionsViewModel(persona: persona)
+                    }
+                    .navigationTitle(persona.name)
                 }
             }
         })

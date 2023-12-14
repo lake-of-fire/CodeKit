@@ -462,8 +462,11 @@ public class PersonaModelOptionsViewModel: ObservableObject {
     public init(persona: Persona) {
         self.persona = persona
         
+        let ref = ThreadSafeReference(to: persona)
         Task { @RealmBackgroundActor [weak self] in
             guard let self = self else { return }
+            let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
+            guard let persona = realm.resolve(ref) else { return }
             objectNotificationToken = persona
                 .observe { [weak self] change in
                     guard let self = self else { return }

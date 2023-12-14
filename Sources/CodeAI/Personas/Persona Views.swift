@@ -118,10 +118,14 @@ public struct PersonaStyleButton: View {
 }
 
 public protocol PersonaIconProtocol {
-    var persona: Persona { get }
+    var personaViewModel: PersonaViewModel { get }
 }
 
 public extension PersonaIconProtocol {
+    var persona: Persona {
+        personaViewModel.persona
+    }
+    
     var symbol: String {
         if let iconSymbol = persona.iconSymbol {
             return iconSymbol
@@ -158,7 +162,7 @@ public extension Persona.PersonaTint {
 }
 
 public struct PersonaIcon: View, PersonaIconProtocol {
-    @ObservedRealmObject public var persona: Persona
+    @ObservedObject public var personaViewModel: PersonaViewModel
     var size: CGFloat
     var isFilled = true
     let tint: Color
@@ -167,27 +171,27 @@ public struct PersonaIcon: View, PersonaIconProtocol {
         PersonaStyleIcon(size: size, iconSymbol: symbol, tint: personaTint)
     }
     
-    public init(persona: Persona, size: CGFloat = 21, isFilled: Bool = true, tint: Color? = nil) {
-        self.persona = persona
+    public init(personaViewModel: PersonaViewModel, size: CGFloat = 21, isFilled: Bool = true, tint: Color? = nil) {
+        self.personaViewModel = personaViewModel
         self.size = size
         self.isFilled = isFilled
-        self.tint = tint ?? persona.tint.color
+        self.tint = tint ?? personaViewModel.persona.tint.color
     }
 }
 
 public struct PersonaButton: View, PersonaIconProtocol {
-    @ObservedRealmObject public var persona: Persona
+    @ObservedObject public var personaViewModel: PersonaViewModel
     let size: CGFloat
     let hasBorder: Bool
     let borderColor: Color
     let action: (() -> Void)
     
     public var body: some View {
-        PersonaStyleButton(title: persona.name, iconSymbol: symbol, size: size, tint: personaTint, hasBorder: hasBorder, borderColor: borderColor, action: action)
+        PersonaStyleButton(title: personaViewModel.persona.name, iconSymbol: symbol, size: size, tint: personaTint, hasBorder: hasBorder, borderColor: borderColor, action: action)
     }
     
-    public init(persona: Persona, size: CGFloat = 21, hasBorder: Bool = true, borderColor: Color = Color.accentColor, action: @escaping () -> Void) {
-        self.persona = persona
+    public init(personaViewModel: PersonaViewModel, size: CGFloat = 21, hasBorder: Bool = true, borderColor: Color = Color.accentColor, action: @escaping () -> Void) {
+        self.personaViewModel = personaViewModel
         self.action = action
         self.size = size
         self.hasBorder = hasBorder

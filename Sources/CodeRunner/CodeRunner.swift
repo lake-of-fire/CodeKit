@@ -91,6 +91,7 @@ public struct CodeRunner: View {
             codeCoreViewModel.additionalAllowHosts = []
         }
         codeCoreViewModel.onLoadFailed = { error in
+            print("### RUN FAILED \(url.absoluteString)")
             print(error)
         }
         
@@ -100,13 +101,16 @@ public struct CodeRunner: View {
             baseURL: URL(string: "about:blank")!)
         
         codeCoreViewModel.onLoadSuccess = {
+            print("### RUN 1 \(url.absoluteString)")
             codeCoreViewModel.onLoadSuccess = {
+            print("### RUN 2 \(url.absoluteString)")
                 if let syncedTypes = syncedTypes, let asyncJavaScriptCaller = codeCoreViewModel.asyncJavaScriptCaller {
                     guard let realm = codeExtension.realm else {
                         print("No Realm found for CodeExtension in CodeRunner")
                         return
                     }
                     let ref = ThreadSafeReference(to: codeExtension)
+                    print("### DB SYNC \(url.absoluteString)")
                     await dbSync.initialize(
                         realmConfiguration: realm.configuration,
                         syncedTypes: syncedTypes,
@@ -123,6 +127,8 @@ public struct CodeRunner: View {
                                     try await Realm.asyncWrite(ThreadSafeReference(to: codeExtension)) { realm, codeExtension in
                                         codeExtension.lastRunStartedAt = Date()
                                     }
+                                    
+                                    print("### DB SYNC FINISHED \(url.absoluteString)")
                                 } catch {
                                     print(error)
                                 }

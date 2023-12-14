@@ -5,14 +5,15 @@ import DebouncedOnChange
 import CodeCore
 import Metal
 import Combine
+@_spi(Advanced) import SwiftUIIntrospect
 
 struct ModelSwitcher: View {
-    @ObservedObject var personaModelOptionsViewModel: PersonaModelOptionsViewModel
+    @ObservedObject var personaViewModel: PersonaViewModel
     
     var body: some View {
         Group {
-            if personaModelOptionsViewModel.persona.modelOptions.count > 4 || personaModelOptionsViewModel.persona.modelOptions.isEmpty {
-                ModelPickerView(personaModelOptionsViewModel: personaModelOptionsViewModel)
+            if personaViewModel.persona.modelOptions.count > 4 || personaViewModel.persona.modelOptions.isEmpty {
+                ModelPickerView(personaViewModel: personaViewModel)
                     .pickerStyle(.menu)
 #if os(macOS)
                     .introspect(.picker(style: .menu), on: .macOS(.v12...)) { picker in
@@ -21,7 +22,7 @@ struct ModelSwitcher: View {
 #endif
                     .fixedSize()
             } else {
-                ModelPickerView(personaModelOptionsViewModel: personaModelOptionsViewModel)
+                ModelPickerView(personaViewModel: personaViewModel)
                     .pickerStyle(.segmented)
                     .labelsHidden()
             }
@@ -30,17 +31,17 @@ struct ModelSwitcher: View {
 }
 
 public struct ModelPickerView: View {
-    @ObservedObject var personaModelOptionsViewModel: PersonaModelOptionsViewModel
+    @ObservedObject var personaViewModel: PersonaViewModel
     @EnvironmentObject private var viewModel: ModelsControlsViewModel
     
     @State private var personaLastModifiedAt: Date?
     
-    public init(personaModelOptionsViewModel: PersonaModelOptionsViewModel) {
-        self.personaModelOptionsViewModel = personaModelOptionsViewModel
+    public init(personaViewModel: PersonaViewModel) {
+        self.personaViewModel = personaViewModel
     }
     
     var persona: Persona {
-        return personaModelOptionsViewModel.persona
+        return personaViewModel.persona
     }
     
     public var body: some View {

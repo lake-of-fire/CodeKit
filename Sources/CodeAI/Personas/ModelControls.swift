@@ -79,7 +79,7 @@ open class BlockableMessagingViewModel: ObservableObject {
 
 struct ModelControls: View {
     @ObservedObject var viewModel: ModelsControlsViewModel
-    @ObservedRealmObject var persona: Persona
+    @ObservedObject var personaViewModel: PersonaViewModel
     @ObservedObject var downloadable: Downloadable
     
     @ObservedObject private var downloadController = DownloadController.shared
@@ -454,8 +454,8 @@ class ModelsControlsViewModel: ObservableObject {
         }
     }
 }
-public class PersonaModelOptionsViewModel: ObservableObject {
-    let persona: Persona
+public class PersonaViewModel: ObservableObject {
+    public let persona: Persona
     
     @RealmBackgroundActor private var objectNotificationToken: NotificationToken?
     
@@ -472,7 +472,9 @@ public class PersonaModelOptionsViewModel: ObservableObject {
                     guard let self = self else { return }
                     switch change {
                     case  .change(_, _), .deleted:
-                        objectWillChange.send()
+                        Task { @MainActor [weak self] in
+                            self?.objectWillChange.send()
+                        }
                     case .error(let error):
                         print("An error occurred: \(error)")
                     }
@@ -488,58 +490,50 @@ public class PersonaModelOptionsViewModel: ObservableObject {
 }
 
 public struct ModelsControlsContainer: View {
-    @ObservedRealmObject var persona: Persona
+    @ObservedObject var personaViewModel: PersonaViewModel
    
     @ObservedObject private var downloadController = DownloadController.shared
     @StateObject private var viewModel = ModelsControlsViewModel()
-    @State private var personaModelOptionsViewModel: PersonaModelOptionsViewModel?
     
 //    @ObservedResults(LLMConfiguration.self, where: {
 //        !$0.isDeleted }, keyPaths: ["id", "usedByPersona"]) private var llmConfigurations
     
-    public init(persona: Persona) {
-        self.persona = persona
+    public init(personaViewModel: PersonaViewModel) {
+        self.personaViewModel = personaViewModel
     }
     
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let personaModelOptionsViewModel = personaModelOptionsViewModel {
-                ModelSwitcher(personaModelOptionsViewModel: personaModelOptionsViewModel)
-                    .task {
-                        Task { @MainActor in
-                            viewModel.persona = persona.freeze()
+            ModelSwitcher(personaViewModel: personaViewModel)
+                .task { @MainActor in
+                    viewModel.persona = personaViewModel.persona.freeze()
+                }
+                .onChange(of: personaViewModel.persona) { persona in
+                    Task { @MainActor in
+                        let persona = persona.freeze()
+                        if viewModel.persona != persona {
+                            viewModel.persona = persona
                         }
-                    }
-                    .onChange(of: persona) { persona in
-                        Task { @MainActor in
-                            let persona = persona.freeze()
-                            if viewModel.persona != persona {
-                                viewModel.persona = persona
-                            }
-                            //                        viewModel.refreshModelItems()
-                        }
-                    }
-                
-                HStack(alignment: .center) {
-                    Text("\(persona.name.truncate(20)) AI Model")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                    if let downloadable = viewModel.selectedDownloadable {
-                        ModelControls(viewModel: viewModel, persona: persona, downloadable: downloadable)
+                        //                        viewModel.refreshModelItems()
                     }
                 }
+            
+            HStack(alignment: .center) {
+                Text("\(personaViewModel.persona.name.truncate(20)) AI Model")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                if let downloadable = viewModel.selectedDownloadable {
+                    ModelControls(viewModel: viewModel, personaViewModel: personaViewModel, downloadable: downloadable)
+                }
+            }
 #if os(macOS)
-                .padding(.leading, 3)
-                .padding(.top, 2)
+            .padding(.leading, 3)
+            .padding(.top, 2)
 #else
-                .padding(.leading, 12)
-                .padding(.bottom, 2)
+            .padding(.leading, 12)
+            .padding(.bottom, 2)
 #endif
-            }
-            }
-        .environmentObject(viewModel)
-        .task { @MainActor in
-            personaModelOptionsViewModel = PersonaModelOptionsViewModel(persona: persona)
         }
+        .environmentObject(viewModel)
     }
 }

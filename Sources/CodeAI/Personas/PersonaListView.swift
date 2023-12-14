@@ -33,19 +33,19 @@ public class PersonaListViewModel: ObservableObject {
 }
 
 public struct PersonaListItem: View {
-    @ObservedRealmObject var persona: Persona
+    @ObservedObject private var personaViewModel: PersonaViewModel
     
     public var body: some View {
         HStack(spacing: 0) {
-            PersonaIcon(persona: persona)
+            PersonaIcon(personaViewModel: personaViewModel)
                 .padding(.trailing)
-            Text(persona.name)
+            Text(personaViewModel.persona.name)
             Spacer(minLength: 0)
         }
     }
     
-    public init(persona: Persona) {
-        self.persona = persona
+    public init(personaViewModel: PersonaViewModel) {
+        self.personaViewModel = personaViewModel
     }
 }
 
@@ -69,6 +69,36 @@ public struct WrappedPersona: Identifiable, Hashable {
     }
 }
 
+struct WrappedPersonaListItem: View {
+    let persona: WrappedPersona
+    let allPersonas: [WrappedPersona]
+    let maxRanks: [String: Int]
+    
+    @State private var personaViewModel: PersonaViewModel?
+    
+    public var body: some View {
+        //        Text(Array(personas).map { $0.persona.name }.joined(separator: ";"))
+        Group {
+            if maxRanks[persona.rankedName] == persona.rank {
+                Label(allPersonas.contains(where: { $0.rankedName == persona.rankedName && $0.rank != persona.rank }) ? "Add New \(persona.rankedName)" : persona.rankedName, systemImage: "plus")
+                    .foregroundStyle(Color.accentColor)
+            } else if let personaViewModel = personaViewModel {
+                PersonaListItem(personaViewModel: personaViewModel)
+            }
+        }
+        .tag(persona.persona)
+        .task { @MainActor in
+            personaViewModel = PersonaViewModel(persona: persona.persona)
+        }
+    }
+    
+    public init(persona: WrappedPersona, allPersonas: [WrappedPersona], maxRanks: [String: Int]) {
+        self.persona = persona
+        self.allPersonas = allPersonas
+        self.maxRanks = maxRanks
+    }
+}
+
 public struct PersonaListItems: View {
     public let personas: [WrappedPersona]
     public let maxRanks: [String: Int]
@@ -76,14 +106,15 @@ public struct PersonaListItems: View {
     public var body: some View {
 //        Text(Array(personas).map { $0.persona.name }.joined(separator: ";"))
         ForEach(personas, id: \.persona) { persona in
-            if maxRanks[persona.rankedName] == persona.rank {
-                Label(personas.contains(where: { $0.rankedName == persona.rankedName && $0.rank != persona.rank }) ? "Add New \(persona.rankedName)" : persona.rankedName, systemImage: "plus")
-                    .foregroundStyle(Color.accentColor)
-                    .tag(persona.persona)
-            } else {
-                PersonaListItem(persona: persona.persona)
-                    .tag(persona.persona)
+            Group {
+                if maxRanks[persona.rankedName] == persona.rank {
+                    Label(personas.contains(where: { $0.rankedName == persona.rankedName && $0.rank != persona.rank }) ? "Add New \(persona.rankedName)" : persona.rankedName, systemImage: "plus")
+                        .foregroundStyle(Color.accentColor)
+                } else {
+                    WrappedPersonaListItem(persona: persona, allPersonas: personas, maxRanks: maxRanks)
+                }
             }
+            .tag(persona.persona)
         }
     }
     
@@ -202,7 +233,7 @@ public struct PersonaListView: View {
     @ScaledMetric(relativeTo: .body) private var idealWidth = 320
     @ScaledMetric(relativeTo: .body) private var idealHeight = 360
     
-    @State private var personaModelOptionsViewModel: PersonaModelOptionsViewModel?
+    @State private var personaViewModel: PersonaViewModel?
     
     public var body: some View {
         NavigationStack {
@@ -210,8 +241,8 @@ public struct PersonaListView: View {
                 .frame(idealWidth: idealWidth, idealHeight: idealHeight)
                 .navigationDestination(for: Persona.self) { persona in
                     Group {
-                        if let personaModelOptionsViewModel = personaModelOptionsViewModel {
-                            PersonaDetailsView(personaModelOptionsViewModel: personaModelOptionsViewModel)
+                        if let personaViewModel = personaViewModel {
+                            PersonaDetailsView(personaViewModel: personaViewModel)
                                 .safeAreaInset(edge: .bottom) {
                                     HStack {
                                         Button {
@@ -238,7 +269,7 @@ public struct PersonaListView: View {
                         }
                     }
                     .task { @MainActor in
-                        personaModelOptionsViewModel = PersonaModelOptionsViewModel(persona: persona)
+                        personaViewModel = PersonaViewModel(persona: persona)
                     }
                 }
         }

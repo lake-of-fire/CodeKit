@@ -9,15 +9,15 @@ public struct PersonaInRoomView: View {
     let room: Room
     let onRemoved: () -> Void
     
-    @State private var personaModelOptionsViewModel: PersonaModelOptionsViewModel?
+    @State private var personaViewModel: PersonaViewModel?
     
     @ScaledMetric(relativeTo: .body) private var idealWidth = 370
     @ScaledMetric(relativeTo: .body) private var idealHeight = 390
     
     public var body: some View {
         Group {
-            if let personaModelOptionsViewModel = personaModelOptionsViewModel {
-                PersonaDetailsView(personaModelOptionsViewModel: personaModelOptionsViewModel)
+            if let personaViewModel = personaViewModel {
+                PersonaDetailsView(personaViewModel: personaViewModel)
                     .safeAreaInset(edge: .bottom) {
                         HStack {
                             Button {
@@ -45,7 +45,7 @@ public struct PersonaInRoomView: View {
             }
         }
         .task { @MainActor in
-            personaModelOptionsViewModel = PersonaModelOptionsViewModel(persona: persona)
+            personaViewModel = PersonaViewModel(persona: persona)
         }
     }
     

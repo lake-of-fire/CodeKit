@@ -4,6 +4,23 @@ import CodeAI
 import RealmSwift
 import RealmSwiftGaps
 
+fileprivate struct CodePackagePersonaView: View {
+    let persona: Persona
+    
+    @State private var personaViewModel: PersonaViewModel?
+    
+    var body: some View {
+        Group {
+            if let personaViewModel = personaViewModel {
+                PersonaListItem(personaViewModel: personaViewModel)
+            }
+        }
+        .task { @MainActor in
+            personaViewModel = PersonaViewModel(persona: persona)
+        }
+    }
+}
+
 struct CodePackageView: View {
     @ObservedRealmObject var package: CodePackage
     @ObservedObject var repository: CodePackageRepository
@@ -52,7 +69,7 @@ struct CodePackageView: View {
                     if !extensionPersonas.isEmpty {
                         ForEach(extensionPersonas) { persona in
                             NavigationLink(value: persona) {
-                                PersonaListItem(persona: persona)
+                                CodePackagePersonaView(persona: persona)
                             }
                         }
                     }

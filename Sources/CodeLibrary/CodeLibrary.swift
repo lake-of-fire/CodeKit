@@ -1,5 +1,6 @@
 import SwiftUI
 import RealmSwift
+import Combine
 import FilePicker
 import UniformTypeIdentifiers
 import OPML
@@ -13,11 +14,33 @@ import CodeCore
 import CodeCI
 import CodeAI
 
+fileprivate class CodePackageWithRepositoryViewwModel: ObservableObject {
+    @Published var allOnlinePersonas: [Persona]? = nil
+    
+    private var cancellables = Set<AnyCancellable>()
+    
+    init() {
+        Task { @RealmBackgroundActor in
+            let realm = try await Realm(configuration: .defaultConfiguration, actor: RealmBackgroundActor.shared)
+            realm.objects(Persona.self)
+                .where { !$0.isDeleted && $0.providedByExtension != nil && $0.personaType == .bot && $0.online }
+                .collectionPublisher
+                .removeDuplicates()
+                .debounce(for: .seconds(0.5), scheduler: DispatchQueue.main)
+                .sink(receiveCompletion: { _ in }, receiveValue: { [weak self] results in
+                    Task { @MainActor [weak self] in
+                        guard let self = self else { return }
+                        allOnlinePersonas = Array(results)
+                    }
+                })
+        }
+    }
+}
+
 public struct CodePackageWithRepositoryView: View {
     let package: CodePackage
     
-    // For the view updates...
-    @ObservedResults(Persona.self, where: { !$0.isDeleted && $0.providedByExtension != nil && $0.personaType == .bot && $0.online }) private var allOnlinePersonas
+    @StateObject private var viewModel = CodePackageWithRepositoryViewwModel()
     
     @State private var repository: CodePackageRepository? = nil
     @State private var personas: [Persona] = []
@@ -58,7 +81,7 @@ public struct CodePackageWithRepositoryView: View {
         Task { @MainActor in
             let package = package ?? self.package
             repository = CodePackageRepository(package: package, codeCoreViewModel: nil)
-            personas = Array(allOnlinePersonas.filter { $0.providedByExtension?.package?.id == package.id })
+            personas = viewModel.allOnlinePersonas?.filter { $0.providedByExtension?.package?.id == package.id } ?? []
         }
     }
 }

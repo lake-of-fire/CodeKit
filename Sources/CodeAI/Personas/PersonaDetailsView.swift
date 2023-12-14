@@ -15,6 +15,10 @@ public struct PersonaDetailsView: View {
     
     @StateObject private var modelsControlsViewModel = ModelsControlsViewModel()
     
+    var persona: Persona {
+        return personaModelOptionsViewModel.persona
+    }
+    
     public var body: some View {
         Form {
             TextField("Name", text: $name)

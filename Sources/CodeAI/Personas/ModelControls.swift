@@ -286,7 +286,10 @@ class ModelsControlsViewModel: ObservableObject {
             
             // Default model
             if let llm = realm.objects(LLMConfiguration.self).where({ !$0.isDeleted && $0.usedByPersona.id == persona.id }).first {
-                selectedModel = llm.id
+                let llmID = llm.id
+                await Task { @MainActor [weak self] in
+                    self?.selectedModel = llmID
+                }.value
             } else {
                 let llms = Array(realm.objects(LLMConfiguration.self)
                     .where({ !$0.isDeleted && $0.usedByPersona == nil })
@@ -296,14 +299,17 @@ class ModelsControlsViewModel: ObservableObject {
                         llm.usedByPersona = persona
                         llm.modifiedAt = Date()
                     }
-                    selectedModel = llm.id
+                    let llmID = llm.id
+                    await Task { @MainActor [weak self] in
+                        self?.selectedModel = llmID
+                    }.value
                 }
             }
             
             let llmIsNone = await LLMModel.shared.state == .none
             let localLLMFileSelected = await LLMModel.shared.state == .none
             
-            self.modelItems = realm.objects(LLMConfiguration.self)
+            let modelItems = realm.objects(LLMConfiguration.self)
                 .where {
                     $0.name.in(modelOptions) && !$0.isDeleted && ($0.usedByPersona.id == persona.id || $0.usedByPersona == nil)
                 }
@@ -340,6 +346,9 @@ class ModelsControlsViewModel: ObservableObject {
                 }
                 .sorted { $0.displayName < $1.displayName }
                 .map { (llm: LLMConfiguration) -> (UUID, String) in (llm.id, llm.displayName) }
+            await Task { @MainActor [weak self] in
+                self?.modelItems = modelItems
+            }.value
             if !modelItems.contains(where: { $0.0.uuidString == self.selectedModel?.uuidString }) {
                 // Get a new default if the old selection is no longer available.
                 let llms = Array(realm.objects(LLMConfiguration.self)
@@ -350,7 +359,10 @@ class ModelsControlsViewModel: ObservableObject {
                         llm.usedByPersona = persona
                         llm.modifiedAt = Date()
                     }
-                    selectedModel = llm.id
+                    let llmID = llm.id
+                    await Task { @MainActor [weak self] in
+                        self?.selectedModel = llmID
+                    }.value
                 }
             }
         }.value
